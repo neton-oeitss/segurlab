@@ -1,0 +1,733 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lab ACL — Firewall / Reglas iptables Simulado</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111a2e; --panel2:#0e1626; --line:#22304d;
+    --txt:#dbe4f5; --dim:#8fa3c8; --acc:#4f8cff; --ok:#3ddc97; --warn:#ffc857;
+    --bad:#ff5d73; --bad2:#c93b52; --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font:15px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif;padding-bottom:40px}
+  header{padding:22px 20px 10px;max-width:1280px;margin:0 auto}
+  header h1{font-size:1.5rem;letter-spacing:.3px}
+  header h1 .dot{color:var(--acc)}
+  header p{color:var(--dim);margin-top:4px;max-width:920px}
+  .badges{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .badge{font-size:.72rem;padding:3px 10px;border-radius:99px;border:1px solid var(--line);color:var(--dim);background:var(--panel)}
+  .badge.red{border-color:#5c2e3a;color:#ff8fa0;background:#2a1420}
+  .badge.blue{border-color:#2b4a7a;color:#9cc1ff;background:#14233f}
+  .badge.green{border-color:#1e5c45;color:#7dffc7;background:#0f2a20}
+  nav{display:flex;gap:6px;max-width:1280px;margin:14px auto 0;padding:0 20px;flex-wrap:wrap}
+  nav button{background:var(--panel);border:1px solid var(--line);color:var(--dim);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-size:.9rem}
+  nav button.active{background:var(--panel2);color:var(--txt);border-bottom-color:var(--acc);font-weight:600}
+  main{max-width:1280px;margin:0 auto;padding:16px 20px}
+  section.view{display:none;border-top:1px solid var(--acc);background:var(--panel2);border-radius:0 10px 10px 10px;padding:20px}
+  section.view.active{display:block}
+  h2{font-size:1.15rem;margin-bottom:10px;color:#fff}
+  h3{font-size:1rem;margin:14px 0 6px}
+  h3:first-child{margin-top:0}
+  p.lead{color:var(--dim);margin-bottom:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .grid-lab{display:grid;grid-template-columns:minmax(380px,5fr) 7fr;gap:14px;margin-top:14px}
+  @media(max-width:1000px){.grid2,.grid3,.grid-lab{grid-template-columns:1fr}}
+  label.chk{display:flex;gap:8px;align-items:center;margin:6px 0;font-size:.9rem;cursor:pointer}
+  label.chk input{accent-color:var(--acc)}
+  label.f{display:block;font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+  select,input[type=text]{background:#0a101d;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:7px 8px;font-size:.88rem;width:100%}
+  input[type=number]{background:#0a101d;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:4px 8px;font-family:var(--mono);width:90px}
+  .btn{background:var(--acc);color:#fff;border:0;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;margin-right:6px}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  .btn.warn{background:var(--bad2)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:.82rem}
+  th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  th{color:var(--dim);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.5px}
+  td.mono,th.mono{font-family:var(--mono)}
+  .cmd{font-family:var(--mono);font-size:.72rem;color:#9cc1ff}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}
+  .metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .metric .k{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.6px}
+  .metric .v{font-size:1.35rem;font-weight:700;color:#fff;font-family:var(--mono)}
+  .metric .v.ok{color:var(--ok)} .metric .v.hot{color:var(--bad)}
+  .logwrap{height:430px;overflow:auto;background:#0a101d;border:1px solid var(--line);border-radius:10px}
+  .logwrap table{font-family:var(--mono);font-size:.76rem}
+  .logwrap td{border-bottom:1px solid #17233c}
+  .v-acc{color:var(--ok);font-weight:700} .v-drop{color:var(--bad);font-weight:700} .v-rej{color:var(--warn);font-weight:700}
+  .rule-actions button{background:#1a2640;border:1px solid var(--line);color:var(--txt);border-radius:4px;cursor:pointer;padding:1px 7px;font-size:.8rem;margin-right:3px}
+  .rule-actions button:disabled{opacity:.3;cursor:not-allowed}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:10px;margin-bottom:10px}
+  .hint{font-size:.78rem;color:var(--dim);margin-top:8px}
+  .err{color:var(--bad);font-size:.8rem;margin-top:6px;min-height:1em}
+  .ex-card{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:var(--panel);cursor:pointer;margin-bottom:10px}
+  .ex-card.active{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+  .ex-card b{display:block;margin-bottom:2px}
+  .ex-card .meta{font-size:.78rem;color:var(--dim)}
+  .policy{background:#101c33;border:1px solid #2b4a7a;border-radius:8px;padding:10px 12px;font-size:.9rem;margin:10px 0}
+  .policy li{margin-left:18px;margin-top:4px}
+  .verdict-ok{color:var(--ok);font-weight:700}
+  .verdict-bad{color:var(--bad);font-weight:700}
+  .score{font-size:1.6rem;font-weight:800;font-family:var(--mono)}
+  details{margin-top:6px}
+  summary{cursor:pointer;color:var(--acc);font-size:.85rem}
+  details pre{background:#0a101d;border:1px solid var(--line);border-radius:6px;padding:10px;font-size:.75rem;overflow:auto;font-family:var(--mono);margin-top:6px}
+  code{font-family:var(--mono);background:#1a2640;border-radius:4px;padding:1px 5px;font-size:.85em}
+  pre.block{background:#0a101d;border:1px solid var(--line);border-radius:6px;padding:10px;font-size:.76rem;overflow:auto;font-family:var(--mono);margin-top:6px}
+  .topo{background:#0a101d;border:1px solid var(--line);border-radius:10px;padding:10px;margin-top:10px}
+  footer{max-width:1280px;margin:20px auto 0;padding:12px 20px;color:var(--dim);font-size:.78rem;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🧱 Lab ACL <span class="dot">//</span> Firewall y Listas de Control de Acceso</h1>
+  <p>Laboratorio simulado de configuración de cortafuegos con reglas estilo <b>iptables</b>: define políticas por cadena (INPUT / OUTPUT / FORWARD), ordénalas y verifica contra tráfico de prueba real si cada paquete debe <b>permitirse</b> o <b>bloquearse</b>. Todo se evalúa localmente en tu navegador — no hay red real.</p>
+  <div class="badges">
+    <span class="badge blue">iptables</span>
+    <span class="badge blue">Default-deny</span>
+    <span class="badge blue">Stateful NEW/ESTABLISHED</span>
+    <span class="badge red">DROP vs REJECT</span>
+    <span class="badge green">Solo defensivo · datos sintéticos</span>
+  </div>
+</header>
+
+<nav id="tabs">
+  <button data-v="guia" class="active">📖 Guía y topología</button>
+  <button data-v="lab">🧪 Laboratorio en vivo</button>
+  <button data-v="desafio">🎯 Desafíos de política</button>
+  <button data-v="ref">📚 Teoría y referencias</button>
+</nav>
+
+<main>
+
+<!-- ============ GUÍA ============ -->
+<section class="view active" id="view-guia">
+  <h2>Objetivo del laboratorio</h2>
+  <p class="lead">Aprender a traducir una política de seguridad en lenguaje natural a un ruleset operativo: reglas ordenadas, coincidencia por primera regla, políticas por defecto y verificación con tráfico de prueba.</p>
+  <div class="topo">
+    <h3>🗺️ Topología simulada</h3>
+    <svg viewBox="0 0 780 230" style="width:100%;height:auto">
+      <ellipse cx="90" cy="115" rx="70" ry="42" fill="#14233f" stroke="#2b4a7a"/>
+      <text x="90" y="108" fill="#9cc1ff" font-size="13" text-anchor="middle">INTERNET</text>
+      <text x="90" y="126" fill="#8fa3c8" font-size="10" text-anchor="middle">0.0.0.0/0</text>
+      <line x1="160" y1="115" x2="300" y2="115" stroke="#4f8cff" stroke-width="2"/>
+      <text x="230" y="105" fill="#8fa3c8" font-size="9" text-anchor="middle">eth0 · WAN</text>
+      <rect x="300" y="80" width="150" height="70" rx="8" fill="#1a121e" stroke="#5c2e3a"/>
+      <text x="375" y="108" fill="#ff8fa0" font-size="13" text-anchor="middle" font-weight="bold">FIREWALL</text>
+      <text x="375" y="126" fill="#8fa3c8" font-size="10" text-anchor="middle">INPUT · OUTPUT · FORWARD</text>
+      <line x1="450" y1="95" x2="600" y2="55" stroke="#4f8cff" stroke-width="2"/>
+      <line x1="450" y1="135" x2="600" y2="175" stroke="#4f8cff" stroke-width="2"/>
+      <text x="525" y="60" fill="#8fa3c8" font-size="9">eth1 · LAN</text>
+      <text x="525" y="170" fill="#8fa3c8" font-size="9">eth2 · DMZ</text>
+      <rect x="600" y="25" width="160" height="55" rx="8" fill="#0f2a20" stroke="#1e5c45"/>
+      <text x="680" y="46" fill="#7dffc7" font-size="12" text-anchor="middle">LAN 10.0.1.0/24</text>
+      <text x="680" y="64" fill="#8fa3c8" font-size="10" text-anchor="middle">PCs .10-.19 · admin .5</text>
+      <rect x="600" y="150" width="160" height="55" rx="8" fill="#2a1420" stroke="#5c2e3a"/>
+      <text x="680" y="171" fill="#ff8fa0" font-size="12" text-anchor="middle">DMZ 172.16.0.0/24</text>
+      <text x="680" y="189" fill="#8fa3c8" font-size="10" text-anchor="middle">web .10 · ssh .20 · dns .53</text>
+    </svg>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <h3>🖧 Hosts y servicios de la simulación</h3>
+      <table>
+        <tr><th>Host</th><th>IP</th><th>Servicio</th></tr>
+        <tr><td>pc-admin</td><td class="mono">10.0.1.5</td><td>Estación de administración</td></tr>
+        <tr><td>WS-001…WS-010</td><td class="mono">10.0.1.10-19</td><td>Usuarios LAN</td></tr>
+        <tr><td>srv-web</td><td class="mono">172.16.0.10</td><td>HTTP 80 / HTTPS 443</td></tr>
+        <tr><td>srv-ssh</td><td class="mono">172.16.0.20</td><td>SSH 22 (DMZ)</td></tr>
+        <tr><td>srv-dns</td><td class="mono">172.16.0.53</td><td>DNS UDP 53</td></tr>
+        <tr><td>host-internet</td><td class="mono">203.0.113.9</td><td>Visitante normal</td></tr>
+        <tr><td>atacante</td><td class="mono">198.51.100.66</td><td>Host malicioso</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h3>⚙️ Conceptos clave (2 minutos)</h3>
+      <ul style="font-size:.88rem;color:var(--dim);margin-left:18px;line-height:1.8">
+        <li><b>Cadenas:</b> <code>INPUT</code> llega <i>al</i> firewall · <code>OUTPUT</code> sale <i>del</i> firewall · <code>FORWARD</code> lo atraviesa (p. ej. LAN ↔ DMZ o Internet).</li>
+        <li><b>Orden:</b> las reglas se evalúan de arriba abajo y <b>gana la primera que coincide</b>. Una regla DROP debe ir ANTES de cualquier ACCEPT que permitiría el paquete.</li>
+        <li><b>Política por defecto:</b> se aplica cuando ninguna regla coincide. La buena práctica es <code>DROP</code> (default-deny) y aceptar explícitamente lo necesario.</li>
+        <li><b>Estado:</b> <code>NEW</code> = conexión nueva (típicamente SYN) · <code>ESTABLISHED</code> = paquete de una conexión ya aceptada.</li>
+        <li><b>Notación:</b> origen/destino aceptan IP (<code>10.0.1.5</code>), CIDR (<code>10.0.1.0/24</code>) o vacío = cualquiera. Puertos: <code>443</code>, rango <code>3000-3010</code> o vacío = cualquiera.</li>
+      </ul>
+    </div>
+  </div>
+  <h3>Cómo usar el laboratorio</h3>
+  <ol style="color:var(--dim);font-size:.9rem;margin:6px 0 0 20px">
+    <li>En <b>Laboratorio en vivo</b> construye reglas y observa en el log qué paquetes pasan o se bloquean, con contadores por regla.</li>
+    <li>En <b>Desafíos de política</b> se te da una política de seguridad: crea el ruleset y evalúalo contra tráfico de prueba con veredictos esperados.</li>
+    <li>Ajusta el orden de las reglas con ⬆/⬇ y comprueba cómo cambia el resultado.</li>
+    <li>Si te atascas, cada desafío tiene solución comentada.</li>
+  </ol>
+  <p class="hint">Ⓐ Nota ética: laboratorio 100% defensivo y con datos sintéticos (rangos de documentación RFC 5737). No hay red real ni acceso a sistemas.</p>
+</section>
+
+<!-- ============ LAB ============ -->
+<section class="view" id="view-lab">
+  <div class="card">
+    <h3>🎮 Tráfico de prueba</h3>
+    <div style="margin-bottom:10px">
+      <button class="btn" id="btn-start">▶ Iniciar tráfico</button>
+      <button class="btn ghost" id="btn-clear-log">🧹 Limpiar log</button>
+      <label style="margin-left:8px;font-size:.85rem;color:var(--dim)">Velocidad
+        <select id="sel-speed" style="width:110px;display:inline-block;margin-left:6px">
+          <option value="1">1×</option><option value="4" selected>4×</option><option value="16">16×</option>
+        </select>
+      </label>
+    </div>
+    <label class="chk"><input type="checkbox" id="sc-web" checked> Navegación LAN → Internet (HTTP/HTTPS)</label>
+    <label class="chk"><input type="checkbox" id="sc-dmzweb" checked> Visitas web públicas → srv-web (DMZ)</label>
+    <label class="chk"><input type="checkbox" id="sc-dns" checked> Consultas DNS de la LAN → srv-dns</label>
+    <label class="chk"><input type="checkbox" id="sc-icmp" checked> ICMP de diagnóstico hacia el firewall</label>
+    <label class="chk"><input type="checkbox" id="sc-ssh"> ⚠ Ataque: SSH desde Internet → srv-ssh</label>
+    <label class="chk"><input type="checkbox" id="sc-scan"> ⚠ Ataque: port scan hacia srv-web</label>
+    <p class="hint" style="margin-top:6px">Activa los ataques y comprueba que tus reglas los bloquean mientras el tráfico legítimo sigue pasando.</p>
+  </div>
+
+  <div class="grid-lab">
+    <div id="lab-builder"></div>
+    <div>
+      <div class="card">
+        <h3>📈 Estadísticas del firewall</h3>
+        <div class="metrics" id="lab-metrics" style="margin-top:6px"></div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h3>🧾 Log de paquetes (hora simulada · veredicto con la regla que decidió)</h3>
+        <div class="logwrap"><table id="log-table">
+          <thead><tr><th>Hora</th><th>Cadena</th><th>Paquete</th><th>Estado</th><th>Veredicto</th><th>Decidido por</th></tr></thead>
+          <tbody></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ DESAFÍOS ============ -->
+<section class="view" id="view-desafio">
+  <h2>🎯 Desafíos de política</h2>
+  <p class="lead">Cada desafío describe una política de seguridad. Construye el ruleset que la implementa y pulsa <b>Evaluar política</b>: se inyectará tráfico de prueba con veredictos esperados. Un buen ruleset pasa todos los casos sin bloquear tráfico legítimo ni dejar pasar lo prohibido.</p>
+  <div class="grid2">
+    <div>
+      <div id="ex-list"></div>
+      <div class="card" style="margin-top:10px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button class="btn" id="btn-eval">✔ Evaluar política</button>
+          <button class="btn ghost" id="btn-solution">💡 Ver solución</button>
+          <button class="btn ghost" id="btn-clear-rules">🗑 Vaciar mis reglas</button>
+        </div>
+        <p class="hint" style="margin-top:6px">Políticas por defecto fijas: INPUT DROP · OUTPUT ACCEPT · FORWARD DROP (default-deny). <b>Ver solución</b> sustituye tus reglas.</p>
+      </div>
+    </div>
+    <div>
+      <div class="card"><div id="ex-policy"></div></div>
+      <div id="ex-builder" style="margin-top:14px"></div>
+      <div class="card" id="ex-results" style="display:none;margin-top:14px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ REFERENCIAS ============ -->
+<section class="view" id="view-ref">
+  <h2>Teoría: firewalls, ACLs e iptables</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>⛓️ Recorrido de un paquete</h3>
+      <p style="font-size:.88rem;color:var(--dim)">Un paquete que llega al firewall entra por una cadena según su relación con el equipo: <code>INPUT</code> si el destino es el propio firewall, <code>FORWARD</code> si solo lo atraviesa, <code>OUTPUT</code> si lo genera él. Dentro de la cadena se evalúan las reglas en orden: <b>la primera que coincide decide</b> (target ACCEPT / DROP / REJECT). Si ninguna coincide, decide la <b>política por defecto</b> de la cadena.</p>
+      <pre class="block">paquete → [INPUT|FORWARD|OUTPUT]
+  ├── regla 1 ¿coincide? → ACCEPT/DROP/REJECT (fin)
+  ├── regla 2 ¿coincide? → ...
+  └── ninguna → política por defecto (ACCEPT|DROP)</pre>
+    </div>
+    <div class="card">
+      <h3>🎯 DROP vs REJECT</h3>
+      <p style="font-size:.88rem;color:var(--dim)"><code>DROP</code> descarta el paquete en silencio: el emisor no sabe si el destino existe y sus escaneos se vuelven lentos. <code>REJECT</code> responde con un error ICMP (puerto inalcanzable): más cortés y depurable, pero revela que el firewall existe y filtra. En perimeter de Internet se suele preferir DROP; en redes internas, REJECT evita timeouts en aplicaciones.</p>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <h3>🧭 Filtrado con estado (stateful)</h3>
+      <p style="font-size:.88rem;color:var(--dim)">El firewall con seguimiento de conexión (conntrack) recuerda las conexiones aceptadas: la regla típica es aceptar <code>ESTABLISHED,RELATED</code> y solo decidir explícitamente sobre <code>NEW</code>. Así una única decisión sobre el paquete inicial de la conexión gobierna todo el flujo posterior — sin abrir huecos permanentes.</p>
+      <pre class="block">iptables -A FORWARD -m state --state ESTABLISHED,RELATED -j ACCEPT
+iptables -A FORWARD -p tcp -s 10.0.1.0/24 --dport 443 -m state --state NEW -j ACCEPT</pre>
+    </div>
+    <div class="card">
+      <h3>📋 Buenas prácticas de ACLs</h3>
+      <ul style="font-size:.88rem;color:var(--dim);margin-left:18px;line-height:1.8">
+        <li><b>Default-deny:</b> política por defecto DROP y reglas ACCEPT explícitas. Nunca al revés ("permitir todo y bloquear lo malo").</li>
+        <li><b>Mínimo privilegio:</b> acota protocolo, puerto, origen y destino; evita reglas <code>any→any</code>.</li>
+        <li><b>Orden:</b> reglas específicas antes que genéricas; bloqueos duros (hosts maliciosos) al principio.</li>
+        <li><b>Regla de log</b> al final (LIMIT) para ver lo que cae en la política por defecto.</li>
+        <li><b>Revisión periódica</b> de reglas huérfanas y cambios documentados (ticket/change control).</li>
+      </ul>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <h3>🐧 iptables / nftables</h3>
+      <p style="font-size:.87rem;color:var(--dim)">Herramienta clásica de filtrado en Linux. La sintaxis de este lab (<code>-A CADENA -p PROTO -s ORIGEN -d DESTINO --dport PUERTO -j ACCIÓN</code>) es la misma que usarías en una shell. <code>-I</code> inserta, <code>-D</code> borra, <code>-L -n -v</code> lista con contadores. Hoy las distribuciones migran a <code>nftables</code>, que conserva el modelo de cadenas y este flujo de evaluación.</p>
+      <pre class="block"># guardar y ver reglas
+iptables-save > reglas.conf
+iptables -L FORWARD -n -v --line-numbers</pre>
+    </div>
+    <div class="card">
+      <h3>☁️ Equivalencias en cloud / routers</h3>
+      <ul style="font-size:.87rem;color:var(--dim);margin-left:18px;line-height:1.8">
+        <li><b>AWS Security Groups</b> / <b>Azure NSGs</b>: reglas con estado por origen, destino, puerto y protocolo — mismo modelo mental default-deny.</li>
+        <li><b>Cisco IOS ACLs</b>: <code>access-list 101 permit tcp 10.0.1.0 0.0.0.255 any eq 443</code> con wildcard masks, aplicada <code>in</code>/<code>out</code> en una interfaz.</li>
+        <li><b>pf/OPNsense, Windows Defender Firewall</b>: mismos conceptos (reglas ordenadas + default).</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>🚫 Límites del simulador</h3>
+    <p style="font-size:.85rem;color:var(--dim)">No implementa NAT, seguimiento de conexión real (los estados NEW/ESTABLISHED vienen dados en los paquetes de prueba), fragmentación, TTL ni logs. Su objetivo es dominar el razonamiento de políticas, no sustituir un firewall de producción.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  Training SOC.
+</footer>
+
+<script>
+"use strict";
+/* ============================================================
+   UTILIDADES
+============================================================ */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function fmtClock(ms){var s=Math.floor(ms/1000),h=9+Math.floor(s/3600)%24,m=Math.floor(s/60)%60,sec=s%60;function p(n){return(n<10?"0":"")+n;}return p(h)+":"+p(m)+":"+p(sec);}
+function ri(rng,a,b){return a+Math.floor(rng()*(b-a+1));}
+function choice(rng,arr){return arr[Math.floor(rng()*arr.length)];}
+
+/* ---------- IP / CIDR ---------- */
+function parseIpSpec(spec){ // devuelve {ok, ip, mask} o null si "any"
+  if(spec===undefined||spec===null||spec.trim()===""||spec.trim().toLowerCase()==="any")return {any:true};
+  var s=spec.trim(),parts=s.split("/"),ipRe=/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+  if(!ipRe.test(parts[0]))return {err:true};
+  var o=parts[0].split(".").map(Number);
+  for(var i=0;i<4;i++)if(o[i]>255)return{err:true};
+  var mask=32;
+  if(parts.length===2){mask=parseInt(parts[1],10);if(isNaN(mask)||mask<0||mask>32)return{err:true};}
+  else if(parts.length>2)return{err:true};
+  return {any:false,ip:o,mask:mask};
+}
+function ipToNum(ip){return((ip[0]<<24)|(ip[1]<<16)|(ip[2]<<8)|ip[3])>>>0;}
+function ipMatch(spec,pktIp){
+  var p=parseIpSpec(spec);
+  if(p.any)return true;
+  if(p.err)return false;
+  var q=pktIp.split(".").map(Number);
+  if(q.length!==4||q.some(function(x){return isNaN(x)||x>255;}))return false;
+  var maskBits=p.mask===0?0:(0xFFFFFFFF<<(32-p.mask))>>>0;
+  return (ipToNum(p.ip)&maskBits)===(ipToNum(q)&maskBits);
+}
+function portMatch(spec,pktPort,proto){
+  if(spec===undefined||spec===null||spec.trim()===""||spec.trim().toLowerCase()==="any")return true;
+  if(proto==="icmp")return false;
+  var s=spec.trim(),m=s.match(/^(\d{1,5})(-(\d{1,5}))?$/);
+  if(!m)return false;
+  var a=+m[1],b=m[3]?+m[3]:a;
+  if(a<1||a>65535||b<1||b>65535||b<a)return false;
+  return pktPort>=a&&pktPort<=b;
+}
+
+/* ============================================================
+   MODELO DE REGLAS Y EVALUACIÓN
+============================================================ */
+function ruleCmd(r,insert){
+  var c="iptables "+(insert?"-I":"-A")+" "+r.chain;
+  if(r.proto!=="any")c+=" -p "+r.proto;
+  if(r.src.trim()!=="")c+=" -s "+r.src.trim();
+  if(r.dst.trim()!=="")c+=" -d "+r.dst.trim();
+  if(r.dport.trim()!=="")c+=" --dport "+r.dport.trim();
+  if(r.state!=="any")c+=" -m state --state "+r.state;
+  c+=" -j "+r.action;
+  return c;
+}
+function ruleMatches(r,p){
+  if(r.chain!==p.chain)return false;
+  if(r.proto!=="any"&&r.proto!==p.proto)return false;
+  if(!ipMatch(r.src,p.src))return false;
+  if(!ipMatch(r.dst,p.dst))return false;
+  if(!portMatch(r.dport,p.dport,p.proto))return false;
+  if(r.state!=="any"&&r.state!==p.state)return false;
+  return true;
+}
+function evalPacket(store,p){ // store={rules,defaults}
+  for(var i=0;i<store.rules.length;i++){
+    if(ruleMatches(store.rules[i],p))return {verdict:store.rules[i].action,ruleIdx:i};
+  }
+  return {verdict:store.defaults[p.chain]||"DROP",ruleIdx:-1};
+}
+function isBlock(v){return v==="DROP"||v==="REJECT";}
+
+/* ============================================================
+   CONSTRUCTOR DE REGLAS (reutilizable)
+============================================================ */
+function newStore(){return {rules:[],defaults:{INPUT:"DROP",OUTPUT:"ACCEPT",FORWARD:"DROP"},counters:{},hits:0};}
+function attachBuilder(rootId,store,opts){
+  opts=opts||{};
+  var root=document.getElementById(rootId);
+  root.innerHTML=
+    '<div class="card">'+
+    '<h3>➕ Nueva regla (sintaxis iptables)</h3>'+
+    '<div class="form-grid">'+
+      '<div><label class="f">Cadena</label><select data-f="chain"><option>FORWARD</option><option>INPUT</option><option>OUTPUT</option></select></div>'+
+      '<div><label class="f">Protocolo</label><select data-f="proto"><option>any</option><option>tcp</option><option>udp</option><option>icmp</option></select></div>'+
+      '<div><label class="f">Origen (IP o CIDR)</label><input type="text" data-f="src" placeholder="cualquiera"></div>'+
+      '<div><label class="f">Destino (IP o CIDR)</label><input type="text" data-f="dst" placeholder="cualquiera"></div>'+
+      '<div><label class="f">Puerto destino</label><input type="text" data-f="dport" placeholder="cualquiera · p.ej. 443 o 3000-3010"></div>'+
+      '<div><label class="f">Estado</label><select data-f="state"><option>any</option><option>NEW</option><option>ESTABLISHED</option></select></div>'+
+      '<div><label class="f">Acción</label><select data-f="action"><option>ACCEPT</option><option>DROP</option><option>REJECT</option></select></div>'+
+    '</div>'+
+    '<div style="margin-top:8px"><button class="btn" data-x="add">➕ Añadir regla al final</button></div>'+
+    '<div class="err" data-x="err"></div>'+
+    '<p class="hint">Vista previa: <span class="cmd" data-x="preview"></span></p>'+
+    '</div>'+
+    '<div class="card" style="margin-top:14px">'+
+    '<h3>📜 Ruleset activo <span class="hint" style="font-weight:400">(evalúa de arriba a abajo · gana la 1ª coincidencia · si no coincide ninguna, aplica la política por defecto)</span></h3>'+
+    (opts.defaultsEditable?
+      '<div style="display:flex;gap:14px;flex-wrap:wrap;margin-bottom:8px;font-size:.82rem;color:var(--dim)">'+
+      ["INPUT","OUTPUT","FORWARD"].map(function(ch){
+        return '<label>'+ch+' <select data-def="'+ch+'" style="width:100px"><option>ACCEPT</option><option>DROP</option></select></label>';
+      }).join("")+'</div>':
+      '<p class="hint" style="margin:0 0 8px">Políticas por defecto fijas: INPUT DROP · OUTPUT ACCEPT · FORWARD DROP</p>')+
+    '<div style="overflow-x:auto"><table><thead><tr><th>#</th><th>Cadena</th><th>Proto</th><th>Origen</th><th>Destino</th><th>Puerto</th><th>Estado</th><th>Acción</th><th class="mono">Comando iptables</th><th data-x="counter-h">Match</th><th></th></tr></thead><tbody data-x="tbody"></tbody></table></div>'+
+    '</div>';
+  function preview(){
+    var f=fields();
+    var r={chain:f.chain,proto:f.proto,src:f.src,dst:f.dst,dport:f.dport,state:f.state,action:f.action};
+    var err=validate(r);
+    root.querySelector('[data-x="err"]').textContent=err||"";
+    root.querySelector('[data-x="preview"]').textContent=err?"—":ruleCmd(r);
+  }
+  function fields(){
+    var o={};
+    ["chain","proto","src","dst","dport","state","action"].forEach(function(k){
+      var el=root.querySelector('[data-f="'+k+'"]');o[k]=el.value;
+    });
+    return o;
+  }
+  function validate(r){
+    var s=parseIpSpec(r.src),d=parseIpSpec(r.dst);
+    if(s.err||d.err)return "Origen o destino inválido: usa IP (10.0.1.5), CIDR (10.0.1.0/24) o vacío.";
+    if(r.proto==="icmp"&&r.dport.trim()!=="")return "ICMP no tiene puerto: deja el puerto vacío.";
+    if(r.dport.trim()!==""&&!(r.proto==="tcp"||r.proto==="udp"))return "El puerto destino exige protocolo tcp o udp.";
+    if(r.dport.trim()!==""&&!portMatch(r.dport,1,r.proto))return "Puerto inválido: usa un puerto (443) o rango (3000-3010).";
+    return "";
+  }
+  root.querySelectorAll("[data-f]").forEach(function(el){el.addEventListener("change",preview);el.addEventListener("input",preview);});
+  root.querySelector('[data-x="add"]').onclick=function(){
+    var f=fields(),r={chain:f.chain,proto:f.proto,src:f.src.trim(),dst:f.dst.trim(),dport:f.dport.trim(),state:f.state,action:f.action,locked:false};
+    if(validate(r))return;
+    store.rules.push(r);
+    refresh();
+  };
+  if(opts.defaultsEditable){
+    ["INPUT","OUTPUT","FORWARD"].forEach(function(ch){
+      var sel=root.querySelector('[data-def="'+ch+'"]');
+      sel.value=store.defaults[ch];
+      sel.onchange=function(){store.defaults[ch]=sel.value;};
+    });
+  }
+  function refresh(){
+    var tb=root.querySelector('[data-x="tbody"]');
+    var showCounters=opts.defaultsEditable; // contadores solo en lab en vivo
+    root.querySelector('[data-x="counter-h"]').textContent=showCounters?"Match":"";
+    var html="";
+    for(var i=0;i<store.rules.length;i++){
+      var r=store.rules[i];
+      html+="<tr><td>"+(i+1)+"</td><td>"+r.chain+"</td><td>"+r.proto+"</td>"+
+        "<td class='mono'>"+esc(r.src||"cualquiera")+"</td><td class='mono'>"+esc(r.dst||"cualquiera")+"</td>"+
+        "<td class='mono'>"+esc(r.dport||"—")+"</td><td>"+r.state+"</td>"+
+        "<td class='"+(isBlock(r.action)?"v-drop":"v-acc")+"'>"+r.action+"</td>"+
+        "<td class='cmd'>"+esc(ruleCmd(r))+"</td>"+
+        "<td class='mono'>"+(showCounters?(store.counters[i]||0):"")+"</td>"+
+        "<td class='rule-actions'>"+
+        (r.locked?"🔒":
+          "<button data-mv='up' data-i='"+i+"'"+(i===0?" disabled":"")+">⬆</button>"+
+          "<button data-mv='down' data-i='"+i+"'"+(i===store.rules.length-1?" disabled":"")+">⬇</button>"+
+          "<button data-mv='del' data-i='"+i+"'>✕</button>")+
+        "</td></tr>";
+    }
+    if(!store.rules.length)html="<tr><td colspan='11' style='color:var(--dim)'>Sin reglas: todo depende de la política por defecto.</td></tr>";
+    tb.innerHTML=html;
+    tb.querySelectorAll("[data-mv]").forEach(function(b){
+      b.onclick=function(){
+        if(r_locked(store.rules,+b.dataset.i))return;
+        if(b.dataset.mv==="del")store.rules.splice(+b.dataset.i,1);
+        else{
+          var i=+b.dataset.i,j=b.dataset.mv==="up"?i-1:i+1;
+          var t=store.rules[i];store.rules[i]=store.rules[j];store.rules[j]=t;
+        }
+        refresh();
+      };
+    });
+  }
+  function r_locked(rules,i){return rules[i]&&rules[i].locked;}
+  preview();refresh();
+  return {refresh:refresh};
+}
+
+/* ============================================================
+   LABORATORIO EN VIVO — generadores de tráfico
+============================================================ */
+var liveStore=newStore();
+var liveBuilder=null,timer=null,speed=4;
+var rng=mulberry32((Date.now()%100000)>>>0);
+var vTime=0,logBody=null;
+var stats={total:0,acc:0,block:0};
+
+var GENS=[
+  {id:"web",min:4000,max:15000,make:function(r){return {chain:"FORWARD",proto:"tcp",src:"10.0.1."+ri(r,10,19),sport:ri(r,41000,65000),dst:choice(r,["93.184.216.34","151.101.1.69"]),dport:choice(r,[80,443]),state:choice(r,["NEW","NEW","ESTABLISHED"])};}},
+  {id:"dmzweb",min:5000,max:20000,make:function(r){return {chain:"FORWARD",proto:"tcp",src:"203.0.113."+ri(r,2,60),sport:ri(r,41000,65000),dst:"172.16.0.10",dport:choice(r,[80,443]),state:choice(r,["NEW","ESTABLISHED"])};}},
+  {id:"dns",min:3000,max:12000,make:function(r){return {chain:"FORWARD",proto:"udp",src:"10.0.1."+ri(r,10,19),sport:ri(r,41000,65000),dst:"172.16.0.53",dport:53,state:"NEW"};}},
+  {id:"icmp",min:6000,max:25000,make:function(r){var fromLan=r()<0.7;return {chain:"INPUT",proto:"icmp",src:fromLan?"10.0.1."+ri(r,10,19):"198.51.100.66",sport:0,dst:"yo",dport:null,state:"NEW"};}},
+  {id:"ssh",min:2500,max:9000,make:function(r){return {chain:"FORWARD",proto:"tcp",src:"198.51.100.66",sport:ri(r,41000,65000),dst:"172.16.0.20",dport:22,state:"NEW"};}},
+  {id:"scan",min:300,max:1400,make:function(r){return {chain:"FORWARD",proto:"tcp",src:"198.51.100.66",sport:ri(r,41000,65000),dst:"172.16.0.10",dport:choice(r,[21,22,23,25,80,110,135,139,443,445,1433,3306,3389,5432,8080,8888]),state:"NEW"};}}
+];
+var genNext={};
+GENS.forEach(function(g){genNext[g.id]=0;});
+
+function tick(){
+  var dt=125*speed;
+  vTime+=dt;
+  GENS.forEach(function(g){
+    if(!document.getElementById("sc-"+g.id).checked)return;
+    if(!genNext[g.id])genNext[g.id]=vTime+ri(rng,g.min,g.max);
+    if(genNext[g.id]<vTime-5000)genNext[g.id]=vTime+ri(rng,g.min,g.max); // evitar ráfaga tras reactivar
+    while(genNext[g.id]<=vTime){
+      var p=g.make(rng);p.t=genNext[g.id];
+      var res=evalPacket(liveStore,p);
+      stats.total++;
+      if(isBlock(res.verdict))stats.block++;else stats.acc++;
+      if(res.ruleIdx>=0)liveStore.counters[res.ruleIdx]=(liveStore.counters[res.ruleIdx]||0)+1;
+      addLogRow(p,res);
+      genNext[g.id]+=ri(rng,g.min,g.max);
+    }
+  });
+  renderMetrics();
+  if(liveBuilder)liveBuilder.refresh();
+}
+function addLogRow(p,res){
+  var tr=document.createElement("tr");
+  var pktStr=(p.proto==="icmp")?(p.src+" → "+(p.dst==="yo"?"firewall":p.dst)+" (icmp)"):(p.src+":"+p.sport+" → "+(p.dst==="yo"?"firewall":p.dst)+":"+p.dport);
+  var vClass=res.verdict==="ACCEPT"?"v-acc":(res.verdict==="REJECT"?"v-rej":"v-drop");
+  tr.innerHTML="<td>"+fmtClock(p.t)+"</td><td>"+p.chain+"</td><td>"+esc(pktStr)+"</td><td>"+p.state+"</td>"+
+    "<td class='"+vClass+"'>"+res.verdict+"</td>"+
+    "<td>"+(res.ruleIdx>=0?("regla #"+(res.ruleIdx+1)):"política por defecto")+"</td>";
+  logBody.insertBefore(tr,logBody.firstChild);
+  while(logBody.children.length>300)logBody.removeChild(logBody.lastChild);
+}
+function renderMetrics(){
+  document.getElementById("lab-metrics").innerHTML=
+    "<div class='metric'><div class='k'>Hora simulada</div><div class='v'>"+fmtClock(vTime)+"</div></div>"+
+    "<div class='metric'><div class='k'>Paquetes evaluados</div><div class='v'>"+stats.total+"</div></div>"+
+    "<div class='metric'><div class='k'>Permitidos</div><div class='v ok'>"+stats.acc+"</div></div>"+
+    "<div class='metric'><div class='k'>Bloqueados</div><div class='v hot'>"+stats.block+"</div></div>"+
+    "<div class='metric'><div class='k'>Reglas activas</div><div class='v'>"+liveStore.rules.length+"</div></div>";
+}
+document.getElementById("btn-start").onclick=function(){
+  if(timer){clearInterval(timer);timer=null;this.textContent="▶ Iniciar tráfico";}
+  else{timer=setInterval(tick,125);this.textContent="⏸ Pausar";}
+};
+document.getElementById("btn-clear-log").onclick=function(){logBody.innerHTML="";stats={total:0,acc:0,block:0};renderMetrics();};
+document.getElementById("sel-speed").onchange=function(){speed=parseInt(this.value);};
+logBody=document.querySelector("#log-table tbody");
+liveBuilder=attachBuilder("lab-builder",liveStore,{defaultsEditable:true});
+renderMetrics();
+
+/* ============================================================
+   DESAFÍOS
+============================================================ */
+function P(chain,proto,src,dport,dst,state,desc,expect){return {chain:chain,proto:proto,src:src,sport:41000,dst:dst,dport:dport,state:state,desc:desc,expect:expect};}
+
+var EXERCISES=[
+{
+  id:1,diff:"⭐ Fácil",name:"E1 — Línea base DMZ y navegación saliente",
+  brief:"Solo publicar web en la DMZ y permitir navegación/DNS salientes de la LAN.",
+  policy:[
+    "Desde <b>Internet</b> solo se permite llegar a <code>srv-web</code> (172.16.0.10) en TCP 80 y 443.",
+    "La <b>LAN</b> (10.0.1.0/24) puede navegar a Internet por TCP 80/443 y consultar el DNS interno (UDP 53 → 172.16.0.53).",
+    "Todo lo demás que atraviese el firewall se bloquea (FORWARD default DROP): SSH de Internet a la DMZ, FTP saliente, RDP lateral, ICMP a través, DNS directo a Internet, SMTP desde la DMZ…"
+  ],
+  tests:[
+    P("FORWARD","tcp","10.0.1.12",443,"93.184.216.34","NEW","PC navega a https://example.com","A"),
+    P("FORWARD","tcp","10.0.1.12",80,"151.101.1.69","ESTABLISHED","Respuesta HTTP de una navegación","A"),
+    P("FORWARD","udp","10.0.1.12",53,"172.16.0.53","NEW","Consulta DNS interna","A"),
+    P("FORWARD","tcp","10.0.1.15",22,"198.51.100.66","NEW","WS intenta SSH hacia el host atacante","B"),
+    P("FORWARD","tcp","10.0.1.15",21,"93.184.216.34","NEW","FTP saliente no autorizado","B"),
+    P("FORWARD","tcp","203.0.113.9",80,"172.16.0.10","NEW","Visitante web público","A"),
+    P("FORWARD","tcp","203.0.113.9",443,"172.16.0.10","NEW","Visitante HTTPS público","A"),
+    P("FORWARD","tcp","198.51.100.66",22,"172.16.0.20","NEW","Atacante → SSH de la DMZ","B"),
+    P("FORWARD","tcp","198.51.100.66",8080,"172.16.0.10","NEW","Atacante a puerto de gestión del web","B"),
+    P("FORWARD","tcp","10.0.1.12",3389,"10.0.1.13","NEW","RDP lateral entre WS","B"),
+    P("FORWARD","icmp","10.0.1.12",null,"172.16.0.10","NEW","Ping de LAN a DMZ","B"),
+    P("FORWARD","icmp","203.0.113.9",null,"172.16.0.10","NEW","Ping desde Internet a DMZ","B"),
+    P("FORWARD","tcp","172.16.0.10",25,"93.184.216.34","NEW","srv-web intenta SMTP saliente","B"),
+    P("FORWARD","udp","10.0.1.12",53,"93.184.216.34","NEW","DNS directo a Internet (evita DNS-tunneling ciego)","B")
+  ],
+  solution:[
+    {chain:"FORWARD",proto:"tcp",src:"",dst:"172.16.0.10",dport:"80",state:"any",action:"ACCEPT"},
+    {chain:"FORWARD",proto:"tcp",src:"",dst:"172.16.0.10",dport:"443",state:"any",action:"ACCEPT"},
+    {chain:"FORWARD",proto:"tcp",src:"10.0.1.0/24",dst:"",dport:"80",state:"any",action:"ACCEPT"},
+    {chain:"FORWARD",proto:"tcp",src:"10.0.1.0/24",dst:"",dport:"443",state:"any",action:"ACCEPT"},
+    {chain:"FORWARD",proto:"udp",src:"10.0.1.0/24",dst:"172.16.0.53",dport:"53",state:"any",action:"ACCEPT"}
+  ]
+},
+{
+  id:2,diff:"⭐⭐ Media",name:"E2 — Gestión del firewall y acceso administrativo",
+  brief:"INPUT default-deny: solo ICMP de diagnóstico y SSH del admin. FORWARD: web pública y SSH solo desde pc-admin.",
+  policy:[
+    "Hacia el <b>propio firewall</b> (INPUT): permitir ICMP solo desde la LAN (10.0.1.0/24) y SSH (TCP 22) solo desde <code>pc-admin</code> (10.0.1.5). Nada más entra.",
+    "A través del firewall (FORWARD): la web pública de la DMZ (TCP 80/443 → 172.16.0.10) sigue abierta.",
+    "El SSH del servidor DMZ (172.16.0.20:22) solo se acepta desde <code>pc-admin</code> (10.0.1.5), desde cualquier otra fuente se bloquea.",
+    "Las respuestas DNS del servidor interno (UDP 53, origen 172.16.0.53 → LAN) deben volver; un reverse-shell desde la DMZ hacia la LAN (TCP 4444) debe caer."
+  ],
+  tests:[
+    P("INPUT","icmp","10.0.1.12",null,"yo","NEW","Ping diagnóstico WS → firewall","A"),
+    P("INPUT","icmp","198.51.100.66",null,"yo","NEW","Ping del atacante → firewall","B"),
+    P("INPUT","tcp","10.0.1.5",22,"yo","NEW","SSH de pc-admin al firewall","A"),
+    P("INPUT","tcp","10.0.1.12",22,"yo","NEW","SSH de un WS al firewall","B"),
+    P("INPUT","tcp","203.0.113.9",22,"yo","NEW","SSH desde Internet al firewall","B"),
+    P("FORWARD","tcp","203.0.113.9",80,"172.16.0.10","NEW","Visitante web público","A"),
+    P("FORWARD","tcp","198.51.100.66",22,"172.16.0.20","NEW","Atacante → SSH DMZ","B"),
+    P("FORWARD","tcp","10.0.1.5",22,"172.16.0.20","NEW","Admin gestiona srv-ssh por SSH","A"),
+    P("FORWARD","tcp","10.0.1.12",22,"172.16.0.20","NEW","WS cualquiera → SSH DMZ","B"),
+    P("FORWARD","udp","172.16.0.53",53,"10.0.1.12","ESTABLISHED","Respuesta DNS a la LAN","A"),
+    P("FORWARD","tcp","172.16.0.20",4444,"10.0.1.12","NEW","Reverse-shell DMZ → LAN","B"),
+    P("FORWARD","tcp","10.0.1.12",8080,"172.16.0.10","NEW","WS a panel de gestión del web","B"),
+    P("OUTPUT","icmp","yo",null,"10.0.1.12","NEW","El firewall responde ping a la LAN","A")
+  ],
+  solution:[
+    {chain:"INPUT",proto:"icmp",src:"10.0.1.0/24",dst:"",dport:"",state:"any",action:"ACCEPT"},
+    {chain:"INPUT",proto:"tcp",src:"10.0.1.5",dst:"",dport:"22",state:"NEW",action:"ACCEPT"},
+    {chain:"FORWARD",proto:"tcp",src:"",dst:"172.16.0.10",dport:"80",state:"any",action:"ACCEPT"},
+    {chain:"FORWARD",proto:"tcp",src:"",dst:"172.16.0.10",dport:"443",state:"any",action:"ACCEPT"},
+    {chain:"FORWARD",proto:"tcp",src:"10.0.1.5",dst:"172.16.0.20",dport:"22",state:"NEW",action:"ACCEPT"},
+    {chain:"FORWARD",proto:"udp",src:"172.16.0.53",dst:"10.0.1.0/24",dport:"53",state:"ESTABLISHED",action:"ACCEPT"}
+  ]
+},
+{
+  id:3,diff:"⭐⭐⭐ Difícil",name:"E3 — Host malicioso: el orden importa",
+  brief:"Un ruleset permisivo ya está cargado (🔒 no editable). Bloquea TODO el tráfico del atacante 198.51.100.66 sin romper el servicio legítimo.",
+  policy:[
+    "El atacante <code>198.51.100.66</code> debe quedar <b>totalmente bloqueado</b> (todo protocolo, todo puerto) — aunque las reglas permisivas ya cargadas lo dejarían pasar.",
+    "El resto del tráfico permitido debe seguir funcionando: web pública 80/443 a srv-web, ping libre hacia srv-web, SSH de la LAN a srv-ssh.",
+    "Pista: <code>iptables -I FORWARD 1 -s 198.51.100.66 -j DROP</code>… aquí tienes que lograrlo insertando tu regla y subiéndola a la primera posición con ⬆."
+  ],
+  preload:[
+    {chain:"FORWARD",proto:"tcp",src:"",dst:"172.16.0.10",dport:"80",state:"any",action:"ACCEPT",locked:true},
+    {chain:"FORWARD",proto:"tcp",src:"",dst:"172.16.0.10",dport:"443",state:"any",action:"ACCEPT",locked:true},
+    {chain:"FORWARD",proto:"icmp",src:"",dst:"",dport:"",state:"any",action:"ACCEPT",locked:true},
+    {chain:"FORWARD",proto:"tcp",src:"10.0.1.0/24",dst:"172.16.0.20",dport:"22",state:"NEW",action:"ACCEPT",locked:true}
+  ],
+  tests:[
+    P("FORWARD","tcp","198.51.100.66",80,"172.16.0.10","NEW","Atacante a la web (¡la regla 1 lo dejaría pasar!)","B"),
+    P("FORWARD","tcp","198.51.100.66",443,"172.16.0.10","NEW","Atacante a HTTPS","B"),
+    P("FORWARD","icmp","198.51.100.66",null,"172.16.0.10","NEW","Ping del atacante (el ping está abierto…)","B"),
+    P("FORWARD","tcp","198.51.100.66",22,"172.16.0.20","NEW","Atacante → SSH DMZ","B"),
+    P("FORWARD","udp","198.51.100.66",53,"172.16.0.53","NEW","Atacante consulta el DNS interno","B"),
+    P("FORWARD","tcp","198.51.100.66",4444,"172.16.0.10","NEW","Atacante a puerto raro","B"),
+    P("FORWARD","tcp","203.0.113.9",80,"172.16.0.10","NEW","Visitante legítimo sigue navegando","A"),
+    P("FORWARD","icmp","93.184.216.34",null,"172.16.0.10","NEW","Ping legítimo sigue funcionando","A"),
+    P("FORWARD","tcp","10.0.1.12",22,"172.16.0.20","NEW","SSH de la LAN a srv-ssh sigue OK","A"),
+    P("INPUT","tcp","198.51.100.66",22,"yo","NEW","Atacante al propio firewall","B")
+  ],
+  solution:[
+    {chain:"FORWARD",proto:"any",src:"198.51.100.66",dst:"",dport:"",state:"any",action:"DROP"},
+    {chain:"FORWARD",proto:"tcp",src:"",dst:"172.16.0.10",dport:"80",state:"any",action:"ACCEPT"},
+    {chain:"FORWARD",proto:"tcp",src:"",dst:"172.16.0.10",dport:"443",state:"any",action:"ACCEPT"},
+    {chain:"FORWARD",proto:"icmp",src:"",dst:"",dport:"",state:"any",action:"ACCEPT"},
+    {chain:"FORWARD",proto:"tcp",src:"10.0.1.0/24",dst:"172.16.0.20",dport:"22",state:"NEW",action:"ACCEPT"}
+  ]
+}
+];
+
+var exStores={},exBuilders={},currentEx=0;
+EXERCISES.forEach(function(ex,i){exStores[ex.id]=newStore();if(ex.preload)exStores[ex.id].rules=ex.preload.map(function(r){return Object.assign({},r);});});
+
+function renderExList(){
+  var html="";
+  EXERCISES.forEach(function(ex,i){
+    html+='<div class="ex-card'+(i===currentEx?" active":"")+'" data-ex="'+i+'"><b>'+esc(ex.name)+'</b>'+
+      '<span class="meta">'+ex.diff+' · '+esc(ex.brief)+' · '+ex.tests.length+' paquetes de prueba</span></div>';
+  });
+  document.getElementById("ex-list").innerHTML=html;
+  document.querySelectorAll(".ex-card").forEach(function(c){
+    c.onclick=function(){currentEx=+c.dataset.ex;renderExList();renderExercise();};
+  });
+}
+function renderExercise(){
+  var ex=EXERCISES[currentEx];
+  document.getElementById("ex-policy").innerHTML="<h3>📄 Política a implementar</h3><ul class='policy'>"+
+    ex.policy.map(function(p){return "<li>"+p+"</li>";}).join("")+"</ul>";
+  // se reconstruye el constructor en cada cambio de ejercicio para que
+  // cada desafío opere sobre su propio ruleset sin contaminación cruzada
+  exBuilders[ex.id]=attachBuilder("ex-builder",exStores[ex.id],{defaultsEditable:false});
+  document.getElementById("ex-results").style.display="none";
+}
+document.getElementById("btn-eval").onclick=function(){
+  var ex=EXERCISES[currentEx],store=exStores[ex.id];
+  var ok=0,rows="";
+  ex.tests.forEach(function(p){
+    var res=evalPacket(store,p);
+    var got=res.verdict,blocked=isBlock(got);
+    var expectBlock=(p.expect==="B");
+    var pass=(blocked===expectBlock);
+    if(pass)ok++;
+    rows+="<tr><td class='mono'>"+esc(p.desc)+"</td>"+
+      "<td>"+p.chain+" "+p.proto+" "+esc(p.src)+" → "+esc(p.dst==="yo"?"firewall":p.dst)+(p.dport?":"+p.dport:"")+" ["+p.state+"]</td>"+
+      "<td class='"+(expectBlock?"v-drop":"v-acc")+"'>"+(expectBlock?"BLOQUEAR":"PERMITIR")+"</td>"+
+      "<td class='"+(blocked?"v-drop":"v-acc")+"'>"+got+"</td>"+
+      "<td>"+(res.ruleIdx>=0?("regla #"+(res.ruleIdx+1)):"política por defecto")+"</td>"+
+      "<td>"+(pass?"✅":"❌")+"</td></tr>";
+  });
+  var pct=Math.round(100*ok/ex.tests.length);
+  var box=document.getElementById("ex-results");
+  box.style.display="block";
+  box.innerHTML="<h3>🧪 Evaluación — "+esc(ex.name)+"</h3>"+
+    "<p><span class='score"+(pct===100?" verdict-ok":" verdict-bad")+"'>"+pct+"%</span> <span style='color:var(--dim)'>("+ok+"/"+ex.tests.length+" paquetes con veredicto correcto)</span> "+
+    (pct===100?"🎉 Política implementada perfectamente.":pct>=80?"💪 Casi: revisa los fallos — ¿bloqueas de más o de menos?":"🔎 Repasa la política y el orden de tus reglas.")+"</p>"+
+    "<div style='overflow-x:auto'><table><thead><tr><th>Caso</th><th>Paquete</th><th>Esperado</th><th>Obtenido</th><th>Decidido por</th><th></th></tr></thead><tbody>"+rows+"</tbody></table></div>";
+};
+document.getElementById("btn-solution").onclick=function(){
+  var ex=EXERCISES[currentEx],store=exStores[ex.id];
+  store.rules=ex.solution.map(function(r){return Object.assign({},r,{locked:false});});
+  if(exBuilders[ex.id])exBuilders[ex.id].refresh();
+  var box=document.getElementById("ex-results");
+  box.style.display="block";
+  box.innerHTML="<h3>💡 Solución comentada</h3><pre>"+
+    ex.solution.map(function(r){return ruleCmd(r);}).join("\n")+
+    "</pre><p class='hint'>Pulsa <b>Evaluar política</b> para verificar que pasa el 100% de los casos. Fíjate en el ORDEN: en E3 la regla DROP del atacante debe ir la primera o las reglas ACCEPT la adelantarán.</p>";
+};
+document.getElementById("btn-clear-rules").onclick=function(){
+  var ex=EXERCISES[currentEx],store=exStores[ex.id];
+  store.rules=[];
+  if(exBuilders[ex.id])exBuilders[ex.id].refresh();
+  document.getElementById("ex-results").style.display="none";
+};
+renderExList();
+renderExercise();
+
+/* ============================================================
+   NAVEGACIÓN
+============================================================ */
+document.querySelectorAll("#tabs button").forEach(function(b){
+  b.onclick=function(){
+    document.querySelectorAll("#tabs button").forEach(function(x){x.classList.remove("active");});
+    b.classList.add("active");
+    document.querySelectorAll("section.view").forEach(function(v){v.classList.remove("active");});
+    document.getElementById("view-"+b.dataset.v).classList.add("active");
+  };
+});
+</script>
+</body>
+</html>

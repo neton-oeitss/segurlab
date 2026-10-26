@@ -1,0 +1,743 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lab DNS — Análisis de Tráfico DNS Malicioso</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111a2e; --panel2:#0e1626; --line:#22304d;
+    --txt:#dbe4f5; --dim:#8fa3c8; --acc:#4f8cff; --ok:#3ddc97; --warn:#ffc857;
+    --bad:#ff5d73; --bad2:#c93b52; --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font:15px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif;padding-bottom:40px}
+  a{color:var(--acc)}
+  header{padding:22px 20px 10px;max-width:1280px;margin:0 auto}
+  header h1{font-size:1.5rem;letter-spacing:.3px}
+  header h1 .dot{color:var(--acc)}
+  header p{color:var(--dim);margin-top:4px;max-width:900px}
+  .badges{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .badge{font-size:.72rem;padding:3px 10px;border-radius:99px;border:1px solid var(--line);color:var(--dim);background:var(--panel)}
+  .badge.red{border-color:#5c2e3a;color:#ff8fa0;background:#2a1420}
+  .badge.blue{border-color:#2b4a7a;color:#9cc1ff;background:#14233f}
+  .badge.green{border-color:#1e5c45;color:#7dffc7;background:#0f2a20}
+  nav{display:flex;gap:6px;max-width:1280px;margin:14px auto 0;padding:0 20px;flex-wrap:wrap}
+  nav button{background:var(--panel);border:1px solid var(--line);color:var(--dim);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-size:.9rem}
+  nav button.active{background:var(--panel2);color:var(--txt);border-bottom-color:var(--acc);font-weight:600}
+  main{max-width:1280px;margin:0 auto;padding:16px 20px}
+  section.view{display:none;border-top:1px solid var(--acc);background:var(--panel2);border-radius:0 10px 10px 10px;padding:20px}
+  section.view.active{display:block}
+  h2{font-size:1.15rem;margin-bottom:10px;color:#fff}
+  h3{font-size:1rem;margin:14px 0 6px}
+  p.lead{color:var(--dim);margin-bottom:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  .grid-lab{display:grid;grid-template-columns:280px 1fr;gap:14px;margin-top:14px}
+  .grid-logs{display:grid;grid-template-columns:2fr 1fr;gap:14px;margin-top:14px}
+  @media(max-width:960px){.grid2,.grid3,.grid-lab,.grid-logs{grid-template-columns:1fr}}
+  label.chk{display:flex;gap:8px;align-items:center;margin:6px 0;font-size:.9rem;cursor:pointer}
+  label.chk input{accent-color:var(--acc)}
+  .btn{background:var(--acc);color:#fff;border:0;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;margin-right:6px}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  .btn.warn{background:var(--bad2)}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:14px}
+  .metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .metric .k{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.6px}
+  .metric .v{font-size:1.35rem;font-weight:700;color:#fff;font-family:var(--mono)}
+  .metric .v.hot{color:var(--bad)}
+  table{width:100%;border-collapse:collapse;font-size:.82rem}
+  th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}
+  th{color:var(--dim);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.5px}
+  td.mono{font-family:var(--mono)}
+  tr.clickable{cursor:pointer}
+  tr.sel{background:#1b2a4a}
+  tr.truth-bad td:first-child{box-shadow:inset 3px 0 0 var(--bad)}
+  tr.truth-ok td:first-child{box-shadow:inset 3px 0 0 var(--ok)}
+  .logwrap{height:420px;overflow:auto;background:#0a101d;border:1px solid var(--line);border-radius:10px}
+  .logwrap table{font-family:var(--mono);font-size:.76rem}
+  .logwrap td{border-bottom:1px solid #17233c}
+  .rc-nx{color:var(--bad)} .rc-no{color:var(--ok)} .q-t{color:var(--warn)}
+  .flag{color:var(--bad);font-weight:700}
+  .alert-item{border-left:3px solid var(--bad);background:#1a121e;border:1px solid #3a2030;border-left-width:3px;border-radius:6px;padding:8px 10px;margin-bottom:8px;font-size:.8rem}
+  .alert-item.med{border-left-color:var(--warn);background:#1a1810;border-color:#4a4020}
+  .alert-item .t{color:var(--dim);font-family:var(--mono);font-size:.7rem}
+  .alert-item b{color:#fff}
+  .chart-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px}
+  .chart-card h4{font-size:.8rem;color:var(--dim);margin-bottom:8px;font-weight:600}
+  .status-ok{color:var(--ok);font-weight:600} .status-sus{color:var(--bad);font-weight:600}
+  .hint{font-size:.78rem;color:var(--dim);margin-top:8px}
+  .kbd{font-family:var(--mono);background:#1a2640;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:.8rem}
+  input[type=number]{width:70px;background:#0a101d;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:4px 8px;font-family:var(--mono)}
+  select{background:#0a101d;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:8px;font-size:.9rem}
+  .rule-card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px}
+  .rule-card .head{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+  .rule-card .id{font-family:var(--mono);background:#1a2640;border-radius:4px;padding:1px 8px;color:#9cc1ff;font-size:.78rem}
+  .rule-card .desc{color:var(--dim);font-size:.84rem;margin-top:6px}
+  .verdict{margin-top:14px}
+  .score{font-size:1.6rem;font-weight:800;font-family:var(--mono)}
+  details{margin-top:6px}
+  summary{cursor:pointer;color:var(--acc);font-size:.85rem}
+  details pre{background:#0a101d;border:1px solid var(--line);border-radius:6px;padding:10px;font-size:.75rem;overflow:auto;font-family:var(--mono);margin-top:6px}
+  code{font-family:var(--mono);background:#1a2640;border-radius:4px;padding:1px 5px;font-size:.85em}
+  footer{max-width:1280px;margin:20px auto 0;padding:12px 20px;color:var(--dim);font-size:.78rem;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛡️ Lab DNS <span class="dot">//</span> Análisis de Tráfico DNS Malicioso</h1>
+  <p>Laboratorio simulado de detección ofensiva–defensiva: entornos de SOC en los que el DNS se abusa como canal de exfiltración y C2. Todo el tráfico es sintético y se genera localmente en tu navegador — no hay red real.</p>
+  <div class="badges">
+    <span class="badge red">DNS Tunneling</span>
+    <span class="badge red">DGA</span>
+    <span class="badge red">Exfiltración</span>
+    <span class="badge blue">MITRE T1071.004</span>
+    <span class="badge blue">T1568.003</span>
+    <span class="badge blue">T1048.003</span>
+    <span class="badge green">Solo defensivo · datos sintéticos</span>
+  </div>
+</header>
+
+<nav id="tabs">
+  <button data-v="guia" class="active">📖 Guía</button>
+  <button data-v="lab">🧪 Laboratorio en vivo</button>
+  <button data-v="reglas">⚙️ Reglas de detección</button>
+  <button data-v="desafio">🎯 Desafío SOC</button>
+  <button data-v="ref">📚 Teoría y referencias</button>
+</nav>
+
+<main>
+
+<!-- ============ GUÍA ============ -->
+<section class="view active" id="view-guia">
+  <h2>Objetivo del laboratorio</h2>
+  <p class="lead">Aprender a detectar tres abusos clásicos del protocolo DNS suponiendo el rol de un analista de SOC con visibilidad de consultas DNS de una red corporativa.</p>
+  <div class="grid3">
+    <div class="card">
+      <h3>🕳️ DNS Tunneling</h3>
+      <p style="font-size:.85rem;color:var(--dim)">El malware codifica datos (credenciales, ficheros, comandos) en etiquetas de subdominio <code>base32</code>/<code>base64</code> o hex y las envía al servidor del atacante, que es el NS autoritativo de un dominio que controla. Se usa para exfiltración y como canal C2 encubierto.</p>
+    </div>
+    <div class="card">
+      <h3>🎲 Dominios DGA</h3>
+      <p style="font-size:.85rem;color:var(--dim)">Los <i>domain generation algorithms</i> producen miles de dominios pseudoaleatorios; el bot se conecta solo al que el atacante registró ese día. Objetivo: evadir blocklists y takedowns. Huella: altísimo ratio NXDOMAIN + dominios de alta entropía nunca vistos.</p>
+    </div>
+    <div class="card">
+      <h3>📊 Anomalías de volumen/longitud</h3>
+      <p style="font-size:.85rem;color:var(--dim)">El usuario humano hace pocas consultas, cortas y repetitivas. Un túnel genera ráfagas de consultas TXT/NULL con etiquetas larguísimas. Un DGA genera cientos de consultas únicas. El volumen y la longitud de etiqueta delatan la automatización.</p>
+    </div>
+  </div>
+  <h3>Cómo usar el laboratorio</h3>
+  <ol style="color:var(--dim);font-size:.9rem;margin:6px 0 0 20px">
+    <li>Ve a <b>Laboratorio en vivo</b>, activa escenarios de ataque y arranca la captura.</li>
+    <li>Observa el log de consultas e intenta localizar "a ojo" los clientes infectados.</li>
+    <li>Consulta la tabla de métricas por cliente y los gráficos de entropía/longitud.</li>
+    <li>Ajusta los umbrales en <b>Reglas de detección</b> y observa cómo cambian las alertas (y los falsos positivos).</li>
+    <li>Pruébate en <b>Desafío SOC</b>: casos aleatorios donde tú decides quién está infectado.</li>
+  </ol>
+  <p class="hint">Ⓐ Nota ética: este laboratorio solo enseña <b>detección</b>. No incluye malware, payloads reales ni instrucciones de operación ofensiva. Los datos son 100% sintéticos.</p>
+</section>
+
+<!-- ============ LAB ============ -->
+<section class="view" id="view-lab">
+  <div class="grid2">
+    <div class="card">
+      <h3>🎮 Control de simulación</h3>
+      <div style="margin-bottom:8px">
+        <button class="btn" id="btn-start">▶ Iniciar captura</button>
+        <button class="btn ghost" id="btn-reset">⟲ Reiniciar</button>
+      </div>
+      <label class="chk">Velocidad
+        <select id="sel-speed">
+          <option value="1">1× (tiempo real)</option>
+          <option value="4" selected>4×</option>
+          <option value="16">16×</option>
+        </select>
+      </label>
+      <label class="chk">Semilla
+        <input type="number" id="in-seed" value="1337" style="width:100px"> <span class="hint" style="margin:0"> reproducible</span>
+      </label>
+      <hr style="border:0;border-top:1px solid var(--line);margin:10px 0">
+      <h3 style="margin-top:0">Escenarios (asignados a clientes al azar)</h3>
+      <label class="chk"><input type="checkbox" id="sc-dga"> Bot con DGA (beaconing a dominios aleatorios)</label>
+      <label class="chk"><input type="checkbox" id="sc-exfil"> Túnel DNS — exfiltración de datos (ráfagas)</label>
+      <label class="chk"><input type="checkbox" id="sc-c2"> Túnel DNS — canal C2 (carga constante)</label>
+      <p class="hint">Cada escenario se asigna a un cliente aleatorio al reiniciar. Tu trabajo: descubrir quién, usando solo el tráfico.</p>
+    </div>
+    <div class="card">
+      <h3>📈 Estado de la red</h3>
+      <div class="metrics" id="lab-metrics"></div>
+    </div>
+  </div>
+
+  <div class="grid-logs">
+    <div class="card">
+      <h3>🧾 Log de consultas DNS <span class="hint" style="font-weight:400">(últimos 300 eventos · hora simulada)</span></h3>
+      <div class="logwrap"><table id="log-table">
+        <thead><tr><th>Hora</th><th>Cliente</th><th>Dominio consultado</th><th>Tipo</th><th>Resp.</th><th>Len</th><th>H</th><th></th></tr></thead>
+        <tbody></tbody>
+      </table></div>
+    </div>
+    <div class="card">
+      <h3>🚨 Alertas del motor de detección</h3>
+      <div id="alerts" class="hint" style="margin-top:0">Sin alertas todavía. Inicia la captura.</div>
+    </div>
+  </div>
+
+  <div class="grid2" style="margin-top:14px">
+    <div class="chart-card"><h4>Consultas por minuto (azul: total · rojo: marcadas por reglas R1/R2)</h4><div id="chart-series"></div></div>
+    <div class="chart-card"><h4>Dispersión: longitud de etiqueta vs entropía de Shannon (últimos 250 eventos · líneas discontinuas = umbrales R1/R2)</h4><div id="chart-scatter"></div></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3>👥 Métricas por cliente (ventana móvil de 60 s simulados)</h3>
+    <div style="overflow-x:auto"><table id="clients-table">
+      <thead><tr><th>Cliente</th><th>IP</th><th>q/min</th><th>TXT/NULL</th><th>NXDOMAIN%</th><th>Dom. únicos</th><th>Etiqueta máx.</th><th>Entropía media</th><th>Estado</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+    <p class="hint">Estado = número de alertas activas de ese cliente en la ventana.</p>
+  </div>
+</section>
+
+<!-- ============ REGLAS ============ -->
+<section class="view" id="view-reglas">
+  <h2>Motor de detección — reglas heurísticas</h2>
+  <p class="lead">Cada regla se evalúa por cliente sobre una ventana móvil de 60 s simulados. Ajusta los umbrales y observa el efecto en el laboratorio: bájalos y verás falsos positivos; súbelos y los ataques se colarán.</p>
+  <div id="rules-list"></div>
+  <div class="card" style="margin-top:6px">
+    <h3>🧠 Consejos de tuning</h3>
+    <p style="color:var(--dim);font-size:.88rem">R2 (entropía) es la regla más ruidosa: subdominios de CDN con hashes hexadecimales legítimos generan falsos positivos. R4 es la firma más fiable de DGA: <i>muchos dominios únicos</i> + <i>mayoría NXDOMAIN</i>. R1 + R3 juntas son prácticamente confirmación de túnel DNS. Ninguna regla aislada es prueba; la correlación entre ellas sí.</p>
+  </div>
+</section>
+
+<!-- ============ DESAFÍO ============ -->
+<section class="view" id="view-desafio">
+  <h2>🎯 Desafío SOC — ¿quién está infectado?</h2>
+  <p class="lead">Cada caso genera 10 minutos simulados de tráfico de 8 estaciones. 1 o 2 están comprometidas (DGA, túnel de exfiltración o C2). Analiza las métricas, marca a los sospechosos, elige la técnica dominante y comprueba tu verdicto.</p>
+  <div style="margin-bottom:10px">
+    <button class="btn" id="btn-newcase">🎲 Generar nuevo caso</button>
+    <button class="btn ghost" id="btn-grade" disabled>✔ Comprobar verdicto</button>
+    <select id="sel-tech" style="margin-left:6px">
+      <option value="">Técnica dominante…</option>
+      <option value="dga">DGA / dominios generados</option>
+      <option value="tunnel">Túnel DNS (exfil o C2)</option>
+      <option value="mixto">Ambas (DGA + túnel)</option>
+      <option value="ninguna">Ninguna / benigno</option>
+    </select>
+  </div>
+  <div class="card">
+    <h3>Métricas agregadas (10 min) — haz clic en una fila para marcar sospechoso</h3>
+    <div style="overflow-x:auto"><table id="case-table">
+      <thead><tr><th>✔</th><th>Cliente</th><th>IP</th><th>Consultas</th><th>TXT/NULL</th><th>NXDOMAIN%</th><th>Dom. únicos</th><th>Etiqueta máx.</th><th>Entropía media</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+  <div class="card" style="margin-top:12px">
+    <h3>🔍 Evidencia: muestra de dominios por cliente</h3>
+    <div id="case-domains" class="hint" style="margin-top:0">Genera un caso para empezar.</div>
+  </div>
+  <div class="card verdict" id="case-verdict" style="display:none"></div>
+</section>
+
+<!-- ============ REFERENCIAS ============ -->
+<section class="view" id="view-ref">
+  <h2>Teoría: cómo funcionan y cómo se detectan</h2>
+  <div class="grid2">
+    <div class="card">
+      <h3>🕳️ DNS Tunneling</h3>
+      <p style="font-size:.87rem;color:var(--dim)">El atacante registra un dominio (p. ej. <code>c2.example.xyz</code>) y apunta su NS a un servidor que él controla (p. ej. iodine, dnscat2). El cliente malicioso codifica datos en subdominios: <code>&lt;datos codificados&gt;.c2.example.xyz</code>. Como el servidor es autoritativo, recibe todos los "subdominios" y decodifica el payload. Las respuestas (TXT a veces) devuelven comandos en el canal de vuelta.</p>
+      <p style="font-size:.87rem;color:var(--dim);margin-top:8px"><b> Firma:</b> etiquetas de 30–100+ caracteres con alta entropía (base32/base64/hex), volumen de consultas muy superior al humano, abuso de TXT/NULL, consultas con éxito (NOERROR) hacia un mismo dominio de segunda palabra raro.</p>
+      <p style="font-size:.87rem;color:var(--dim);margin-top:8px"><b>MITRE:</b> T1071.004 (C2 sobre DNS) · T1048.003 (exfiltración sobre protocolo no cifrado).</p>
+    </div>
+    <div class="card">
+      <h3>🎲 DGA</h3>
+      <p style="font-size:.87rem;color:var(--dim)">El bot y el atacante comparten un algoritmo (a menudo con seed del día) que genera miles de dominios. El atacante registra unos pocos; el bot prueba hasta dar con uno activo. Así el C2 sobrevive a blocklists, sinkholes y takedowns.</p>
+      <p style="font-size:.87rem;color:var(--dim);margin-top:8px"><b> Firma:</b> cientos de dominios únicos de entropía alta (sin sentido léxico), altísimo ratio NXDOMAIN, patrones de beaconing regulares, TLDs baratos (.xyz, .top, .info) sobre-representados.</p>
+      <p style="font-size:.87rem;color:var(--dim);margin-top:8px"><b>MITRE:</b> T1568.003 (Dynamic Resolution: DGA) · T1583.001 (adquisición de dominios).</p>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <h3>🧰 Técnicas de detección en un SOC real</h3>
+      <ul style="font-size:.87rem;color:var(--dim);margin-left:18px;line-height:1.8">
+        <li><b>Ratio NXDOMAIN</b> por cliente y por servidor DNS interno (los bots DGA producen 60–95% de fallos).</li>
+        <li><b>Longitud y entropía de etiquetas</b> (Shannon) — los datos codificados no parecen nombres humanos.</li>
+        <li><b>Volumen por cliente</b> (consultas/min) y <b>unicidad de dominios</b> (los humanos repiten; los bots no).</li>
+        <li><b>Frecuencia de TXT/NULL</b> hacia dominios con respuestas largas.</li>
+        <li><b>Beaconing</b>: intervalos regulares de consulta (jitter bajo delata automatización).</li>
+        <li><b>Reputación</b>: dominios recién registrados, TLDs anómalos, falta en listas top-1M.</li>
+        <li>ML: clasificadores de DGA (n-gramas de caracteres, entropía, LSTM) para familias conocidas.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>📦 Herramientas y fuentes de telemetría</h3>
+      <ul style="font-size:.87rem;color:var(--dim);margin-left:18px;line-height:1.8">
+        <li><b>Zeek</b>: <code>dns.log</code> (qtype, rcode, longitud por defecto con scripts).</li>
+        <li><b>Suricata</b> / <b>Snort</b>: reglas sobre longitud de query, TXT anómalos.</li>
+        <li><b>Elastic / Splunk</b>: dashboards de DNS con detección de NXDOMAIN, DGA y túneles.</li>
+        <li><b>PassiveDNS</b> y feeds de reputación (p. ej. listas de dominios DGA).</li>
+        <li><b>Wireshark</b>: filtros <code>dns.qry.name.len &gt; 50</code>, <code>dns.qry.type == TXT</code> para análisis manual.</li>
+      </ul>
+      <p style="font-size:.8rem;color:var(--dim);margin-top:10px">Lecturas: MITRE ATT&CK T1071.004, RFC 1035 (DNS), "Detecting DNS Tunnelling" (SANS/GIAC), estudios de detección de DGA con ML.</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>🚫 Límites de este simulador</h3>
+    <p style="font-size:.85rem;color:var(--dim)">No simula TCP/IP real, cachés DNS, recursión, EDNS, ni cifrado (DoH/DoT). Los umbrales son pedagógicos: en producción deben calibrarse con línea base de tu propia red. Su objetivo es entrenar el razonamiento del analista, no sustituir un IDS.</p>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <b>Laboratorio DNS: Nada sale del laboratorio, todo simulado</b> 
+</footer>
+
+<script>
+"use strict";
+/* ============================================================
+   UTILIDADES
+============================================================ */
+function mulberry32(a){return function(){a|=0;a=a+0x6D2B79F5|0;var t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function shannon(s){if(!s)return 0;var f={},i;for(i=0;i<s.length;i++){f[s[i]]=(f[s[i]]||0)+1;}var e=0;for(var k in f){var p=f[k]/s.length;e-=p*Math.log2(p);}return e;}
+var B32="ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
+function b32(str){var bytes=new TextEncoder().encode(str),bits=0,val=0,out="",i;for(i=0;i<bytes.length;i++){val=(val<<8)|bytes[i];bits+=8;while(bits>=5){out+=B32[(val>>>(bits-5))&31];bits-=5;}}if(bits>0){out+=B32[(val<<(5-bits))&31];}return out.toLowerCase();}
+function longestLabel(host){return host.split(".").reduce(function(a,b){return b.length>a.length?b:a;},"");}
+function fmtClock(ms){var s=Math.floor(ms/1000),h=8+Math.floor(s/3600)%24,m=Math.floor(s/60)%60,sec=s%60;function p(n){return (n<10?"0":"")+n;}return p(h)+":"+p(m)+":"+p(sec);}
+function pickW(rng,arr,w){var tot=w.reduce(function(a,b){return a+b;},0),x=rng()*tot,i;for(i=0;i<arr.length;i++){x-=w[i];if(x<=0)return arr[i];}return arr[arr.length-1];}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+
+/* ============================================================
+   DATOS SINTÉTICOS
+============================================================ */
+var NORMAL_DOMAINS=["google.com","github.com","microsoft.com","wikipedia.org","stackoverflow.com","cloudflare.com","netflix.com","amazon.com","apple.com","microsoftonline.com","windowsupdate.com","facebook.com","youtube.com","linkedin.com","whatsapp.com","spotify.com","dropbox.com","zoom.us","adobe.com","slack.com","figma.com","notion.so","reddit.com","ebay.com","paypal.com","discord.com","office.com","live.com","gmail.com","bing.com","duckduckgo.com","mozilla.org","ubuntu.com","pypi.org","npmjs.com","docker.com","atlassian.com","salesforce.com"];
+var TLDS_GOOD=["com","org","net","es","io","dev"];
+var TLDS_DGA=["xyz","top","info","biz","ru","su","cn","click","link"];
+var CLIENTS=[
+  {host:"WS-001",ip:"10.0.1.10"},{host:"WS-002",ip:"10.0.1.11"},{host:"WS-003",ip:"10.0.1.12"},
+  {host:"WS-004",ip:"10.0.1.13"},{host:"WS-005",ip:"10.0.1.14"},{host:"WS-006",ip:"10.0.1.15"},
+  {host:"WS-007",ip:"10.0.2.10"},{host:"WS-008",ip:"10.0.2.11"},{host:"WS-009",ip:"10.0.2.12"},
+  {host:"WS-010",ip:"10.0.3.10"},{host:"SRV-DB01",ip:"10.0.3.20"},{host:"SRV-APP01",ip:"10.0.3.21"}
+];
+var EXFIL_TOKENS=["uid=1001;pw=", "doc=invoice_q3.pdf;b64=", "sess=a7f3;d=", "key=", "tar=hosts.txt;z=", "cmd=whoami;r=", "file=/etc/shadow;b="];
+
+function typoDomain(rng,d){var i=Math.floor(rng()*(d.length-2))+1,c="abcdefghijklmnopqrstuvwxyz",r=d.split("");r[i]=c[Math.floor(rng()*c.length)];return r.join("");}
+function cdnDomain(rng){var hex="";for(var i=0;i<8;i++)hex+="0123456789abcdef"[Math.floor(rng()*16)];return "cdn-"+hex+".akamaiedge.net";}
+function dgaDomain(rng){var cons="bcdfghjklmnpqrstvwxyz",vows="aeiou",n=7+Math.floor(rng()*8),s="",i;
+  for(i=0;i<n;i++){ if(rng()<0.12){s+="0123456789"[Math.floor(rng()*10)];} else {s+=(i%2===0?cons:vows)[Math.floor(rng()*(i%2===0?cons.length:vows.length))];}}
+  return s+"."+pickW(rng,TLDS_DGA,[3,3,2,2,2,2,2,1,1]);}
+function tunnelHost(rng,mode){
+  var base=(mode==="c2"?"up":"ex")+"."+ (mode==="c2"?"ch":"data") +".tunnel-c2.xyz";
+  var payload;
+  if(mode==="c2"){payload="id="+Math.floor(rng()*9)+1+";seq="+Math.floor(rng()*999)+";"+EXFIL_TOKENS[Math.floor(rng()*EXFIL_TOKENS.length)];}
+  else{var chunk="";for(var i=0;i<24+Math.floor(rng()*14);i++){chunk+="ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz0123456789"[Math.floor(rng()*59)];}payload=EXFIL_TOKENS[Math.floor(rng()*EXFIL_TOKENS.length)]+chunk;}
+  var enc=b32(payload);
+  if(mode==="exfil"&&enc.length>60)enc=enc.substring(0,55+Math.floor(rng()*6));
+  return enc+"."+base;
+}
+
+/* ============================================================
+   MOTOR DE SIMULACIÓN
+============================================================ */
+function createSim(seed,scenarios,nClients){
+  var rng=mulberry32(seed>>>0);
+  var idxs=[];for(var i=0;i<nClients;i++)idxs.push(i);
+  // barajar y asignar comportamientos
+  for(var j=idxs.length-1;j>0;j--){var k=Math.floor(rng()*(j+1));var t=idxs[j];idxs[j]=idxs[k];idxs[k]=t;}
+  var behavior={};var p=0;
+  if(scenarios.dga)behavior[idxs[p++]]="dga";
+  if(scenarios.exfil)behavior[idxs[p++]]="exfil";
+  if(scenarios.c2)behavior[idxs[p++]]="c2";
+  var clients=CLIENTS.slice(0,nClients).map(function(c,i){
+    return {host:c.host,ip:c.ip,behavior:behavior[i]||"normal",nextAt:nextInterval(rng,behavior[i]||"normal"),dev:(c.host==="WS-003"),burst:0,burstEnd:0};
+  });
+  return {rng:rng,vTime:0,events:[],clients:clients,seed:seed,scenarios:scenarios,removed:0};
+}
+function nextInterval(rng,b){
+  if(b==="dga")return 2000+rng()*3000;               // 12-30 q/min
+  if(b==="c2") return 1500+rng()*1500;              // ~25 q/min
+  if(b==="exfil")return 15000+rng()*20000;          // ráfagas
+  return 8000+rng()*37000;                           // humano: 1.3-7 q/min
+}
+function genEvent(sim,ci){
+  var c=sim.clients[ci],rng=sim.rng,host,qt,rc;
+  if(c.burst>0){ // ráfaga de exfiltración
+    c.burst--; host=tunnelHost(rng,"exfil"); qt=(rng()<0.5?"TXT":"A"); rc=0;
+    if(c.burst===0){c.nextAt=sim.vTime+nextInterval(rng,"exfil");}
+    else{c.nextAt=sim.vTime+80+rng()*220;}
+  } else if(c.behavior==="exfil"){
+    c.burst=20+Math.floor(rng()*22); c.burstEnd=sim.vTime+8000;
+    host=tunnelHost(rng,"exfil"); qt=(rng()<0.5?"TXT":"A"); rc=0;
+  } else if(c.behavior==="c2"){
+    host=tunnelHost(rng,"c2"); qt=(rng()<0.6?"NULL":(rng()<0.5?"TXT":"A")); rc=0;
+    c.nextAt=sim.vTime+nextInterval(rng,"c2");
+  } else if(c.behavior==="dga"){
+    host=dgaDomain(rng); qt=(rng()<0.85?"A":"AAAA"); rc=(rng()<0.85?3:0);
+    c.nextAt=sim.vTime+nextInterval(rng,"dga");
+  } else {
+    var r=rng();
+    if(r<0.08){host=typoDomain(rng,NORMAL_DOMAINS[Math.floor(rng()*NORMAL_DOMAINS.length)]);rc=3;}
+    else if(r<0.16){host=cdnDomain(rng);rc=0;}
+    else{host=NORMAL_DOMAINS[Math.floor(rng()*NORMAL_DOMAINS.length)];rc=(rng()<0.03?3:0);}
+    qt=(rng()<0.8?"A":(rng()<0.5?"AAAA":"HTTPS"));rc=rc||0;
+    c.nextAt=sim.vTime+nextInterval(rng,"normal")*(c.dev?0.35:1);
+  }
+  var lbl=longestLabel(host);
+  sim.events.push({t:sim.vTime,ci:ci,host:host,qt:qt,rc:rc,len:host.length,lbl:lbl,ent:shannon(lbl)});
+}
+function advanceSim(sim,dt){
+  var end=sim.vTime+dt;
+  while(sim.vTime<end){
+    // buscar siguiente evento mínimo
+    var min=null,mi=-1;
+    for(var i=0;i<sim.clients.length;i++){
+      if(sim.clients[i].nextAt<=end&&(min===null||sim.clients[i].nextAt<min)){min=sim.clients[i].nextAt;mi=i;}
+    }
+    if(mi<0)break;
+    sim.vTime=Math.max(sim.vTime,min);
+    genEvent(sim,mi);
+  }
+  sim.vTime=end;
+  // recortar eventos antiguos (mantener 5 min) — solo en el laboratorio en vivo
+  if(sim.live){
+    var cut=sim.vTime-300000;
+    while(sim.events.length&&sim.events[0].t<cut){sim.events.shift();sim.removed++;}
+  }
+}
+
+/* ============================================================
+   ESTADÍSTICAS Y REGLAS
+============================================================ */
+var THR={r1:40,r2:3.3,r3:4,r4nx:0.55,r4uniq:12,r5qpm:25};
+var RULES=[
+  {id:"R1",name:"Etiqueta de subdominio anormalmente larga",sev:"alta",
+   desc:"Una etiqueta (label) del dominio ≥ umbral caracteres. El DNS humano usa etiquetas cortas; los datos codificados de un túnel ocupan 30–100+.",
+   detail:function(s){return "etiqueta máx. "+s.maxLbl+" caracteres";},
+   test:function(s,t){return s.q>=3&&s.maxLbl>=t.r1;}},
+  {id:"R2",name:"Entropía de Shannon alta en el dominio",sev:"media",
+   desc:"Entropía media ≥ umbral con al menos 6 consultas. Los dominios reales tienen estructura léxica; los generados algorítmicamente no.",
+   detail:function(s){return "entropía media "+s.avgEnt.toFixed(2);},
+   test:function(s,t){return s.q>=6&&s.avgEnt>=t.r2;}},
+  {id:"R3",name:"Abuso de TXT / NULL",sev:"alta",
+   desc:"Más de N consultas TXT o NULL por minuto. Tipos raros en navegación normal, habituales en túneles (dnscat2, iodine).",
+   detail:function(s){return s.txt+" consultas TXT/NULL";},
+   test:function(s,t){return s.txt>=t.r3;}},
+  {id:"R4",name:"Ratio NXDOMAIN + unicidad (firma DGA)",sev:"alta",
+   desc:"≥ N consultas/min, ratio NXDOMAIN ≥ X y ≥ U dominios únicos. El bot DGA pregunta por dominios que casi nunca existen.",
+   detail:function(s){return s.nx+"/"+s.q+" NX · "+s.uniq+" únicos";},
+   test:function(s,t){return s.q>=10&&(s.nx/s.q)>=t.r4nx&&s.uniq>=t.r4uniq;}},
+  {id:"R5",name:"Volumen anómalo por cliente",sev:"media",
+   desc:"Más de N consultas por minuto por estación. Los humanos hacen pocas; los túneles y bots, decenas o cientos.",
+   detail:function(s){return s.q+" consultas/min";},
+   test:function(s,t){return s.q>=t.r5qpm;}}
+];
+function clientStats(sim,ci,windowMs){
+  var from=sim.vTime-windowMs,q=0,txt=0,nx=0,uniq={},maxLbl=0,entSum=0;
+  for(var i=sim.events.length-1;i>=0;i--){
+    var e=sim.events[i];if(e.t<from)break;if(e.ci!==ci)continue;
+    q++;if(e.qt==="TXT"||e.qt==="NULL")txt++;if(e.rc===3)nx++;
+    uniq[e.host]=1;if(e.lbl.length>maxLbl)maxLbl=e.lbl.length;entSum+=e.ent;
+  }
+  return {q:q,txt:txt,nx:nx,uniq:Object.keys(uniq).length,maxLbl:maxLbl,avgEnt:q?entSum/q:0};
+}
+function caseStats(sim,ci){ // agregado total (desafío)
+  var q=0,txt=0,nx=0,uniq={},maxLbl=0,entSum=0,top={};
+  for(var i=0;i<sim.events.length;i++){
+    var e=sim.events[i];if(e.ci!==ci)continue;
+    q++;if(e.qt==="TXT"||e.qt==="NULL")txt++;if(e.rc===3)nx++;
+    uniq[e.host]=1;if(e.lbl.length>maxLbl)maxLbl=e.lbl.length;entSum+=e.ent;
+  }
+  return {q:q,txt:txt,nx:nx,uniq:Object.keys(uniq).length,maxLbl:maxLbl,avgEnt:q?entSum/q:0};
+}
+
+/* ============================================================
+   LABORATORIO EN VIVO
+============================================================ */
+var lab=null,timer=null,speed=4,activeAlerts={},alertList=[];
+var logBody=document.querySelector("#log-table tbody");
+var clientsBody=document.querySelector("#clients-table tbody");
+
+function startLab(){
+  var scenarios={dga:document.getElementById("sc-dga").checked,
+                 exfil:document.getElementById("sc-exfil").checked,
+                 c2:document.getElementById("sc-c2").checked};
+  var seed=parseInt(document.getElementById("in-seed").value)||1337;
+  if(!lab||lab.seedUsed!==seed||JSON.stringify(lab.scen)!==JSON.stringify(scenarios)){
+    lab=createSim(seed,scenarios,12);lab.seedUsed=seed;lab.scen=scenarios;lab.live=true;
+    logBody.innerHTML="";alertList=[];activeAlerts={};updateAlertsBox();
+  }
+  if(timer)return;
+  timer=setInterval(tick,125);
+  document.getElementById("btn-start").textContent="⏸ Pausar";
+}
+function stopLab(){if(timer){clearInterval(timer);timer=null;document.getElementById("btn-start").textContent="▶ Reanudar";}}
+function resetLab(){stopLab();lab=null;logBody.innerHTML="";alertList=[];activeAlerts={};updateAlertsBox();renderMetrics();renderClientsTable();drawCharts();document.getElementById("btn-start").textContent="▶ Iniciar captura";}
+document.getElementById("btn-start").onclick=function(){if(timer)stopLab();else startLab();};
+document.getElementById("btn-reset").onclick=resetLab;
+document.getElementById("sel-speed").onchange=function(){speed=parseInt(this.value);};
+["sc-dga","sc-exfil","sc-c2"].forEach(function(id){document.getElementById(id).onchange=function(){if(lab){var s=lab.seedUsed;stopLab();lab=null;document.getElementById("in-seed").value=s;startLab();}};});
+
+function tick(){
+  advanceSim(lab,125*speed);
+  var evs=lab.events;
+  // pintar nuevos eventos (el índice base se ajusta por los eventos recortados)
+  var totalDrawn=lab.lastDrawn||0;
+  var startIdx=totalDrawn-lab.removed;
+  for(var i=startIdx;i<evs.length;i++){
+    var e=evs[i],c=lab.clients[e.ci];
+    var suspicious=(e.lbl.length>=THR.r1||e.ent>=THR.r2);
+    var tr=document.createElement("tr");
+    tr.innerHTML="<td>"+fmtClock(e.t)+"</td><td>"+esc(c.ip)+"</td>"+
+      "<td title=\""+esc(e.host)+"\">"+esc(e.host.length>52?e.host.slice(0,49)+"…":e.host)+"</td>"+
+      "<td class='"+(e.qt==="TXT"||e.qt==="NULL"?"q-t":"")+"'>"+e.qt+"</td>"+
+      "<td class='"+(e.rc===3?"rc-nx":"rc-no")+"'>"+(e.rc===3?"NXDOMAIN":"NOERROR")+"</td>"+
+      "<td>"+e.len+"</td><td>"+e.ent.toFixed(2)+"</td>"+
+      "<td class='"+(suspicious?"flag":"")+"'>"+(suspicious?"●":"")+"</td>";
+    logBody.insertBefore(tr,logBody.firstChild);
+  }
+  lab.lastDrawn=totalDrawn+(evs.length-startIdx);
+  while(logBody.children.length>300)logBody.removeChild(logBody.lastChild);
+  // evaluar reglas
+  for(var ci=0;ci<lab.clients.length;ci++){
+    var s=clientStats(lab,ci,60000);
+    for(var ri=0;ri<RULES.length;ri++){
+      var r=RULES[ri];
+      if(r.test(s,THR)){
+        var key=ci+"|"+r.id;
+        if(!activeAlerts[key]||lab.vTime-activeAlerts[key]>90000){
+          activeAlerts[key]=lab.vTime;
+          alertList.unshift({t:lab.vTime,ci:ci,rule:r,stats:s});
+          if(alertList.length>60)alertList.pop();
+          updateAlertsBox();
+        }
+      }
+    }
+  }
+  renderMetrics();renderClientsTable();drawCharts();
+}
+function updateAlertsBox(){
+  var box=document.getElementById("alerts");
+  if(!alertList.length){box.innerHTML="<span class='hint'>Sin alertas todavía.</span>";return;}
+  var html="";
+  for(var i=0;i<alertList.length&&i<25;i++){
+    var a=alertList[i],c=lab?lab.clients[a.ci]:CLIENTS[a.ci];
+    html+="<div class='alert-item"+(a.rule.sev==="media"?" med":"")+"'>"+
+      "<div class='t'>"+fmtClock(a.t)+" · "+a.rule.id+" ["+a.rule.sev.toUpperCase()+"]</div>"+
+      "<b>"+esc(c.host)+" ("+esc(c.ip)+")</b> — "+esc(a.rule.name)+"<br>"+
+      "<span class='hint' style='margin:0'>"+esc(a.rule.detail(a.stats))+"</span></div>";
+  }
+  box.innerHTML=html;
+}
+function activeAlertCount(ci){
+  var n=0;for(var k in activeAlerts){if(lab&&lab.vTime-activeAlerts[k]<=60000&&parseInt(k)===ci)n++;}
+  return n;
+}
+function renderMetrics(){
+  var box=document.getElementById("lab-metrics");
+  if(!lab){box.innerHTML="<div class='metric'><div class='k'>Estado</div><div class='v'>—</div></div>";return;}
+  var win=clientStatsAll(60000);
+  box.innerHTML=
+    "<div class='metric'><div class='k'>Hora simulada</div><div class='v'>"+fmtClock(lab.vTime)+"</div></div>"+
+    "<div class='metric'><div class='k'>Consultas/min</div><div class='v'>"+win.q+"</div></div>"+
+    "<div class='metric'><div class='k'>TXT/NULL</div><div class='v'>"+win.txt+"</div></div>"+
+    "<div class='metric'><div class='k'>NXDOMAIN</div><div class='v'>"+(win.q?Math.round(100*win.nx/win.q):0)+"%</div></div>"+
+    "<div class='metric'><div class='k'>Alertas activas</div><div class='v"+(alertList.length?" hot":"")+"'>"+Object.keys(activeAlerts).length+"</div></div>";
+}
+function clientStatsAll(windowMs){
+  var from=lab.vTime-windowMs,q=0,txt=0,nx=0;
+  for(var i=lab.events.length-1;i>=0;i--){var e=lab.events[i];if(e.t<from)break;q++;if(e.qt==="TXT"||e.qt==="NULL")txt++;if(e.rc===3)nx++;}
+  return {q:q,txt:txt,nx:nx};
+}
+function renderClientsTable(){
+  if(!lab){clientsBody.innerHTML="";return;}
+  var html="";
+  for(var ci=0;ci<lab.clients.length;ci++){
+    var c=lab.clients[ci],s=clientStats(lab,ci,60000),n=activeAlertCount(ci);
+    html+="<tr><td>"+esc(c.host)+"</td><td class='mono'>"+esc(c.ip)+"</td><td>"+s.q+"</td><td>"+s.txt+"</td>"+
+      "<td>"+(s.q?Math.round(100*s.nx/s.q):0)+"%</td><td>"+s.uniq+"</td><td>"+s.maxLbl+"</td><td>"+s.avgEnt.toFixed(2)+"</td>"+
+      "<td class='"+(n?"status-sus":"status-ok")+"'>"+(n?"⚠ "+n+" alerta(s)":"OK")+"</td></tr>";
+  }
+  clientsBody.innerHTML=html;
+}
+
+/* ---------- Gráficos SVG ---------- */
+function svgOpen(w,h){return "<svg viewBox='0 0 "+w+" "+h+"' style='width:100%;height:auto'>";}
+function drawCharts(){
+  if(!lab){document.getElementById("chart-series").innerHTML="";document.getElementById("chart-scatter").innerHTML="";return;}
+  drawSeries();drawScatter();
+}
+function drawSeries(){
+  var W=520,H=180,P=28,buckets=10,mins=[];
+  var nowMin=Math.floor(lab.vTime/60000);
+  for(var b=0;b<buckets;b++)mins.push({total:0,flag:0});
+  for(var i=0;i<lab.events.length;i++){
+    var e=lab.events[i],m=buckets-1-(nowMin-Math.floor(e.t/60000));
+    if(m>=0&&m<buckets){mins[m].total++;if(e.lbl.length>=THR.r1||e.ent>=THR.r2)mins[m].flag++;}
+  }
+  var max=1;for(var b2=0;b2<buckets;b2++)max=Math.max(max,mins[b2].total);
+  var sx=function(i){return P+(W-2*P)*(i+0.5)/buckets;},sy=function(v){return H-P-(H-2*P)*v/max;};
+  var line=function(key){var pts="";for(var j=0;j<buckets;j++){pts+=sx(j)+","+sy(mins[j][key])+" ";}return pts.trim();};
+  var bars="";
+  for(var j2=0;j2<buckets;j2++){
+    bars+="<rect x='"+(P+(W-2*P)*j2/buckets)+"' y='"+sy(mins[j2].total)+"' width='"+((W-2*P)/buckets-6)+"' height='"+(H-P-sy(mins[j2].total))+"' fill='#1c2c4e'/>";
+    if(mins[j2].flag)bars+="<rect x='"+(P+(W-2*P)*j2/buckets)+"' y='"+sy(mins[j2].flag)+"' width='"+((W-2*P)/buckets-6)+"' height='"+(H-P-sy(mins[j2].flag))+"' fill='#ff5d73' opacity='0.75'/>";
+  }
+  var labels="";for(var j3=0;j3<buckets;j3+=2)labels+="<text x='"+sx(j3)+"' y='"+(H-8)+"' font-size='9' fill='#8fa3c8' text-anchor='middle'>"+(j3-buckets+1)+"min</text>";
+  document.getElementById("chart-series").innerHTML=svgOpen(W,H)+
+    "<line x1='"+P+"' y1='"+(H-P)+"' x2='"+(W-P)+"' y2='"+(H-P)+"' stroke='#22304d'/>"+
+    bars+labels+
+    "<text x='"+(P-4)+"' y='"+sy(max)+"' font-size='9' fill='#8fa3c8' text-anchor='end'>"+max+"</text>"+
+    "</svg>";
+}
+function drawScatter(){
+  var W=520,H=180,P=32,maxX=70,maxY=5.2;
+  var evs=lab.events.slice(-250);
+  var pts="";
+  for(var i=0;i<evs.length;i++){
+    var e=evs[i];
+    var x=P+(W-2*P)*Math.min(e.lbl.length,maxX)/maxX;
+    var y=H-P-(H-2*P)*Math.min(e.ent,maxY)/maxY;
+    var suspicious=(e.lbl.length>=THR.r1||e.ent>=THR.r2);
+    pts+="<circle cx='"+x.toFixed(1)+"' cy='"+y.toFixed(1)+"' r='3' fill='"+(suspicious?"#ff5d73":"#4f8cff")+"' opacity='0.65'/>";
+  }
+  var xR1=P+(W-2*P)*THR.r1/maxX;
+  var yR2=H-P-(H-2*P)*THR.r2/maxY;
+  document.getElementById("chart-scatter").innerHTML=svgOpen(W,H)+
+    "<line x1='"+P+"' y1='"+(H-P)+"' x2='"+(W-P)+"' y2='"+(H-P)+"' stroke='#22304d'/>"+
+    "<line x1='"+P+"' y1='"+P+"' x2='"+P+"' y2='"+(H-P)+"' stroke='#22304d'/>"+
+    "<line x1='"+xR1+"' y1='"+P+"' x2='"+xR1+"' y2='"+(H-P)+"' stroke='#ffc857' stroke-dasharray='4 4' opacity='0.7'/>"+
+    "<line x1='"+P+"' y1='"+yR2+"' x2='"+(W-P)+"' y2='"+yR2+"' stroke='#ffc857' stroke-dasharray='4 4' opacity='0.7'/>"+
+    pts+
+    "<text x='"+(W-P)+"' y='"+(H-8)+"' font-size='9' fill='#8fa3c8' text-anchor='end'>longitud de etiqueta</text>"+
+    "<text x='"+(P-4)+"' y='"+(P+8)+"' font-size='9' fill='#8fa3c8' text-anchor='end'>H</text>"+
+    "</svg>";
+}
+
+/* ============================================================
+   PESTAÑA REGLAS
+============================================================ */
+var THR_INPUTS=[
+  {k:"r1",label:"Longitud de etiqueta (R1)"},{k:"r2",label:"Entropía media (R2)"},
+  {k:"r3",label:"TXT/NULL por minuto (R3)"},{k:"r4nx",label:"Ratio NXDOMAIN (R4)"},
+  {k:"r4uniq",label:"Dominios únicos (R4)"},{k:"r5qpm",label:"Consultas/min (R5)"}
+];
+function renderRules(){
+  var html="";
+  RULES.forEach(function(r){
+    html+="<div class='rule-card'><div class='head'><span class='id'>"+r.id+"</span><b>"+esc(r.name)+"</b>"+
+      "<span class='badge "+(r.sev==="alta"?"red":"blue")+"'>severidad "+r.sev+"</span></div>"+
+      "<div class='desc'>"+esc(r.desc)+"</div></div>";
+  });
+  html+="<div class='rule-card'><b>Umbrales</b><div style='display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:8px;margin-top:8px'>";
+  THR_INPUTS.forEach(function(t){
+    html+="<label style='font-size:.82rem;color:var(--dim);display:flex;gap:6px;align-items:center'>"+t.label+
+      " <input type='number' step='0.05' data-thr='"+t.k+"' value='"+THR[t.k]+"'></label>";
+  });
+  html+="</div><p class='hint'>Los cambios se aplican en vivo al laboratorio.</p></div>";
+  document.getElementById("rules-list").innerHTML=html;
+  document.querySelectorAll("[data-thr]").forEach(function(inp){
+    inp.onchange=function(){var v=parseFloat(this.value);if(!isNaN(v))THR[this.dataset.thr]=v;};
+  });
+}
+renderRules();
+
+/* ============================================================
+   DESAFÍO SOC
+============================================================ */
+var caseData=null,selected=new Set();
+var TECH_NAMES={dga:"DGA (bot con dominios generados)",exfil:"Túnel DNS — exfiltración (ráfagas)",c2:"Túnel DNS — canal C2"};
+document.getElementById("btn-newcase").onclick=newCase;
+document.getElementById("btn-grade").onclick=gradeCase;
+
+function newCase(){
+  var seed=Math.floor(Math.random()*1e9);
+  var r=Math.random();
+  var scen={dga:r<0.4,exfil:r>=0.4&&r<0.75,c2:r>=0.75};
+  if(!scen.dga&&!scen.exfil&&!scen.c2)scen.dga=true;
+  if(Math.random()<0.25&&Object.keys(scen).length===1){ // a veces dos ataques
+    var extra=["dga","exfil","c2"].filter(function(k){return !scen[k];});
+    scen[extra[Math.floor(Math.random()*extra.length)]]=true;
+  }
+  var sim=createSim(seed,scen,8);
+  advanceSim(sim,600000,600000); // 10 min simulados de golpe
+  caseData={sim:sim,truth:sim.clients.map(function(c){return c.behavior;})};
+  selected=new Set();
+  document.getElementById("sel-tech").value="";
+  document.getElementById("case-verdict").style.display="none";
+  document.getElementById("btn-grade").disabled=false;
+  renderCase();
+}
+function renderCase(){
+  var sim=caseData.sim,tb=document.querySelector("#case-table tbody");
+  var html="";
+  for(var ci=0;ci<sim.clients.length;ci++){
+    var c=sim.clients[ci],s=caseStats(sim,ci);
+    html+="<tr class='clickable"+(selected.has(ci)?" sel":"")+"' data-ci='"+ci+"'>"+
+      "<td>"+(selected.has(ci)?"✔":"")+"</td><td>"+esc(c.host)+"</td><td class='mono'>"+esc(c.ip)+"</td>"+
+      "<td>"+s.q+"</td><td>"+s.txt+"</td><td>"+(s.q?Math.round(100*s.nx/s.q):0)+"%</td>"+
+      "<td>"+s.uniq+"</td><td>"+s.maxLbl+"</td><td>"+s.avgEnt.toFixed(2)+"</td></tr>";
+  }
+  tb.innerHTML=html;
+  tb.querySelectorAll("tr").forEach(function(tr){
+    tr.onclick=function(){var ci=+this.dataset.ci;if(selected.has(ci))selected.delete(ci);else selected.add(ci);renderCase();};
+  });
+  // muestras de dominios
+  var dh="";
+  for(var ci2=0;ci2<sim.clients.length;ci2++){
+    var seen={},samples=[],count=0;
+    for(var i=sim.events.length-1;i>=0&&count<14;i--){
+      var e=sim.events[i];if(e.ci!==ci2||seen[e.host])continue;seen[e.host]=1;samples.push(e.host);count++;
+    }
+    dh+="<details><summary>"+esc(sim.clients[ci2].host)+" ("+esc(sim.clients[ci2].ip)+")</summary><pre>"+esc(samples.join("\n"))+"</pre></details>";
+  }
+  document.getElementById("case-domains").innerHTML=dh;
+}
+function gradeCase(){
+  if(!caseData)return;
+  var truth=caseData.truth,sim=caseData.sim;
+  var badIdx=truth.map(function(b,i){return b!=="normal"?i:-1;}).filter(function(i){return i>=0;});
+  var techs=new Set(truth.filter(function(b){return b!=="normal";}).map(function(b){return (b==="c2"||b==="exfil")?"tunnel":"dga";}));
+  var hasD=techs.has("dga"),hasT=techs.has("tunnel");
+  var expectedTech=hasD&&hasT?"mixto":hasD?"dga":hasT?"tunnel":"ninguna";
+  var chosenTech=document.getElementById("sel-tech").value||"(sin elegir)";
+  var score=0,maxScore=20*sim.clients.length;
+  var rowsHtml="";
+  for(var ci=0;ci<sim.clients.length;ci++){
+    var realBad=truth[ci]!=="normal",marked=selected.has(ci);
+    var ok=(realBad===marked);
+    if(!realBad&&!marked)score+=20;
+    else if(realBad&&marked)score+=20;
+    var s=caseStats(sim,ci);
+    rowsHtml+="<tr class='"+(realBad?"truth-bad":"truth-ok")+"'><td>"+(marked?"✔ marcado":"—")+"</td><td>"+esc(sim.clients[ci].host)+"</td><td>"+(realBad?esc(TECH_NAMES[truth[ci]]):"normal")+"</td><td>"+(ok?"✅":"❌")+"</td>"+
+      "<td style='white-space:normal;font-size:.75rem;color:var(--dim)'>"+(realBad?
+        "q="+s.q+" · NX="+Math.round(100*s.nx/Math.max(1,s.q))+"% · únicos="+s.uniq+" · etiqueta máx="+s.maxLbl+" · H="+s.avgEnt.toFixed(2):
+        "patrón humano: dominios populares, NX bajo, poca unicidad")+"</td></tr>";
+  }
+  var techOk=(chosenTech===expectedTech);if(techOk)score+=10;maxScore+=10;
+  var pct=Math.round(100*score/maxScore);
+  document.getElementById("case-verdict").style.display="block";
+  document.getElementById("case-verdict").innerHTML=
+    "<h3>📋 Veredicto del caso</h3>"+
+    "<p><span class='score'>"+pct+"%</span> <span style='color:var(--dim)'>("+score+"/"+maxScore+" pts)</span> · Técnica esperada: <b>"+expectedTech+"</b>, elegiste: <b>"+esc(chosenTech)+"</b> "+(techOk?"✅":"❌")+"</p>"+
+    "<div style='overflow-x:auto;margin-top:8px'><table><thead><tr><th>Tu marca</th><th>Cliente</th><th>Realidad</th><th></th><th>Evidencia</th></tr></thead><tbody>"+rowsHtml+"</tbody></table></div>"+
+    "<p class='hint'>Los clientes no marcados como maliciosos también puntúan: descartar correctamente es tan importante como detectar.</p>";
+  document.getElementById("btn-grade").disabled=true;
+}
+
+/* ============================================================
+   NAVEGACIÓN
+============================================================ */
+document.querySelectorAll("#tabs button").forEach(function(b){
+  b.onclick=function(){
+    document.querySelectorAll("#tabs button").forEach(function(x){x.classList.remove("active");});
+    b.classList.add("active");
+    document.querySelectorAll("section.view").forEach(function(v){v.classList.remove("active");});
+    document.getElementById("view-"+b.dataset.v).classList.add("active");
+    if(b.dataset.v==="lab")drawCharts();
+  };
+});
+</script>
+</body>
+</html>

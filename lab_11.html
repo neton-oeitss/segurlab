@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lab Crypto — Cifrado simétrico/asimétrico, TLS y Hashing de contraseñas</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111a2e; --panel2:#0e1626; --line:#22304d;
+    --txt:#dbe4f5; --dim:#8fa3c8; --acc:#4f8cff; --ok:#3ddc97; --warn:#ffc857;
+    --bad:#ff5d73; --bad2:#c93b52; --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font:15px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif;padding-bottom:40px}
+  header{padding:22px 20px 10px;max-width:1280px;margin:0 auto}
+  header h1{font-size:1.5rem;letter-spacing:.3px}
+  header h1 .dot{color:var(--acc)}
+  header p{color:var(--dim);margin-top:4px;max-width:960px}
+  .badges{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .badge{font-size:.72rem;padding:3px 10px;border-radius:99px;border:1px solid var(--line);color:var(--dim);background:var(--panel)}
+  .badge.red{border-color:#5c2e3a;color:#ff8fa0;background:#2a1420}
+  .badge.blue{border-color:#2b4a7a;color:#9cc1ff;background:#14233f}
+  .badge.green{border-color:#1e5c45;color:#7dffc7;background:#0f2a20}
+  nav{display:flex;gap:6px;max-width:1280px;margin:14px auto 0;padding:0 20px;flex-wrap:wrap}
+  nav button{background:var(--panel);border:1px solid var(--line);color:var(--dim);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-size:.9rem}
+  nav button.active{background:var(--panel2);color:var(--txt);border-bottom-color:var(--acc);font-weight:600}
+  main{max-width:1280px;margin:0 auto;padding:16px 20px}
+  section.view{display:none;border-top:1px solid var(--acc);background:var(--panel2);border-radius:0 10px 10px 10px;padding:20px}
+  section.view.active{display:block}
+  h2{font-size:1.15rem;margin-bottom:10px;color:#fff}
+  h3{font-size:1rem;margin:14px 0 6px}
+  h3:first-child{margin-top:0}
+  p.lead{color:var(--dim);margin-bottom:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:1000px){.grid2,.grid3{grid-template-columns:1fr}}
+  label.f{display:block;font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.5px;margin-bottom:3px}
+  input[type=text],textarea{background:#0a101d;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:7px 8px;font-size:.88rem;width:100%;font-family:var(--mono)}
+  textarea{resize:vertical}
+  input[type=range]{accent-color:var(--acc);width:100%}
+  .btn{background:var(--acc);color:#fff;border:0;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;margin:4px 6px 4px 0}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  .btn.warn{background:var(--bad2)}
+  .btn.ok{background:var(--ok);color:#06251a}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:.82rem}
+  th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.5px}
+  .mono{font-family:var(--mono)}
+  .cmd{font-family:var(--mono);font-size:.74rem;color:#9cc1ff}
+  .hint{font-size:.78rem;color:var(--dim);margin-top:8px}
+  .score{font-size:1.6rem;font-weight:800;font-family:var(--mono)}
+  .verdict-ok{color:var(--ok);font-weight:700}
+  .verdict-bad{color:var(--bad);font-weight:700}
+  details{margin-top:6px}
+  summary{cursor:pointer;color:var(--acc);font-size:.85rem}
+  details pre{background:#0a101d;border:1px solid var(--line);border-radius:6px;padding:10px;font-size:.75rem;overflow:auto;font-family:var(--mono);margin-top:6px}
+  code{font-family:var(--mono);background:#1a2640;border-radius:4px;padding:1px 5px;font-size:.85em}
+  ul.dim,ol.dim{color:var(--dim);font-size:.88rem;margin:6px 0 0 20px;line-height:1.7}
+  .out{background:#0a101d;border:1px solid var(--line);border-radius:6px;padding:10px;font-size:.78rem;overflow:auto;font-family:var(--mono);margin-top:8px;word-break:break-all;color:#9cc1ff}
+  .out.ok{color:var(--ok)} .out.bad{color:#ff8fa0}
+  .cert{border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:10px;cursor:pointer;background:var(--panel)}
+  .cert.active{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+  .cert b{display:block}
+  .cert .meta{font-size:.78rem;color:var(--dim)}
+  .tri button{border-radius:5px;border:1px solid var(--line);cursor:pointer;padding:2px 8px;font-size:.78rem;margin-right:4px;background:#1a2640;color:var(--txt)}
+  .tri button.sel-ok{background:#0f2a20;color:#7dffc7;border-color:#1e5c45}
+  .tri button.sel-warn{background:#2a2410;color:#ffd479;border-color:#6b5a1e}
+  .tri button.sel-err{background:#2a1420;color:#ff8fa0;border-color:#5c2e3a}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px}
+  .metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .metric .k{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.6px}
+  .metric .v{font-size:1.25rem;font-weight:700;color:#fff;font-family:var(--mono)}
+  .metric .v.ok{color:var(--ok)} .metric .v.hot{color:var(--bad)} .metric .v.mid{color:var(--warn)}
+  .pwbox{font-family:var(--mono);font-size:1rem;letter-spacing:1px}
+  footer{max-width:1280px;margin:20px auto 0;padding:12px 20px;color:var(--dim);font-size:.78rem;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔐 Lab Crypto <span class="dot">//</span> Cifrado · Certificados TLS · Hashing y contraseñas</h1>
+  <p>Laboratorio de criptografía aplicada, 100% real y local: cifra y descifra mensajes con cifrado simétrico y asimétrico (RSA de verdad, con aritmética BigInt), genera pares de claves, firma y verifica documentos. Después disecciona certificados TLS — cadena de confianza, caducidad, autofirmados y un caso MITM — y por último rompe contraseñas mal guardadas para entender por qué MD5 plano no sirve y el salteado sí importa.</p>
+  <div class="badges">
+    <span class="badge blue">RC4 + RSA reales en tu navegador</span>
+    <span class="badge blue">SHA-256 · MD5 implementados</span>
+    <span class="badge red">Caso MITM con certificado falso</span>
+    <span class="badge green">Didáctico · sin dependencias · sin red</span>
+  </div>
+</header>
+
+<nav id="tabs">
+  <button data-v="guia" class="active">📖 Guía</button>
+  <button data-v="sim">🔁 Simétrico</button>
+  <button data-v="asim">🅰️ Asimétrico</button>
+  <button data-v="tls">📜 Certificados TLS</button>
+  <button data-v="hash">#️⃣ Hashing y contraseñas</button>
+</nav>
+
+<main>
+
+<!-- ============ GUÍA ============ -->
+<section class="view active" id="view-guia">
+  <h2>Qué vas a practicar</h2>
+  <p class="lead">Tres módulos que cubren el día a día criptográfico de un SOC: proteger información, validar identidades y guardar contraseñas.</p>
+  <div class="grid3">
+    <div class="card">
+      <h3>🔁 Simétrico</h3>
+      <ul class="dim">
+        <li>La misma clave cifra y descifra (AES, RC4 histórico…).</li>
+        <li>Rapidísimo… pero ¿cómo reparto la clave por un canal inseguro?</li>
+        <li>Práctica: cifrado clásico (César) y de flujo (RC4 real).</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🅰️ Asimétrico</h3>
+      <ul class="dim">
+        <li>Par de claves: la pública se reparte, la privada nunca sale.</li>
+        <li>Lento pero resuelve el intercambio de claves y da <b>firma digital</b>.</li>
+        <li>Práctica: RSA real generado en tu navegador + firmar y verificar.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>📜 TLS y #️⃣ Hashing</h3>
+      <ul class="dim">
+        <li>TLS usa ambos: asimétrico para autenticar e intercambiar, simétrico para los datos.</li>
+        <li>Un certificado es una identidad firmada: aprenderás a leerlo y detectar uno falso (MITM).</li>
+        <li>Y al final: por qué las contraseñas se guardan con hash lento + salt (bcrypt/Argon2).</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>🗺️ El modelo mental completo</h3>
+    <pre class="mono" style="background:#0a101d;border:1px solid var(--line);border-radius:6px;padding:12px;overflow:auto;font-size:.78rem">TLS en una conexión https://
+  1. El servidor presenta su CERTIFICADO (identidad + clave pública, firmada por una CA)
+  2. El navegador valida la cadena de confianza → obtiene la clave pública del servidor
+  3. Se intercambia una CLAVE DE SESIÓN simétrica cifrada con la pública (solo el servidor puede leerla)
+  4. Todo el tráfico va cifrado con esa clave simétrica (rápido)
+  ── si el certificado es falso (MITM), el paso 2 falla y el navegador bloquea la conexión ──
+
+Almacenamiento de contraseñas (nunca cifradas, siempre hasheadas)
+  password → [stretch + salt único] → hash lento (bcrypt/Argon2) → base de datos
+  un crackeador debe reintentar por CADA usuario y salt: sin tablas arcoíris, sin reutilizar trabajo</pre>
+  </div>
+  <p class="hint">Ⓐ Todo se calcula en tu navegador: el RSA del laboratorio usa claves de juguete (512 bits) para que la generación sea instantánea — nunca uses estos tamaños en producción (mínimo 2048-3072 bits, o mejor Ed25519/ECDHE).</p>
+</section>
+
+<!-- ============ SIMÉTRICO ============ -->
+<section class="view" id="view-sim">
+  <h2>🔁 Cifrado simétrico — una sola clave lo hace todo</h2>
+  <p class="lead">La misma clave que cifra descifra. Es rápido y sencillo, pero el problema de toda la vida es la <b>distribución de la clave</b>: si alguien la intercepta, puede leer todo. Empieza con el César para ver la idea y pasa al RC4 real.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>🏛️ Cifrado César (desplazamiento)</h3>
+      <label class="f">Mensaje</label>
+      <textarea id="caesar-in" rows="2">atacar al amanecer</textarea>
+      <label class="f" style="margin-top:8px">Desplazamiento: <span id="caesar-k" class="mono">3</span></label>
+      <input type="range" id="caesar-k-slider" min="1" max="25" value="3" />
+      <div class="out" id="caesar-out"></div>
+      <p class="hint">Solo hay 25 desplazamientos posibles: se rompe en milisegundos por fuerza bruta. La clave es <b>parte</b> del espacio del mensaje — kerckhoffs: la seguridad debe estar solo en la clave, no en el secreto del algoritmo.</p>
+    </div>
+    <div class="card">
+      <h3>🌊 Cifrado de flujo RC4 (real)</h3>
+      <p class="hint" style="margin-top:0">RC4 genera un «keystream» pseudoaleatorio a partir de la clave y lo XORa con el mensaje. Fue el cifrado de TLS durante años (hoy roto y retirado — aquí solo como herramienta didáctica).</p>
+      <label class="f">Clave compartida (la misma para cifrar y descifrar)</label>
+      <input type="text" id="rc4-key" value="clave-simetrica-2026" />
+      <label class="f" style="margin-top:8px">Mensaje</label>
+      <textarea id="rc4-in" rows="2">Reunion secreta a las 22:00</textarea>
+      <div style="margin-top:8px">
+        <button class="btn" id="btn-rc4-enc">🔒 Cifrar</button>
+        <button class="btn ghost" id="btn-rc4-dec">🔓 Descifrar lo mostrado</button>
+      </div>
+      <div class="out" id="rc4-out"></div>
+      <p class="hint">Cambia un solo carácter de la clave y descifra: el resultado será basura. Dos partes con la misma clave = comunicación simétrica. ¿Y si esa clave viaja por Internet? Ahí entra el módulo asimétrico →</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>⚖️ Simétrico vs Asimétrico — el resumen que hay que saber</h3>
+    <table>
+      <tr><th></th><th>🔁 Simétrico (AES)</th><th>🅰️ Asimétrico (RSA/ECC)</th></tr>
+      <tr><td>Claves</td><td>1 compartida</td><td>2 (pública + privada)</td></tr>
+      <tr><td>Velocidad</td><td class="v-acc">Muy rápido (hardware)</td><td class="v-drop">~1000× más lento</td></tr>
+      <tr><td>Problema clave</td><td>Distribución de la clave</td><td>Lentitud + tamaño de mensaje</td></tr>
+      <tr><td>Usos típicos</td><td>Datos en reposo, sesión TLS</td><td>Intercambio de claves, firma, identidad</td></tr>
+      <tr><td>Juntos (TLS)</td><td colspan="2">Asimétrico autentica e intercambia la clave → simétrico cifra el tráfico</td></tr>
+    </table>
+  </div>
+</section>
+
+<!-- ============ ASIMÉTRICO ============ -->
+<section class="view" id="view-asim">
+  <h2>🅰️ RSA — genera tu par de claves, cifra, firma y verifica</h2>
+  <p class="lead">RSA real (de juguete, 512 bits) calculado en tu navegador con aritmética BigInt: <b>n</b> y <b>e</b> forman la clave pública (se pueden compartir); <b>d</b> es la privada y nunca sale de aquí. Cualquiera cifra con la pública; solo el dueño de la privada descifra y firma.</p>
+  <div class="card">
+    <button class="btn" id="btn-rsa-gen">⚙️ Generar par de claves RSA</button>
+    <span id="rsa-gen-status" class="hint" style="margin-left:6px"></span>
+    <div id="rsa-keys" style="display:none">
+      <div class="grid2" style="margin-top:10px">
+        <div class="card">
+          <h3>🌎 Clave pública (repartirla es seguro)</h3>
+          <div class="out">n = <span id="rsa-n"></span>
+
+e = <span id="rsa-e"></span> (65537)</div>
+          <p class="hint">Cualquiera puede cifrarte mensajes con n y e. Publicar esta clave NO es un riesgo.</p>
+        </div>
+        <div class="card">
+          <h3>🔒 Clave privada (nunca se comparte)</h3>
+          <details><summary>Ver d (solo en este laboratorio)</summary><div class="out" id="rsa-d"></div></details>
+          <p class="hint">Si d se filtra, todo lo cifrado con la pública queda expuesto y cualquiera puede suplantar tu firma.</p>
+        </div>
+      </div>
+      <div class="grid2" style="margin-top:14px">
+        <div class="card">
+          <h3>✉️ Cifrar con la pública → descifrar con la privada</h3>
+          <label class="f">Mensaje</label>
+          <textarea id="rsa-msg" rows="2">El payload se entrega a medianoche</textarea>
+          <div style="margin-top:8px">
+            <button class="btn" id="btn-rsa-enc">🔒 Cifrar con clave pública</button>
+            <button class="btn ghost" id="btn-rsa-dec">🔓 Descifrar con clave privada</button>
+          </div>
+          <div class="out" id="rsa-enc-out">— aún sin cifrar —</div>
+          <p class="hint">Solo quien tiene la privada puede leerlo. Es el mecanismo con el que TLS intercambia la clave de sesión.</p>
+        </div>
+        <div class="card">
+          <h3>✍️ Firmar con la privada → verificar con la pública</h3>
+          <label class="f">Documento a firmar</label>
+          <textarea id="rsa-doc" rows="2">Transferencia autorizada: 12.000 EUR a proveedor AV-88</textarea>
+          <div style="margin-top:8px">
+            <button class="btn ok" id="btn-rsa-sign">✍️ Firmar (hash SHA-256 + privada)</button>
+            <button class="btn ghost" id="btn-rsa-verify">🔎 Verificar con clave pública</button>
+            <button class="btn warn" id="btn-rsa-tamper">😈 Falsificar el documento</button>
+          </div>
+          <div class="out" id="rsa-sig-out">— aún sin firmar —</div>
+          <p class="hint">La firma garantiza <b>integridad</b> (nadie lo modificó) y <b>no repudio</b> (solo el dueño de la privada pudo firmarlo). Altera una letra y verifica: la firma dejará de cuadrar.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ TLS ============ -->
+<section class="view" id="view-tls">
+  <h2>📜 Anatomía de un certificado TLS</h2>
+  <p class="lead">Un certificado X.509 liga una <b>identidad</b> (dominio) a una <b>clave pública</b>, y una CA la firma. El navegador comprueba: (1) el dominio coincide con el SAN, (2) la cadena llega a una CA raíz de confianza, (3) no está caducado, (4) la firma del certificado es robusta. Inspecciona el caso real y luego tria los certificados problemáticos.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>🔗 Cadena de confianza de seguro.banco.es</h3>
+      <pre class="mono" style="background:#0a101d;border:1px solid var(--line);border-radius:6px;padding:12px;font-size:.76rem;overflow:auto">┌──────────────────────────────────────────┐
+│ Raíz (en el almacén del sistema)          │
+│ CN=DigiCert Global Root G3   ✔ confiable  │
+└───────────────┬──────────────────────────┘
+                │ firma
+┌───────────────▼──────────────────────────┐
+│ Intermedia (la envía el servidor)         │
+│ CN=SolarTLS CA              ✔ firma válida│
+└───────────────┬──────────────────────────┘
+                │ firma
+┌───────────────▼──────────────────────────┐
+│ Hoja (el certificado del sitio)           │
+│ CN=seguro.banco.es                       │
+│ SAN: seguro.banco.es          ✔ coincide │
+│ Válido: 2025-01-10 → 2026-01-10 ✔ vigente│
+│ Clave pública ECDSA P-256 · SHA-384 ✔ ok │
+└──────────────────────────────────────────┘
+ → El candado verde aparece ✅</pre>
+    </div>
+    <div class="card">
+      <h3>🕵️ Caso MITM: el certificado falso</h3>
+      <p style="font-size:.88rem;color:var(--dim)">Estás en una WiFi de aeropuerto y un atacante hace ARP-spoofing para meterse en medio. Te sirve su propio certificado para <code>seguro.banco.es</code>:</p>
+      <pre class="mono" style="background:#2a1420;border:1px solid #5c2e3a;border-radius:6px;padding:12px;font-size:.76rem;overflow:auto">┌──────────────────────────────────────────┐
+│ CN=seguro.banco.es                       │
+│ Emisor: CN=Super Valid TLS CA  ✖ DESCONOCIDA│
+│ (no está en las raíces de tu sistema)    │
+│ Válido: 2026-10-20 → 2027-10-20 ✔ vigente│
+│ SAN: seguro.banco.es          ✔ coincide │
+└──────────────────────────────────────────┘
+ → El navegador BLOQUEA: «su conexión no es privada» ❌</pre>
+      <p class="hint">El hostname cuadra y no está caducado, pero la cadena no llega a ninguna raíz de confianza: nadie de tu sistema respalda esa identidad. <b>Nunca pulses «aceptar el riesgo» en una red que no controlas</b>: estarías entregando tus credenciales al hombre en medio.</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>🎯 Triage de certificados — ¿qué hará el navegador?</h3>
+    <p class="hint" style="margin-top:0">Abre cada certificado, inspecciona sus campos y decide: <b>✔ válido</b> (conexión normal), <b>⚠ advertencia</b> (el usuario puede aceptar el riesgo) o <b>❌ error</b> (el navegador bloquea por defecto).</p>
+    <div id="cert-list"></div>
+    <div id="cert-detail" class="card" style="margin-top:8px"></div>
+    <div style="margin-top:10px">
+      <button class="btn" id="btn-cert-eval">✔ Evaluar triaje</button>
+      <button class="btn ghost" id="btn-cert-reset">🧹 Reiniciar</button>
+    </div>
+    <div id="cert-feedback"></div>
+  </div>
+</section>
+
+<!-- ============ HASH ============ -->
+<section class="view" id="view-hash">
+  <h2>#️⃣ Hashing, salteado y política de contraseñas</h2>
+  <p class="lead">Un hash es una huella digital de longitud fija: irreversible (una dirección), determinista y con efecto avalancha. Pero para contraseñas hace falta algo más: que sea <b>lento</b> (bcrypt, Argon2) y que use un <b>salt único</b> por usuario.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>🔬 Playground de hashes (SHA-256 y MD5 reales)</h3>
+      <label class="f">Texto</label>
+      <input type="text" id="hash-in" value="password" />
+      <div class="out" id="hash-sha"></div>
+      <div class="out" id="hash-md5"></div>
+      <p class="hint">Cambia una sola letra y observa cómo cambian <b>todos</b> los caracteres de la salida (efecto avalancha). SHA-256 (arriba) sigue siendo seguro para integridad; MD5 (abajo) está roto ante colisiones: jamás para firmas ni contraseñas.</p>
+    </div>
+    <div class="card">
+      <h3>⏱️ Laboratorio de crackeo — ¿cuánto tarda tu contraseña?</h3>
+      <label class="f">Contraseña de prueba</label>
+      <input type="text" id="pw-in" class="pwbox" value="Dragon2026" />
+      <div class="metrics" id="pw-metrics" style="margin-top:10px"></div>
+      <p class="hint">Ritmos simulados de una GPU de atacante (órdenes de magnitud didácticos): MD5 ~20 000 millones de intentos/s · SHA-256 ~5 000 M/s · bcrypt (cost 12) ~3 000/s · Argon2id ~100/s. La misma contraseña, el mismo hardware: la función lenta gana por millones de veces.</p>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <h3>🧂 Demo de salteado — el problema de las tablas arcoíris</h3>
+      <p class="hint" style="margin-top:0">Alice y Bob usan la misma contraseña. Sin salt comparten hash y un diccionario precalculado (tabla arcoíris) los revienta a la vez; con salt único el atacante debe recalcular para cada usuario.</p>
+      <button class="btn" id="btn-crack-md5">💥 Crackear base MD5 sin salt (diccionario)</button>
+      <button class="btn ghost" id="btn-crack-salt">🧂 Lo mismo con bcrypt + salt</button>
+      <div class="out" id="crack-out">— pulsa un botón para lanzar la simulación —</div>
+    </div>
+    <div class="card">
+      <h3>📋 Política de contraseñas — lo que funciona hoy</h3>
+      <ul class="dim">
+        <li><b>Longitud &gt; complejidad:</b> «frases-de-paso» de 4+ palabras superan a «P@ssw0rd!» y son más memorables.</li>
+        <li><b>Prohibido:</b> MD5/SHA-1/SHA-256 planos para contraseñas (demasiado rápidos para la GPU del atacante).</li>
+        <li><b>Obligatorio:</b> hash lento con salt por usuario: <code>bcrypt</code> (cost ≥ 12), <code>Argon2id</code> (ganador de la PHC) o <code>scrypt</code>.</li>
+        <li><b>MFA:</b> la contraseña sola ya no basta; el segundo factor rompe el coste-beneficio del crackeo.</li>
+        <li><b>Listas de filtrados:</b> bloquear las contraseñas presentes en HaveIBeenPwned (el atacante no fuerza, reutiliza).</li>
+      </ul>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <b>Neton consejo:Claves RSA de 512 bits = solo para aprender</b>; en producción usa 2048+ bits o criptografía de curvas elípticas.
+</footer>
+
+<script>
+"use strict";
+/* ============================================================
+   UTILIDADES
+============================================================ */
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function scoreHtml(ok,total,label){
+  var p=total?Math.round(100*ok/total):0;
+  return "<p style='margin-top:10px'><span class='score "+(p===100?"verdict-ok":"verdict-bad")+"'>"+p+"%</span> <span style='color:var(--dim)'>("+ok+"/"+total+" "+label+")</span> "+
+    (p===100?"🎉 Perfecto.":p>=70?"💪 Casi: repasa los fallos.":"🔎 Repasa la teoría del módulo.")+"</p>";
+}
+function bytesToHex(bytes){var s="";for(var i=0;i<bytes.length;i++){s+=(bytes[i]<16?"0":"")+bytes[i].toString(16);}return s;}
+function utf8ToBytes(str){
+  var out=[],p=encodeURIComponent(str);
+  for(var i=0;i<p.length;i++){
+    if(p[i]==="%"){out.push(parseInt(p.substr(i+1,2),16));i+=2;}
+    else out.push(p.charCodeAt(i));
+  }
+  return out;
+}
+function bytesToUtf8(bytes){
+  var s="";
+  for(var i=0;i<bytes.length;i++)s+=String.fromCharCode(bytes[i]);
+  try{return decodeURIComponent(escape(s));}catch(e){return s;}
+}
+
+/* ============================================================
+   SHA-256 (implementación real)
+============================================================ */
+var SHA_K=[
+0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+function bytesToWords(bytes){
+  var w=[];
+  for(var i=0;i<bytes.length;i+=4){
+    w.push(((bytes[i]||0)<<24)|((bytes[i+1]||0)<<16)|((bytes[i+2]||0)<<8)|(bytes[i+3]||0));
+  }
+  return w;
+}
+function sha256Bytes(bytes){
+  var H=[0x6a09e667,0xbb67ae85,0x3c6ef372,0xa54ff53a,0x510e527f,0x9b05688c,0x1f83d9ab,0x5be0cd19];
+  var len=bytes.length;
+  var bitLenHi=Math.floor(len/536870912),bitLenLo=(len*8)>>>0;
+  var data=bytes.slice();
+  data.push(0x80);
+  while(data.length%64!==56)data.push(0);
+  data.push((bitLenHi>>>24)&255,(bitLenHi>>>16)&255,(bitLenHi>>>8)&255,bitLenHi&255,
+            (bitLenLo>>>24)&255,(bitLenLo>>>16)&255,(bitLenLo>>>8)&255,bitLenLo&255);
+  var w=new Array(64);
+  for(var b=0;b<data.length;b+=64){
+    for(var t=0;t<16;t++)w[t]=bytesToWords(data.slice(b+t*4,b+t*4+4))[0];
+    for(var t2=16;t2<64;t2++){
+      var s0=((w[t2-15]>>>7)|(w[t2-15]<<25))^((w[t2-15]>>>18)|(w[t2-15]<<14))^(w[t2-15]>>>3);
+      var s1=((w[t2-2]>>>17)|(w[t2-2]<<15))^((w[t2-2]>>>19)|(w[t2-2]<<13))^(w[t2-2]>>>10);
+      w[t2]=(w[t2-16]+s0+w[t2-7]+s1)|0;
+    }
+    var a=H[0],bb=H[1],c=H[2],d=H[3],e=H[4],f=H[5],g=H[6],h=H[7];
+    for(var i=0;i<64;i++){
+      var S1=(e>>>6|e<<26)^(e>>>11|e<<21)^(e>>>25|e<<7);
+      var ch=(e&f)^(~e&g);
+      var t1=(h+S1+ch+SHA_K[i]+w[i])|0;
+      var S0=(a>>>2|a<<30)^(a>>>13|a<<19)^(a>>>22|a<<10);
+      var mj=(a&bb)^(a&c)^(bb&c);
+      var t2=(S0+mj)|0;
+      h=g;g=f;f=e;e=(d+t1)|0;d=c;c=bb;bb=a;a=(t1+t2)|0;
+    }
+    H[0]=(H[0]+a)|0;H[1]=(H[1]+bb)|0;H[2]=(H[2]+c)|0;H[3]=(H[3]+d)|0;
+    H[4]=(H[4]+e)|0;H[5]=(H[5]+f)|0;H[6]=(H[6]+g)|0;H[7]=(H[7]+h)|0;
+  }
+  var out=[];
+  H.forEach(function(x){out.push((x>>>24)&255,(x>>>16)&255,(x>>>8)&255,x&255);});
+  return out;
+}
+function sha256Hex(str){return bytesToHex(sha256Bytes(utf8ToBytes(str)));}
+
+/* ============================================================
+   MD5 (implementación real, solo didáctica)
+============================================================ */
+var MD5_S=[7,12,17,22,7,12,17,22,7,12,17,22,7,12,17,22,
+5,9,14,20,5,9,14,20,5,9,14,20,5,9,14,20,
+4,11,16,23,4,11,16,23,4,11,16,23,4,11,16,23,
+6,10,15,21,6,10,15,21,6,10,15,21,6,10,15,21];
+var MD5_K=(function(){
+  var K=[];
+  for(var i=0;i<64;i++)K[i]=(Math.floor(Math.abs(Math.sin(i+1))*4294967296))>>>0;
+  return K;
+})();
+function md5Hex(str){
+  var bytes=utf8ToBytes(str);
+  var len=bytes.length;
+  var data=bytes.slice();
+  data.push(0x80);
+  while(data.length%64!==56)data.push(0);
+  var bitLenLo=(len*8)%4294967296,bitLenHi=Math.floor((len*8)/4294967296);
+  data.push(bitLenLo&255,(bitLenLo>>>8)&255,(bitLenLo>>>16)&255,(bitLenLo>>>24)&255,
+            bitLenHi&255,(bitLenHi>>>8)&255,(bitLenHi>>>16)&255,(bitLenHi>>>24)&255);
+  var A=0x67452301,B=0xefcdab89,C=0x98badcfe,D=0x10325476;
+  function add(x,y){return (((x>>>0)+(y>>>0))>>>0);}
+  function rl(x,c){return ((x<<c)|(x>>>(32-c)))>>>0;}
+  for(var b=0;b<data.length;b+=64){
+    var M=[];
+    for(var t=0;t<16;t++){
+      M.push((data[b+t*4])|(data[b+t*4+1]<<8)|(data[b+t*4+2]<<16)|(data[b+t*4+3]<<24));
+    }
+    var a=A,bb=B,c=C,d=D;
+    for(var j=0;j<64;j++){
+      var F,gIndex;
+      if(j<16){F=(bb&c)|(~bb&d);gIndex=j;}
+      else if(j<32){F=(d&bb)|(~d&c);gIndex=(5*j+1)%16;}
+      else if(j<48){F=bb^c^d;gIndex=(3*j+5)%16;}
+      else{F=c^(bb|~d);gIndex=(7*j)%16;}
+      var tmp=d;
+      d=c;c=bb;
+      bb=add(bb,rl(add(a,add(add(F,M[gIndex])>>>0,MD5_K[j])),MD5_S[j]));
+      a=tmp;
+    }
+    A=add(A,a);B=add(B,bb);C=add(C,c);D=add(D,d);
+  }
+  function le(x){return [(x&255),((x>>>8)&255),((x>>>16)&255),((x>>>24)&255)];}
+  var outBytes=le(A).concat(le(B)).concat(le(C)).concat(le(D));
+  return bytesToHex(outBytes);
+}
+
+/* ============================================================
+   RC4 (real, didáctico)
+============================================================ */
+function rc4(keyBytes,dataBytes){
+  var S=[],i,j=0,out=[];
+  for(i=0;i<256;i++)S[i]=i;
+  for(i=0;i<256;i++){
+    j=(j+S[i]+keyBytes[i%keyBytes.length])%256;
+    var t=S[i];S[i]=S[j];S[j]=t;
+  }
+  i=0;j=0;
+  for(var k=0;k<dataBytes.length;k++){
+    i=(i+1)%256;
+    j=(j+S[i])%256;
+    var t2=S[i];S[i]=S[j];S[j]=t2;
+    out.push(dataBytes[k]^S[(S[i]+S[j])%256]);
+  }
+  return out;
+}
+
+/* ============================================================
+   RSA con BigInt (didáctico, 512 bits)
+============================================================ */
+function bigRandomBits(bits){
+  var s="";
+  s+="1";
+  for(var i=1;i<bits-1;i++)s+=(Math.random()<0.5?"0":"1");
+  s+="1";
+  return BigInt("0b"+s);
+}
+function bigRandomBelow(n){
+  var bits=n.toString(2).length;
+  var r=bigRandomBits(bits);
+  return r%n;
+}
+function millerRabin(n,rounds){
+  if(n<4n)return n===2n||n===3n;
+  var d=n-1n,r=0;
+  while(d%2n===0n){d/=2n;r++;}
+  for(var i=0;i<rounds;i++){
+    var a=bigRandomBelow(n-3n)+2n;
+    var x=bigModPow(a,d,n);
+    if(x===1n||x===n-1n)continue;
+    var ok=false;
+    for(var j=0;j<r-1;j++){
+      x=(x*x)%n;
+      if(x===n-1n){ok=true;break;}
+    }
+    if(!ok)return false;
+  }
+  return true;
+}
+function bigModPow(b,e,m){
+  var result=1n;
+  b=b%m;
+  while(e>0n){
+    if(e%2n===1n)result=(result*b)%m;
+    b=(b*b)%m;
+    e/=2n;
+  }
+  return result;
+}
+function egcd(a,b){
+  if(a===0n)return [b,0n,1n];
+  var g=egcd(b%a,a);
+  return [g[0],g[2]-(b/a)*g[1],g[1]];
+}
+function modInverse(a,m){
+  var g=egcd(a%m,m);
+  if(g[0]!==1n)throw new Error("sin inverso");
+  var x=g[1]%m;
+  if(x<0n)x+=m;
+  return x;
+}
+function genPrime(bits){
+  for(;;){
+    var c=bigRandomBits(bits)|1n;
+    if(c%3n===0n||c%5n===0n||c%7n===0n||c%11n===0n)continue;
+    if(millerRabin(c,16))return c;
+  }
+}
+var RSA={n:null,e:65537n,d:null,p:null,q:null,cipher:null,signature:null,doc:null};
+document.getElementById("btn-rsa-gen").onclick=function(){
+  var st=document.getElementById("rsa-gen-status");
+  st.textContent="generando primos y calculando d…";
+  var self=this;
+  setTimeout(function(){
+    var p=genPrime(256),q=genPrime(256);
+    while(q===p)q=genPrime(256);
+    var n=p*q,phi=(p-1n)*(q-1n);
+    var d;
+    try{d=modInverse(RSA.e,phi);}
+    catch(err){st.textContent="reintenta (raro fallo de generación)";return;}
+    RSA.n=n;RSA.d=d;RSA.p=p;RSA.q=q;RSA.cipher=null;RSA.signature=null;
+    document.getElementById("rsa-keys").style.display="block";
+    document.getElementById("rsa-n").textContent=n.toString(16);
+    document.getElementById("rsa-e").textContent="65537";
+    document.getElementById("rsa-d").textContent=d.toString(16);
+    st.textContent="✔ par generado (n de "+n.toString(2).length+" bits)";
+    document.getElementById("rsa-enc-out").textContent="— aún sin cifrar —";
+    document.getElementById("rsa-sig-out").textContent="— aún sin firmar —";
+  },30);
+};
+function rsaEncryptBytes(bytes){
+  var chunk=Math.max(1,Math.floor((RSA.n.toString(2).length-1)/8));
+  var ciphers=[];
+  for(var i=0;i<bytes.length;i+=chunk){
+    var slice=bytes.slice(i,i+chunk);
+    var m=0n;
+    for(var j=0;j<slice.length;j++)m=(m<<8n)|BigInt(slice[j]);
+    var c=bigModPow(m,RSA.e,RSA.n);
+    ciphers.push(c);
+  }
+  return ciphers;
+}
+function rsaDecryptCipher(ciphers){
+  var bytes=[];
+  ciphers.forEach(function(c){
+    var m=bigModPow(c,RSA.d,RSA.n);
+    var chunk=[];
+    while(m>0n){chunk.unshift(Number(m&255n));m/=256n;}
+    chunk.forEach(function(x){bytes.push(x);});
+  });
+  return bytes;
+}
+document.getElementById("btn-rsa-enc").onclick=function(){
+  if(!RSA.n){document.getElementById("rsa-enc-out").textContent="Genera antes el par de claves";return;}
+  var msg=document.getElementById("rsa-msg").value;
+  RSA.cipher=rsaEncryptBytes(utf8ToBytes(msg));
+  document.getElementById("rsa-enc-out").textContent=RSA.cipher.map(function(c){return c.toString(16);}).join(" | ");
+};
+document.getElementById("btn-rsa-dec").onclick=function(){
+  if(!RSA.cipher){document.getElementById("rsa-enc-out").textContent="Cifra primero un mensaje";return;}
+  var plain=bytesToUtf8(rsaDecryptCipher(RSA.cipher));
+  document.getElementById("rsa-enc-out").textContent="🔓 (con d): "+plain;
+};
+document.getElementById("btn-rsa-sign").onclick=function(){
+  if(!RSA.n){document.getElementById("rsa-sig-out").textContent="Genera antes el par de claves";return;}
+  RSA.doc=document.getElementById("rsa-doc").value;
+  var h=BigInt("0x"+sha256Hex(RSA.doc).slice(0,16))%RSA.n;
+  RSA.signature=bigModPow(h,RSA.d,RSA.n);
+  document.getElementById("rsa-sig-out").textContent="firma (m^d mod n): "+RSA.signature.toString(16);
+};
+document.getElementById("btn-rsa-verify").onclick=function(){
+  if(!RSA.signature){document.getElementById("rsa-sig-out").textContent="Firma primero el documento";return;}
+  var doc=document.getElementById("rsa-doc").value;
+  var h=BigInt("0x"+sha256Hex(doc).slice(0,16))%RSA.n;
+  var recovered=bigModPow(RSA.signature,RSA.e,RSA.n);
+  var box=document.getElementById("rsa-sig-out");
+  if(recovered===h){
+    box.className="out ok";
+    box.textContent="✔ FIRMA VÁLIDA — hash del documento = hash recuperado de la firma. Integridad y no repudio OK.";
+  }else{
+    box.className="out bad";
+    box.textContent="❌ FIRMA INVÁLIDA — el documento no es el firmado (o la firma es falsa).";
+  }
+};
+document.getElementById("btn-rsa-tamper").onclick=function(){
+  var doc=document.getElementById("rsa-doc");
+  if(doc.value.indexOf("12.000")>-1)doc.value=doc.value.replace("12.000","1.200.000");
+  else if(doc.value.indexOf("AV-88")>-1)doc.value=doc.value.replace("AV-88","AV-99-HACKER");
+  else doc.value=doc.value+" (modificado)";
+  document.getElementById("rsa-sig-out").textContent="😈 documento alterado tras la firma. Pulsa Verificar…";
+};
+
+/* ============================================================
+   NAVEGACIÓN (delegación)
+============================================================ */
+(function(){
+  var nav=document.getElementById("tabs");
+  nav.addEventListener("click",function(ev){
+    var b=ev.target.closest("button");
+    if(!b)return;
+    nav.querySelectorAll("button").forEach(function(x){x.classList.remove("active");});
+    b.classList.add("active");
+    document.querySelectorAll("section.view").forEach(function(v){v.classList.remove("active");});
+    var t=document.getElementById("view-"+b.getAttribute("data-v"));
+    if(t)t.classList.add("active");
+  });
+})();
+
+/* ============================================================
+   SIMÉTRICO — UI
+============================================================ */
+var CAESAR_ALPHA="abcdefghijklmnñopqrstuvwxyzáéíóú";
+function caesar(text,k){
+  var out="";
+  var lower=text.toLowerCase();
+  for(var i=0;i<text.length;i++){
+    var ch=text[i],lo=lower[i];
+    var idx=CAESAR_ALPHA.indexOf(lo);
+    if(idx>-1){
+      var nv=CAESAR_ALPHA[(idx+k)%CAESAR_ALPHA.length];
+      out+=(ch===lo?nv:nv.toUpperCase());
+    }else out+=ch;
+  }
+  return out;
+}
+function caesarRender(){
+  var k=+document.getElementById("caesar-k-slider").value;
+  document.getElementById("caesar-k").textContent=k;
+  var txt=document.getElementById("caesar-in").value;
+  document.getElementById("caesar-out").textContent=caesar(txt,k);
+}
+document.getElementById("caesar-k-slider").addEventListener("input",caesarRender);
+document.getElementById("caesar-in").addEventListener("input",caesarRender);
+caesarRender();
+document.getElementById("btn-rc4-enc").onclick=function(){
+  var key=document.getElementById("rc4-key").value;
+  var msg=document.getElementById("rc4-in").value;
+  if(!key){document.getElementById("rc4-out").textContent="necesitas clave";return;}
+  var c=rc4(utf8ToBytes(key),utf8ToBytes(msg));
+  document.getElementById("rc4-out").textContent="cifrado (hex): "+bytesToHex(c);
+  document.getElementById("rc4-out").setAttribute("data-last","hex:"+bytesToHex(c));
+};
+document.getElementById("btn-rc4-dec").onclick=function(){
+  var key=document.getElementById("rc4-key").value;
+  var last=document.getElementById("rc4-out").getAttribute("data-last");
+  if(!last||last.indexOf("hex:")!==0){document.getElementById("rc4-out").textContent="cifra primero (o cambia la clave y descifra para ver basura)";return;}
+  var hexBytes=[];
+  var hexStr=last.slice(4);
+  for(var i=0;i<hexStr.length;i+=2)hexBytes.push(parseInt(hexStr.substr(i,2),16));
+  var dec=rc4(utf8ToBytes(key),hexBytes);
+  document.getElementById("rc4-out").textContent="descifrado: "+bytesToUtf8(dec);
+};
+
+/* ============================================================
+   TLS — certificados y triaje
+============================================================ */
+var CERTS=[
+  {id:1,name:"seguro.banco.es — Banco Solar",verdict:"ok",
+   fields:{Emisor:"SolarTLS CA (intermedia firmada por DigiCert Global Root G3)",Sujeto:"CN=seguro.banco.es",SAN:"seguro.banco.es","Válido desde":"10 ene 2025","Válido hasta":"10 ene 2026",Firma:"sha384WithECDSA",Clave:"ECDSA P-256"},
+   expl:"Todo cuadra: hostname = SAN, cadena hasta una raíz de confianza, vigente y firma robusta. Conexión normal con candado."},
+  {id:2,name:"legacy.tienda.es — comercio antiguo",verdict:"err",
+   fields:{Emisor:"Let's Encrypt R3",Sujeto:"CN=legacy.tienda.es",SAN:"legacy.tienda.es","Válido desde":"1 oct 2024","Válido hasta":"30 sep 2025",Firma:"sha256WithRSA",Clave:"RSA 2048"},
+   expl:"El certificado está CADUCADO (la fecha de hoy, octubre 2026, es posterior). El navegador bloquea la conexión aunque la cadena sea de confianza: la caducidad rompe la validez."},
+  {id:3,name:"dev.intranet.netonhate.es — herramienta interna",verdict:"warn",
+   fields:{Emisor:"= SUJETO (autofirmado)",Sujeto:"CN=dev.intranet.netonhate.es",SAN:"dev.intranet.netonhate.es","Válido desde":"5 mar 2026","Válido hasta":"5 mar 2027",Firma:"sha256WithRSA",Clave:"RSA 2048"},
+   expl:"AUTOFIRMADO: emisor = sujeto, no hay cadena a ninguna CA. El navegador muestra advertencia y deja aceptar el riesgo. En desarrollo interno puede tolerarse (o mejor: cert-manager con CA interna); en producción pública, nunca."},
+  {id:4,name:"pago.tienda.es — el dominio no cuadra",verdict:"err",
+   fields:{Emisor:"SolarTLS CA",Sujeto:"CN=www.tienda.es",SAN:"www.tienda.es, tienda.es","Válido desde":"1 feb 2026","Válido hasta":"1 feb 2027",Firma:"sha256WithRSA",Clave:"RSA 2048"},
+   expl:"HOSTNAME MISMATCH: el servidor de pago.tienda.es presenta un certificado emitido para www.tienda.es. La identidad no coincide con el sitio al que conectas → bloqueo (y en un MITM real, esto es exactamente lo que delata al impostor si su copia no cuadra)."},
+  {id:5,name:"seguro.banco.es — «Super Valid TLS CA» (¡conexión WiFi del aeropuerto!)",verdict:"err",
+   fields:{Emisor:"Super Valid TLS CA (NO está en tu almacén de raíces)",Sujeto:"CN=seguro.banco.es",SAN:"seguro.banco.es","Válido desde":"20 oct 2026","Válido hasta":"20 oct 2027",Firma:"sha256WithRSA",Clave:"RSA 2048"},
+   expl:"CASO MITM: hostname correcto, vigente, bien formado… pero la cadena no llega a ninguna raíz de confianza de tu sistema. Es el certificado del hombre-en-medio. El navegador bloquea: NUNCA aceptes el riesgo en una red que no controlas."},
+  {id:6,name:"antiguo.gov.es — certificado heredado",verdict:"err",
+   fields:{Emisor:"Government Root (confiable)",Sujeto:"CN=antiguo.gov.es",SAN:"antiguo.gov.es","Válido desde":"2 ene 2015","Válido hasta":"2 ene 2016",Firma:"sha1WithRSA",Clave:"RSA 1024"},
+   expl:"Doble fatal: caducado desde 2016 Y firmado con SHA-1 + RSA 1024 (los navegadores lo rechazan por criptografía obsoleta: SHA-1 tiene colisiones prácticas). Renovar con SHA-256 y RSA 2048+/ECDSA."}
+];
+var certAnswers={};
+function certClass(v){return v==="ok"?"✔ Válido":(v==="warn"?"⚠ Advertencia":"❌ Error / bloquear");}
+function renderCertList(){
+  var html="";
+  CERTS.forEach(function(c){
+    html+="<div class='cert"+(currentCert===c.id?" active":"")+"' data-cert='"+c.id+"'><b>"+esc(c.name)+"</b>"+
+      "<span class='meta'>"+esc(c.fields.Emisor)+" · hasta "+esc(c.fields["Válido hasta"])+"</span></div>";
+  });
+  document.getElementById("cert-list").innerHTML=html;
+  document.querySelectorAll("[data-cert]").forEach(function(el){
+    el.onclick=function(){openCert(+el.getAttribute("data-cert"));};
+  });
+}
+var currentCert=null;
+function openCert(id){
+  currentCert=id;
+  var c=CERTS.filter(function(x){return x.id===id;})[0];
+  var html="<h3>🔎 "+esc(c.name)+"</h3><table>";
+  Object.keys(c.fields).forEach(function(k){
+    html+="<tr><th>"+esc(k)+"</th><td class='mono'>"+esc(c.fields[k])+"</td></tr>";
+  });
+  html+="</table><div class='tri' style='margin-top:10px'>"+
+    "<button data-vc='ok' class='"+(certAnswers[c.id]==="ok"?"sel-ok":"")+"'>✔ Válido</button>"+
+    "<button data-vc='warn' class='"+(certAnswers[c.id]==="warn"?"sel-warn":"")+"'>⚠ Advertencia</button>"+
+    "<button data-vc='err' class='"+(certAnswers[c.id]==="err"?"sel-err":"")+"'>❌ Error</button></div>";
+  document.getElementById("cert-detail").innerHTML=html;
+  document.querySelectorAll("[data-vc]").forEach(function(b){
+    b.onclick=function(){
+      certAnswers[c.id]=b.getAttribute("data-vc");
+      openCert(c.id);
+      renderCertList();
+    };
+  });
+  renderCertList();
+}
+document.getElementById("btn-cert-eval").onclick=function(){
+  var ok=0,html="",answered=0;
+  CERTS.forEach(function(c){
+    var a=certAnswers[c.id];
+    if(!a){html+="<div class='hint'>❏ "+esc(c.name)+" — sin clasificar.</div>";return;}
+    answered++;
+    var correct=(a===c.verdict);
+    if(correct)ok++;
+    html+="<div class='hint' style='margin:4px 0'>"+(correct?"✅":"❌")+" "+esc(c.name)+" — <b>"+certClass(c.verdict)+"</b>. "+esc(c.expl)+"</div>";
+  });
+  document.getElementById("cert-feedback").innerHTML=scoreHtml(ok,answered,"certificados triajeados correctamente")+html;
+};
+document.getElementById("btn-cert-reset").onclick=function(){
+  certAnswers={};
+  renderCertList();
+  document.getElementById("cert-detail").innerHTML="";
+  document.getElementById("cert-feedback").innerHTML="";
+};
+renderCertList();
+
+/* ============================================================
+   HASH — playground, crackeo y salteado
+============================================================ */
+function renderHashes(){
+  var txt=document.getElementById("hash-in").value;
+  document.getElementById("hash-sha").textContent="SHA-256: "+sha256Hex(txt);
+  document.getElementById("hash-md5").textContent="MD5:    "+md5Hex(txt);
+}
+document.getElementById("hash-in").addEventListener("input",renderHashes);
+renderHashes();
+
+function entropyBits(pw){
+  var pool=0;
+  if(/[a-z]/.test(pw))pool+=26;
+  if(/[A-Z]/.test(pw))pool+=26;
+  if(/[0-9]/.test(pw))pool+=10;
+  if(/[^a-zA-Z0-9]/.test(pw))pool+=33;
+  if(!pool)pool=1;
+  return pw.length*Math.log2(pool);
+}
+function fmtTime(secs){
+  if(secs<1)return "instantáneo";
+  var u=[["s",1],["min",60],["h",3600],["d",86400],["años",31557600],["milenios",31557600000],["millones de años",3.15576e16]];
+  var best=u[0];
+  for(var i=0;i<u.length;i++){if(secs>=u[i][1])best=u[i];}
+  var v=secs/best[1];
+  if(v>1e12)return "> "+best[0]+" (prácticamente eterno)";
+  return (v<10?v.toFixed(1):Math.round(v).toLocaleString("es"))+" "+best[0];
+}
+function renderPw(){
+  var pw=document.getElementById("pw-in").value;
+  var bits=entropyBits(pw);
+  var space=Math.pow(2,bits);
+  var rates=[["MD5 plano",2e10],["SHA-256 plano",5e9],["bcrypt (cost 12)",3e3],["Argon2id",1e2]];
+  var html="<div class='metric'><div class='k'>Entropía</div><div class='v'>"+bits.toFixed(1)+" bits</div></div>"+
+    "<div class='metric'><div class='k'>Espacio de claves</div><div class='v'>2^"+bits.toFixed(0)+"</div></div>";
+  rates.forEach(function(r){
+    var t=space/r[1];
+    var cls=t>3.15e13?"ok":(t>3.15e7?"mid":"hot");
+    html+="<div class='metric'><div class='k'>"+r[0]+"</div><div class='v "+cls+"'>"+fmtTime(t)+"</div></div>";
+  });
+  document.getElementById("pw-metrics").innerHTML=html;
+}
+document.getElementById("pw-in").addEventListener("input",renderPw);
+renderPw();
+
+var DICT=["123456","password","qwerty","dragon","iloveyou","admin","letmein","Dragon2026","Dragon"];
+var USERS=[
+  {user:"alice",pw:"Dragon2026",salt:"k9Vz2"},
+  {user:"bob",pw:"Dragon2026",salt:"Xm4pQ"},
+  {user:"carol",pw:"123456",salt:"Ld7wR"},
+  {user:"dave",pw:"qwerty",salt:"Pn1sE"}
+];
+function renderUsers(hashed,salted){
+  var html="<table><tr><th>Usuario</th><th>Contraseña real</th><th>Hash almacenado (recortado)</th></tr>";
+  USERS.forEach(function(u){
+    var stored;
+    if(salted){
+      stored="$2b$12$"+u.salt+"·"+sha256Hex(u.salt+u.pw).slice(0,24)+"…";
+    }else{
+      stored=md5Hex(u.pw).slice(0,24)+"…";
+    }
+    html+="<tr><td>"+u.user+"</td><td class='mono'>"+esc(u.pw)+"</td><td class='mono'>"+esc(stored)+"</td></tr>";
+  });
+  html+="</table>";
+  return html;
+}
+function crackSim(salted){
+  var box=document.getElementById("crack-out");
+  if(salted){
+    var html="<b>Base con bcrypt + salt único por usuario:</b>"+renderUsers(true,true);
+    html+="<div class='hint'>El atacante tiene el mismo diccionario, pero cada hash usa un salt distinto: NO puede comparar contra una tabla precalculada. Debe hashear el diccionario <b>una vez por usuario</b> (4 usuarios × 9 palabras × función lenta)…</div>";
+    var found=0;
+    USERS.forEach(function(u){
+      for(var i=0;i<DICT.length;i++){
+        if(DICT[i]===u.pw){found++;html+="<div class='hint'>· "+u.user+": reventada tras "+(i+1)+" intentos de bcrypt (cost 12) — trabajo <b>independiente</b> por salt</div>";break;}
+      }
+    });
+    html+="<div class='hint' style='color:var(--ok)'>✔ Conclusión: el salt no impide que una contraseña absurda (123456) caiga, pero destruye las tablas arcoíris y multiplica por N el coste. Con bcrypt lento, cada intento es carísimo.</div>";
+    box.className="out";
+    box.innerHTML=html;
+  }else{
+    var html2="<b>Base con MD5 plano, SIN salt:</b>"+renderUsers(true,false);
+    var rainbow={};
+    DICT.forEach(function(w){rainbow[md5Hex(w)]=w;});
+    html2+="<div class='hint'>El atacante ya tiene una tabla arcoíris: hash MD5 → contraseña de diccionario. Solo tiene que BUSCAR:</div>";
+    var found2=0;
+    USERS.forEach(function(u){
+      var h=md5Hex(u.pw);
+      if(rainbow[h]){
+        found2++;
+        html2+="<div class='hint' style='color:var(--bad)'>· "+u.user+": hash "+h.slice(0,12)+"… encontrado en la tabla = «"+u.pw+"» — 0 cómputo</div>";
+      }
+    });
+    html2+="<div class='hint' style='color:var(--bad)'>✖ Alice y Bob comparten hash (misma contraseña): un solo reventón sirve para ambos. Así se filtraron millones de cuentas de LinkedIn 2012 (SHA-1 sin salt).</div>";
+    box.className="out";
+    box.innerHTML=html2;
+  }
+}
+document.getElementById("btn-crack-md5").onclick=function(){crackSim(false);};
+document.getElementById("btn-crack-salt").onclick=function(){crackSim(true);};
+</script>
+</body>
+</html>

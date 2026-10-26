@@ -1,0 +1,87 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mis Laboratorios HTML</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f4f7f6;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+    }
+    h1 {
+      color: #2c3e50;
+      font-size: 2.2rem;
+      margin-bottom: 0.5rem;
+    }
+    p.subtitle {
+      color: #7f8c8d;
+      font-size: 1.1rem;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 1.5rem;
+      width: 100%;
+      max-width: 900px;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 1.5rem;
+      text-align: center;
+      text-decoration: none;
+      color: #2c3e50;
+      font-weight: 600;
+      font-size: 1.1rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+      transition: all 0.2s ease-in-out;
+      border: 2px solid transparent;
+    }
+    .card:hover {
+      transform: translateY(-4px);
+      box-shadow: 0 8px 15px rgba(0,0,0,0.1);
+      border-color: #3498db;
+      color: #3498db;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Portal de Laboratorios</h1>
+    <p class="subtitle">Colección de prácticas y proyectos HTML</p>
+  </header>
+
+  <main class="grid">
+    <a class="card" href="./lab_1.html">Nmap</a>
+    <a class="card" href="./lab_2.html">Metasploit</a>
+    <a class="card" href="./lab_3.html">Sniffing</a>
+    <a class="card" href="./lab_4.html">Tráfico DNS</a>
+    <a class="card" href="./lab_5.html">Burpsuite</a>
+    <a class="card" href="./lab_6.html">SIEM</a>
+    <a class="card" href="./lab_7.html">OWASP</a>
+    <a class="card" href="./lab_8.html">Firewall</a>
+    <a class="card" href="./lab_9.html">Laboratorio WAF</a>
+    <a class="card" href="./lab_10.html">Laboratorio forense</a> 
+    <a class="card" href="./lab_11.html">Criptografía</a>
+  </main>
+
+</body>
+</html>

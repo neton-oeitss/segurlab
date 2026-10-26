@@ -1,0 +1,792 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Lab SOC — Análisis de Malware, Forense, Phishing, Vulnerabilidades, Wazuh y Suricata</title>
+<style>
+  :root{
+    --bg:#0b1220; --panel:#111a2e; --panel2:#0e1626; --line:#22304d;
+    --txt:#dbe4f5; --dim:#8fa3c8; --acc:#4f8cff; --ok:#3ddc97; --warn:#ffc857;
+    --bad:#ff5d73; --bad2:#c93b52; --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{background:var(--bg);color:var(--txt);font:15px/1.55 system-ui,-apple-system,'Segoe UI',sans-serif;padding-bottom:40px}
+  header{padding:22px 20px 10px;max-width:1280px;margin:0 auto}
+  header h1{font-size:1.5rem;letter-spacing:.3px}
+  header h1 .dot{color:var(--acc)}
+  header p{color:var(--dim);margin-top:4px;max-width:960px}
+  .badges{display:flex;gap:8px;margin-top:10px;flex-wrap:wrap}
+  .badge{font-size:.72rem;padding:3px 10px;border-radius:99px;border:1px solid var(--line);color:var(--dim);background:var(--panel)}
+  .badge.red{border-color:#5c2e3a;color:#ff8fa0;background:#2a1420}
+  .badge.blue{border-color:#2b4a7a;color:#9cc1ff;background:#14233f}
+  .badge.green{border-color:#1e5c45;color:#7dffc7;background:#0f2a20}
+  nav{display:flex;gap:6px;max-width:1280px;margin:14px auto 0;padding:0 20px;flex-wrap:wrap}
+  nav button{background:var(--panel);border:1px solid var(--line);color:var(--dim);padding:8px 16px;border-radius:8px 8px 0 0;cursor:pointer;font-size:.9rem}
+  nav button.active{background:var(--panel2);color:var(--txt);border-bottom-color:var(--acc);font-weight:600}
+  main{max-width:1280px;margin:0 auto;padding:16px 20px}
+  section.view{display:none;border-top:1px solid var(--acc);background:var(--panel2);border-radius:0 10px 10px 10px;padding:20px}
+  section.view.active{display:block}
+  h2{font-size:1.15rem;margin-bottom:10px;color:#fff}
+  h3{font-size:1rem;margin:14px 0 6px}
+  h3:first-child{margin-top:0}
+  p.lead{color:var(--dim);margin-bottom:12px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px 16px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+  @media(max-width:1000px){.grid2,.grid3{grid-template-columns:1fr}}
+  label.chk{display:flex;gap:8px;align-items:flex-start;margin:6px 0;font-size:.88rem;cursor:pointer}
+  label.chk input{accent-color:var(--acc);margin-top:3px}
+  .btn{background:var(--acc);color:#fff;border:0;padding:9px 16px;border-radius:8px;cursor:pointer;font-weight:600;font-size:.9rem;margin:4px 6px 4px 0}
+  .btn.ghost{background:transparent;border:1px solid var(--line);color:var(--txt)}
+  .btn.warn{background:var(--bad2)}
+  .btn.ok{background:var(--ok);color:#06251a}
+  .btn:disabled{opacity:.45;cursor:not-allowed}
+  table{width:100%;border-collapse:collapse;font-size:.82rem}
+  th,td{padding:6px 8px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:.72rem;text-transform:uppercase;letter-spacing:.5px}
+  td.mono,th.mono,.mono{font-family:var(--mono)}
+  .cmd{font-family:var(--mono);font-size:.74rem;color:#9cc1ff}
+  .metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:14px}
+  .metric{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+  .metric .k{font-size:.72rem;color:var(--dim);text-transform:uppercase;letter-spacing:.6px}
+  .metric .v{font-size:1.3rem;font-weight:700;color:#fff;font-family:var(--mono)}
+  .metric .v.ok{color:var(--ok)} .metric .v.hot{color:var(--bad)}
+  .v-acc{color:var(--ok);font-weight:700} .v-drop{color:var(--bad);font-weight:700} .v-rej{color:var(--warn);font-weight:700}
+  .hint{font-size:.78rem;color:var(--dim);margin-top:8px}
+  .score{font-size:1.6rem;font-weight:800;font-family:var(--mono)}
+  details{margin-top:6px}
+  summary{cursor:pointer;color:var(--acc);font-size:.85rem}
+  details pre,details .box{background:#0a101d;border:1px solid var(--line);border-radius:6px;padding:10px;font-size:.75rem;overflow:auto;font-family:var(--mono);margin-top:6px}
+  code{font-family:var(--mono);background:#1a2640;border-radius:4px;padding:1px 5px;font-size:.85em}
+  pre.block{background:#0a101d;border:1px solid var(--line);border-radius:6px;padding:10px;font-size:.76rem;overflow:auto;font-family:var(--mono);margin-top:6px}
+  ul.dim,ol.dim{color:var(--dim);font-size:.88rem;margin:6px 0 0 20px;line-height:1.7}
+  .mail-list{max-height:520px;overflow:auto}
+  .mail{border:1px solid var(--line);border-radius:8px;padding:9px 12px;margin-bottom:8px;cursor:pointer;background:var(--panel)}
+  .mail.active{border-color:var(--acc);box-shadow:0 0 0 1px var(--acc)}
+  .mail b{display:block}
+  .mail .meta{font-size:.76rem;color:var(--dim)}
+  .mail .stamp{font-size:.7rem;font-weight:800;float:right;padding:1px 8px;border-radius:99px}
+  .stamp.none{background:#16223c;color:var(--dim)}
+  .stamp.phish{background:#2a1420;color:#ff8fa0;border:1px solid #5c2e3a}
+  .stamp.legit{background:#0f2a20;color:#7dffc7;border:1px solid #1e5c45}
+  .mailbody{background:#0a101d;border:1px solid var(--line);border-radius:8px;padding:12px 14px;font-size:.9rem;margin-top:8px;line-height:1.7}
+  .mailbody a{color:#9cc1ff}
+  .rule-actions button{background:#1a2640;border:1px solid var(--line);color:var(--txt);border-radius:4px;cursor:pointer;padding:1px 7px;font-size:.8rem;margin-right:3px}
+  .rule-actions button:disabled{opacity:.3;cursor:not-allowed}
+  .evidence li{margin:4px 0}
+  .alertfeed{height:400px;overflow:auto;background:#0a101d;border:1px solid var(--line);border-radius:10px}
+  .alertfeed table{font-family:var(--mono);font-size:.74rem}
+  .alertfeed td{border-bottom:1px solid #17233c}
+  .tri button{border-radius:5px;border:1px solid var(--line);cursor:pointer;padding:2px 8px;font-size:.78rem;margin-right:4px}
+  .tri button.t{background:#2a1420;color:#ff8fa0;border-color:#5c2e3a}
+  .tri button.b{background:#0f2a20;color:#7dffc7;border-color:#1e5c45}
+  select{background:#0a101d;border:1px solid var(--line);color:var(--txt);border-radius:6px;padding:6px 8px;font-size:.85rem}
+  .cvss{font-family:var(--mono);font-weight:800}
+  .cv9{color:var(--bad)} .cv7{color:var(--warn)} .cv0{color:var(--ok)}
+  footer{max-width:1280px;margin:20px auto 0;padding:12px 20px;color:var(--dim);font-size:.78rem;border-top:1px solid var(--line)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🛰️ Lab SOC <span class="dot">//</span> Malware · Forense · Phishing · Vulnerabilidades · Wazuh · Suricata</h1>
+  <p>Laboratorio simulado de operaciones de seguridad (SOC): analiza una muestra de malware <b>sin ejecutarla nunca</b> (solo análisis estático), ordena la cadena de custodia de un incidente, caza correos de phishing en una bandeja de entrada, prioriza vulnerabilidades como un analista y tria alertas de <b>Wazuh</b> (SIEM/XDR) y <b>Suricata</b> (IDS/IPS). Todo se evalúa localmente en tu navegador — no hay red real, ni malware real, ni sistemas reales.</p>
+  <div class="badges">
+    <span class="badge red">Muestra ficticia · strings simulados</span>
+    <span class="badge blue">RFC 3227 · orden de volatilidad</span>
+    <span class="badge blue">SPF · DKIM · DMARC</span>
+    <span class="badge blue">CVSS · priorización de parcheo</span>
+    <span class="badge green">100% defensivo · datos sintéticos (RFC 5737)</span>
+  </div>
+</header>
+
+<nav id="tabs">
+  <button data-v="guia" class="active">📖 Guía del laboratorio</button>
+  <button data-v="malware">🦠 Malware estático</button>
+  <button data-v="custodia">⚖️ Cadena de custodia</button>
+  <button data-v="phishing">🎣 Phishing</button>
+  <button data-v="vulns">🛡️ Vulnerabilidades</button>
+  <button data-v="soc">📡 Wazuh &amp; Suricata</button>
+</nav>
+
+<main>
+
+<!-- ============ GUÍA ============ -->
+<section class="view active" id="view-guia">
+  <h2>El caso que vas a investigar</h2>
+  <p class="lead">Todos los módulos giran en torno a un mismo incidente ficticio y coherente: el ransomware <b>ONEUPD</b>. Un empleado abrió un adjunto de un correo de phishing, el equipo se infectó y comenzó a cifrar archivos. Como analista SOC de <b>netonhate</b> recorrerás el caso de principio a fin.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>🗺️ Flujo del incidente</h3>
+      <pre class="block">09:12  🎣 Empleado abre el phishing "Su paquete DHL está retenido"   → módulo Phishing
+09:14  🦠 Se descarga FACTURA_2026.pdf.exe (ONEUPD, sample #A-117)  → módulo Malware
+09:16  📡 Wazuh FIM detecta persistencia en el registro Run         → módulo Wazuh/Suricata
+09:17  📡 Suricata ve check-in C2 hacia 198.51.100.66               → módulo Wazuh/Suricata
+09:25  🦠 vssadmin delete shadows · comienza el cifrado             → módulo Malware (IoC)
+09:31  ⚖️ El SOC aísla el equipo y abre el caso                      → módulo Cadena de custodia
+09:55  🛡️ El informe lista también vulnerabilidades previas         → módulo Vulnerabilidades</pre>
+    </div>
+    <div class="card">
+      <h3>🧰 Módulos y habilidades que practicas</h3>
+      <table>
+        <tr><th>Módulo</th><th>Habilidad SOC</th></tr>
+        <tr><td>🦠 Malware estático</td><td>Hashes, strings, IoC, sin detonar la muestra</td></tr>
+        <tr><td>⚖️ Cadena de custodia</td><td>Línea de tiempo + orden de volatilidad (RFC 3227)</td></tr>
+        <tr><td>🎣 Phishing</td><td>Cabeceras, SPF/DKIM/DMARC, enlaces spoofeados, BEC</td></tr>
+        <tr><td>🛡️ Vulnerabilidades</td><td>CVSS + exposición + exploit → priorizar parcheo</td></tr>
+        <tr><td>📡 Wazuh</td><td>SIEM/XDR: logs, FIM, niveles de regla, triaje</td></tr>
+        <tr><td>📡 Suricata</td><td>IDS/IPS: firmas de red, detección en tiempo real</td></tr>
+      </table>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>⚙️ Cómo usar cada módulo</h3>
+    <ol class="dim">
+      <li><b>Malware estático:</b> pulsa Analizar muestra para extraer hashes, metadatos PE y strings; luego marca cuáles son IoC y evalúa.</li>
+      <li><b>Cadena de custodia:</b> ordena los eventos del incidente con ⬆/⬇ y, en el segundo ejercicio, decide qué evidencia recoger primero (lo más volátil se pierde al apagar).</li>
+      <li><b>Phishing:</b> abre cada correo, inspecciona remitente, Return-Path, autenticación y la URL real del enlace; márcalo como phishing o legítimo y evalúa.</li>
+      <li><b>Vulnerabilidades:</b> lanza el escáner simulado y asigna a cada hallazgo una decisión de remediación; evalúa contra la priorización del experto.</li>
+      <li><b>Wazuh &amp; Suricata:</b> primero empareja cada capacidad con la herramienta correcta; después tria el flujo de alertas en vivo: amenaza real o benigno/falso positivo.</li>
+    </ol>
+    <p class="hint">Ⓐ Nota ética: laboratorio 100% defensivo. La muestra, hashes, CVEs, firmas, correos y alertas son ficticios o de documentación (rangos RFC 5737). No hay detonación de código ni acceso a sistemas reales.</p>
+  </div>
+</section>
+
+<!-- ============ MALWARE ============ -->
+<section class="view" id="view-malware">
+  <h2>🦠 Análisis estático de malware — muestra #A-117 «FACTURA_2026.pdf.exe»</h2>
+  <p class="lead">La muestra ya está en el laboratorio dentro de un sandbox documental (no se ejecuta). El análisis estático examina el archivo <b>tal como es</b>: hashes, metadatos y cadenas de texto embebidas. Pulsa el botón y ve extrayendo capa a capa.</p>
+  <div class="card">
+    <button class="btn" id="btn-analyze">🔬 Analizar muestra</button>
+    <span id="analyze-status" class="hint" style="margin-left:8px"></span>
+    <div id="mw-results" style="display:none">
+      <div class="grid2" style="margin-top:12px">
+        <div class="card">
+          <h3>#️⃣ Hashes de la muestra (para VirusTotal / MISP)</h3>
+          <table>
+            <tr><th>Algoritmo</th><th>Valor</th></tr>
+            <tr><td class="mono">MD5</td><td class="mono">3e7a1c9d2f0b48a65d1e0c8b7a4f2d93</td></tr>
+            <tr><td class="mono">SHA-256</td><td class="mono" style="word-break:break-all">9f2c4b7e51a8d0c3f6e1b4a7d2c8e5f10a9b3c6d7e2f1a4b5c8d9e0f1a2b3c4d</td></tr>
+            <tr><td class="mono">Tamaño</td><td class="mono">291 840 bytes (285 KB)</td></tr>
+          </table>
+          <p class="hint">Un solo bit cambiado produce un hash totalmente distinto (efecto avalancha): sirve como huella dactilar para buscar la muestra en bases de datos de IoC.</p>
+        </div>
+        <div class="card">
+          <h3>📦 Metadatos PE (simulados)</h3>
+          <table>
+            <tr><th>Campo</th><th>Valor</th></tr>
+            <tr><td>Tipo</td><td>PE32 executable (GUI) Intel 80386</td></tr>
+            <tr><td>Compilador</td><td>UPX 3.96 → <b>empaquetado</b> (secciones comprimidas)</td></tr>
+            <tr><td>Secciones</td><td class="mono">UPX0 UPX1 .rsrc (nombres inusuales)</td></tr>
+            <tr><td>Entropía UPX0</td><td class="mono">7.91 → contenido cifrado/comprimido</td></tr>
+            <tr><td>Firma Authenticode</td><td>Ninguna</td></tr>
+          </table>
+          <p class="hint">Empaquetado + entropía alta = el analista sabe que las strings «vivas» solo se verán con análisis dinámico… pero muchas muestras dejan IoC igualmente.</p>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px">
+        <h3>🔤 Strings extraídas — marca las que son IoC (indicadores de compromiso)</h3>
+        <p class="hint" style="margin-top:0">Un IoC es cualquier artefacto observable y reutilizable: URLs de C2, claves de registro de persistencia, mutex, wallets, comandos. Las llamadas a APIs del sistema o mensajes del compilador <b>no</b> son IoC.</p>
+        <div id="mw-strings"></div>
+        <button class="btn" id="btn-ioc-eval" style="margin-top:10px">✔ Evaluar mis IoC</button>
+        <button class="btn ghost" id="btn-ioc-reset">🧹 Reiniciar</button>
+        <div id="ioc-feedback"></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ CUSTODIA ============ -->
+<section class="view" id="view-custodia">
+  <h2>⚖️ Cadena de custodia del incidente ONEUPD (caso INC-2026-0131)</h2>
+  <p class="lead">Dos habilidades forenses: reconstruir la <b>línea de tiempo</b> correcta del incidente y decidir <b>qué evidencia recoger primero</b>. La regla de oro del RFC 3227: se recoge primero lo más <b>volátil</b> (lo que se pierde al apagar el equipo), en orden de volatilidad decreciente.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>🕐 Ejercicio 1 — Ordena la línea de tiempo del incidente</h3>
+      <p class="hint" style="margin-top:0">Reordena con ⬆/⬇ hasta tener los eventos en orden cronológico correcto.</p>
+      <div class="rule-actions" id="tl-list"></div>
+      <button class="btn" id="btn-tl-eval" style="margin-top:10px">✔ Evaluar línea de tiempo</button>
+      <button class="btn ghost" id="btn-tl-sol">💡 Ver cronología real</button>
+      <div id="tl-feedback"></div>
+    </div>
+    <div class="card">
+      <h3>🧊 Ejercicio 2 — ¿Qué evidencia recoger primero?</h3>
+      <p class="hint" style="margin-top:0">El equipo infectado sigue encendido y tú tienes 15 minutos antes de que lo corten de la red. Ordena de 1 (recoger ya) a 6 (recoger al final) según el orden de volatilidad.</p>
+      <div class="rule-actions" id="ev-list"></div>
+      <button class="btn" id="btn-ev-eval" style="margin-top:10px">✔ Evaluar orden forense</button>
+      <button class="btn ghost" id="btn-ev-sol">💡 Ver orden del experto</button>
+      <div id="ev-feedback"></div>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>🔐 Puntos clave de la cadena de custodia</h3>
+    <ul class="dim">
+      <li>Todo movimiento de evidencia se documenta: <b>quién</b> la recogió, <b>cuándo</b>, <b>dónde</b> y <b>qué</b> herramienta usó (formularios de custodia sellados).</li>
+      <li>Cada imagen se verifica con <b>hash</b> en el momento de la captura y se recalcula al analizarla: si cambia, la evidencia se contamina.</li>
+      <li>Trabaja siempre sobre <b>copias forenses</b>, nunca sobre el original; usa write-blockers para discos.</li>
+      <li>Orden de volatilidad (RFC 3227): registros y caché → tabla de rutas/ARP → conexiones de red → memoria → disco → logs remotos → backups y archivo físico.</li>
+    </ul>
+  </div>
+</section>
+
+<!-- ============ PHISHING ============ -->
+<section class="view" id="view-phishing">
+  <h2>🎣 Bandeja de entrada — 7 correos, ¿cuántos son phishing?</h2>
+  <p class="lead">Abre cada correo e inspecciona: dominio real del remitente (no el nombre visible), <code>Return-Path</code>/<code>Reply-To</code>, resultados de <b>SPF/DKIM/DMARC</b> y si el <b>enlace del texto</b> coincide con la <b>URL real</b>. Marca cada correo y evalúa al final.</p>
+  <div class="grid2">
+    <div>
+      <div class="card" style="padding:8px">
+        <div class="mail-list" id="mail-list"></div>
+      </div>
+      <div class="card" style="margin-top:10px">
+        <button class="btn" id="btn-mail-eval">✔ Evaluar mis marcas</button>
+        <button class="btn ghost" id="btn-mail-reset">🧹 Reiniciar marcas</button>
+        <p class="hint">Los marcadores 🎣/✔ solo indican tu respuesta; el resultado real aparece al evaluar.</p>
+      </div>
+    </div>
+    <div>
+      <div class="card" id="mail-detail"><p class="hint">Selecciona un correo de la bandeja para inspeccionar sus cabeceras y su cuerpo.</p></div>
+      <div class="card" id="mail-results" style="display:none;margin-top:14px"></div>
+    </div>
+  </div>
+</section>
+
+<!-- ============ VULNERABILIDADES ============ -->
+<section class="view" id="view-vulns">
+  <h2>🛡️ Gestión de vulnerabilidades — escáner simulado</h2>
+  <p class="lead">El escáner (estilo Nessus) devuelve hallazgos con CVSS, si existe exploit público y la exposición del activo. Priorizar <b>no</b> es ordenar solo por CVSS: riesgo ≈ criticidad × exposición × explotabilidad. Asigna a cada hallazgo una decisión de remediación.</p>
+  <div class="card">
+    <button class="btn" id="btn-scan">▶ Escanear la red (simulado)</button>
+    <span id="scan-status" class="hint" style="margin-left:8px"></span>
+    <div id="scan-results" style="display:none;margin-top:12px">
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>#</th><th>Activo</th><th>Hallazgo</th><th>CVSS</th><th>Exploit público</th><th>Exposición</th><th>Tu decisión</th></tr></thead>
+        <tbody id="scan-tbody"></tbody>
+      </table>
+      </div>
+      <button class="btn" id="btn-vuln-eval" style="margin-top:10px">✔ Evaluar priorización</button>
+      <button class="btn ghost" id="btn-vuln-sol">💡 Ver recomendación del experto</button>
+      <div id="vuln-feedback"></div>
+    </div>
+  </div>
+  <div class="grid2" style="margin-top:14px">
+    <div class="card">
+      <h3>📏 Cómo se prioriza de verdad</h3>
+      <ul class="dim">
+        <li><b>CVSS</b> mide gravedad técnica (0-10), no contexto: un 9.8 interno sin exposición pesa menos que un 8.8 en el perímetro.</li>
+        <li><b>Explotabilidad:</b> exploit público (o integrado en botnets) multiplica la urgencia.</li>
+        <li><b>Exposición:</b> Internet > DMZ > LAN. <b>Valor del activo:</b> AD, backups y servidores públicos primero.</li>
+        <li>Si no hay parche (EOL, firmware): <b>mitigar</b> (segmentar, WAF, reglas Suricata) y aceptar el riesgo documentado.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🚦 Semáforo de remediación típico</h3>
+      <table>
+        <tr><th>Decisión</th><th>Cuándo</th></tr>
+        <tr><td class="v-drop">🔴 Parchear YA</td><td>RCE/exploit público en activo expuesto a Internet o DMZ crítica</td></tr>
+        <tr><td class="v-rej">🟡 Programar (≤72h)</td><td>Criticidad media-alta, explotable pero activo interno o cliente</td></tr>
+        <tr><td class="v-acc">🟢 Mitigar / aceptar</td><td>Sin parche disponible, activo de baja criticidad, riesgo documentado</td></tr>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ============ WAZUH & SURICATA ============ -->
+<section class="view" id="view-soc">
+  <h2>📡 Detección: Wazuh (SIEM/XDR de endpoint) y Suricata (IDS/IPS de red)</h2>
+  <p class="lead">Dos capas complementarias: Wazuh ve lo que pasa <b>dentro</b> de los equipos (logs, integridad de archivos, niveles de regla); Suricata ve lo que viaja <b>por el cable</b> (firmas y tráfico). Primero emparéjalos bien, después tria alertas en vivo.</p>
+  <div class="grid2">
+    <div class="card">
+      <h3>🟣 Wazuh — qué hace</h3>
+      <ul class="dim">
+        <li>Agente en cada endpoint que envía logs y estado al gestor (SIEM/XDR open source).</li>
+        <li><b>FIM:</b> integridad de archivos y claves de registro — alerta si cambia algo crítico.</li>
+        <li><b>Decoders y reglas con niveles 0-15:</b> correlación, p.ej. «N fallos de SSH seguidos» = nivel 10.</li>
+        <li>Respuesta activa: puede bloquear una IP en el firewall del host.</li>
+        <li>Consume y enriquece alertas de Suricata para correlacionar red + endpoint.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3>🔴 Suricata — qué hace</h3>
+      <ul class="dim">
+        <li>Motor IDS/IPS de red de alto rendimiento: inspecciona tráfico en tiempo real.</li>
+        <li>Reglas tipo Snort / ET Open: cada firma tiene <b>SID</b>, mensaje y severidad.</li>
+        <li>Modo <b>IDS</b> (alerta) o <b>IPS</b> (descarta el paquete y bloquea).</li>
+        <li>Protocolo-aware: reconstruye flujos HTTP/TLS/DNS, extrae metadatos (JA3, UA, dominios).</li>
+        <li>Ideal para detectar check-ins de C2, escaneos y exploits de red visibles en el cable.</li>
+      </ul>
+    </div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>🧩 Mini-quiz — ¿Wazuh, Suricata o ambos?</h3>
+    <div id="match-quiz"></div>
+    <button class="btn" id="btn-match-eval" style="margin-top:8px">✔ Evaluar emparejamiento</button>
+    <div id="match-feedback"></div>
+  </div>
+  <div class="card" style="margin-top:14px">
+    <h3>🚨 Triaje de alertas en vivo</h3>
+    <button class="btn" id="btn-feed">▶ Iniciar flujo de alertas</button>
+    <button class="btn ghost" id="btn-feed-clear">🧹 Limpiar</button>
+    <span class="hint" style="margin-left:6px">Cada alerta nueva hay que clasificarla: <b>🚨 amenaza real</b> (escalar/contener) o <b>✔ benigno / falso positivo</b> (documentar y cerrar).</span>
+    <div class="metrics" id="feed-metrics" style="margin-top:10px"></div>
+    <div class="alertfeed" style="margin-top:10px"><table id="feed-table">
+      <thead><tr><th>Hora</th><th>Origen</th><th>Nivel/SID</th><th>Alerta</th><th>Tu clasificación</th><th>Veredicto</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  Entrenando que es gerundio....
+</footer>
+
+<script>
+"use strict";
+/* ============================================================
+   UTILIDADES
+============================================================ */
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");}
+function fmtClock(ms){var s=Math.floor(ms/1000),h=9+Math.floor(s/3600)%24,m=Math.floor(s/60)%60,sec=s%60;function p(n){return(n<10?"0":"")+n;}return p(h)+":"+p(m)+":"+p(sec);}
+function pct(ok,total){return total?Math.round(100*ok/total):0;}
+function scoreHtml(ok,total,label){
+  var p=pct(ok,total);
+  var cls=(p===100?"verdict-ok":"verdict-bad");
+  return "<p style='margin-top:10px'><span class='score "+cls+"'>"+p+"%</span> <span style='color:var(--dim)'>("+ok+"/"+total+" "+label+")</span> "+
+    (p===100?"🎉 Perfecto.":p>=70?"💪 Casi: repasa los fallos.":"🔎 Revisa la teoría del módulo.")+"</p>";
+}
+
+/* ============================================================
+   NAVEGACIÓN (delegación de eventos, robusta)
+============================================================ */
+(function(){
+  var nav=document.getElementById("tabs");
+  nav.addEventListener("click",function(ev){
+    var b=ev.target.closest("button");
+    if(!b)return;
+    nav.querySelectorAll("button").forEach(function(x){x.classList.remove("active");});
+    b.classList.add("active");
+    document.querySelectorAll("section.view").forEach(function(v){v.classList.remove("active");});
+    var target=document.getElementById("view-"+b.getAttribute("data-v"));
+    if(target)target.classList.add("active");
+  });
+})();
+
+/* ============================================================
+   MÓDULO 1 — MALWARE ESTÁTICO
+============================================================ */
+var MW_STRINGS=[
+  {t:"!This program cannot be run in DOS mode",ioc:false,why:"Cabecera estándar del formato PE: aparece en cualquier ejecutable de Windows."},
+  {t:"KERNEL32.dll",ioc:false,why:"API del sistema que importan casi todos los ejecutables: no distingue malware."},
+  {t:"hxxp://198.51.100.66/upd/gate.php",ioc:true,why:"URL de comando y control (C2) del troyano: IoC de red para bloquear en firewall/proxy."},
+  {t:"Software\\Microsoft\\Windows\\CurrentVersion\\Run\\OneDriveSync",ioc:true,why:"Clave de persistencia Run creada por el malware: IoC de registro para buscar en otros equipos."},
+  {t:"GetLastError",ioc:false,why:"Llamada de API genérica del runtime."},
+  {t:"vssadmin delete shadows /all /quiet",ioc:true,why:"Comando que borra las copias de sombra (anti-recuperación típico de ransomware): IoC de comportamiento (T1490)."},
+  {t:"Global\\ONEUPD_MUTEX_9f2c",ioc:true,why:"Mutex con el que la muestra evita reinfectarse: IoC clásico para reglas YARA/Sigma."},
+  {t:"bc1qxk8f3n2v9wq7r5t6y8u4i3o2p1",ioc:true,why:"Dirección de wallet de rescate (ficticia): IoC financiero para listas de vigilancia y atribución."},
+  {t:"c2VydmVyIGNoZWNrLWluOiBob3N0OTI=",ioc:true,why:"Base64 que decodifica a «server check-in: host92»: protocolo de beacon codificado, típico de cargas embebidas."},
+  {t:"StringFileInfo",ioc:false,why:"Estructura de recursos de versiones de Windows: presente en binarios legítimos."},
+  {t:"netsh advfirewall set allprofiles state off",ioc:true,why:"Comando que desactiva el firewall de Windows (T1562.004): IoC de comando para detectar en Sysmon/Wazuh."},
+  {t:"mscoree.dll",ioc:false,why:"Runtime de .NET: común en binarios legítimos y no indica compromiso por sí sola."}
+];
+document.getElementById("btn-analyze").onclick=function(){
+  var btn=this,st=document.getElementById("analyze-status"),box=document.getElementById("mw-results");
+  btn.disabled=true;st.textContent="extrayendo hashes…";
+  var steps=["extrayendo hashes…","leyendo cabecera PE…","descomprimiendo UPX…","extrayendo strings…"];
+  var i=0;
+  var iv=setInterval(function(){
+    i++;
+    if(i<steps.length){st.textContent=steps[i];}
+    else{
+      clearInterval(iv);
+      st.textContent="✔ análisis estático completado (sin detonar la muestra)";
+      box.style.display="block";
+      renderMwStrings();
+    }
+  },450);
+};
+function renderMwStrings(){
+  var html="";
+  MW_STRINGS.forEach(function(s,i){
+    html+="<label class='chk'><input type='checkbox' data-ioc='"+i+"'> <span class='mono'>"+esc(s.t)+"</span></label>";
+  });
+  document.getElementById("mw-strings").innerHTML=html;
+}
+document.getElementById("btn-ioc-eval").onclick=function(){
+  var boxes=document.querySelectorAll("[data-ioc]");
+  var ok=0,realIoc=0,html="";
+  boxes.forEach(function(b){
+    var s=MW_STRINGS[+b.getAttribute("data-ioc")];
+    if(s.ioc)realIoc++;
+    var correct=(b.checked===s.ioc);
+    if(correct)ok++;
+    html+="<div class='hint' style='margin:4px 0'>"+(correct?"✅":"❌")+" <span class='mono'>"+esc(s.t)+"</span><br>"+
+      (s.ioc?"<b>IoC:</b> ":"<b>No IoC:</b> ")+esc(s.why)+"</div>";
+  });
+  document.getElementById("ioc-feedback").innerHTML=scoreHtml(ok,boxes.length,"strings clasificadas correctamente — había "+realIoc+" IoC")+html;
+};
+document.getElementById("btn-ioc-reset").onclick=function(){
+  document.querySelectorAll("[data-ioc]").forEach(function(b){b.checked=false;});
+  document.getElementById("ioc-feedback").innerHTML="";
+};
+
+/* ============================================================
+   MÓDULO 2 — CADENA DE CUSTODIA
+============================================================ */
+var TL_EVENTS=[
+  {t:"09:12 · El empleado WS-007 hace clic en el enlace del correo «Su paquete DHL está retenido»"},
+  {t:"09:14 · Se descarga y ejecuta FACTURA_2026.pdf.exe (muestra #A-117, ransomware ONEUPD)"},
+  {t:"09:16 · Wazuh FIM: se añade la clave de registro Run\\OneDriveSync (persistencia)"},
+  {t:"09:17 · Suricata: check-in TLS del host hacia 198.51.100.66 (C2 conocido)"},
+  {t:"09:25 · Sysmon: vssadmin delete shadows /all /quiet y comienza el cifrado de archivos"},
+  {t:"09:31 · El usuario reporta la pantalla de rescate; se abre el caso INC-2026-0131"},
+  {t:"09:35 · El analista aísla WS-007 de la red (puerto apagado, sin apagar el equipo)"},
+  {t:"09:40 · Se captura la imagen de RAM con herramientas forenses y se calcula su hash"},
+  {t:"09:55 · Se clona el disco (cadena de custodia sellada) y se recalculan los hashes"}
+];
+var EVIDENCE=[
+  {t:"Imagen de memoria RAM del equipo comprometido",why:"Lo más volátil: claves, procesos, conexiones y claves de registro en memoria desaparecen al apagar."},
+  {t:"Tabla de conexiones y rutas activas (netstat / arp)",why:"Estado de red vivo: el socket C2 con 198.51.100.66 solo existe mientras el equipo está encendido y conectado."},
+  {t:"Lista de procesos y servicios en ejecución",why:"Incluye el proceso malicioso con su línea de comandos: volátil y fuente de IoC."},
+  {t:"Imagen forense del disco con hash SHA-256",why:"Persistente: el disco sobrevive al apagado; se recoge después de lo volátil."},
+  {t:"Logs del SIEM (Wazuh/Suricata) y del proxy",why:"Ya centralizados en el servidor de logs: no se pierden aunque el equipo se apague."},
+  {t:"Copias de seguridad offline y archivos cifrados para descifrado",why:"Archivo a largo plazo: lo último, pero imprescindible para la recuperación."}
+];
+function renderOrderList(rootId,items,onEval){
+  var root=document.getElementById(rootId);
+  function render(){
+    var html="<ol class='dim evidence' style='margin-top:6px'>";
+    items.forEach(function(it,i){
+      html+="<li style='display:flex;align-items:center;gap:8px'><span>"+esc(it.t)+"</span>"+
+        "<span class='rule-actions' style='margin-left:auto'>"+
+        "<button data-mv='up' data-i='"+i+"'"+(i===0?" disabled":"")+">⬆</button>"+
+        "<button data-mv='down' data-i='"+i+"'"+(i===items.length-1?" disabled":"")+">⬇</button></span></li>";
+    });
+    html+="</ol>";
+    root.innerHTML=html;
+    root.querySelectorAll("[data-mv]").forEach(function(b){
+      b.onclick=function(){
+        var i=+b.getAttribute("data-i"),j=b.getAttribute("data-mv")==="up"?i-1:i+1;
+        var tmp=items[i];items[i]=items[j];items[j]=tmp;
+        render();
+      };
+    });
+  }
+  render();
+  return {render:render};
+}
+function shuffleSeed(arr){
+  // desorden fijo y reproducible (misma mezcla para todos los alumnos)
+  var a=arr.slice(),n=a.length;
+  var rnd=[3,7,1,8,2,5,0,4,6];
+  var out=[];
+  for(var k=0;k<n;k++){out.push(a[rnd[k]%a.length]);a.splice(rnd[k]%a.length,1);}
+  return out;
+}
+var tlItems=shuffleSeed(TL_EVENTS);
+var evItems=shuffleSeed(EVIDENCE);
+renderOrderList("tl-list",tlItems);
+renderOrderList("ev-list",evItems);
+function evalOrder(items,originals,fbId,label){
+  var ok=0;
+  items.forEach(function(it,i){if(originals[i]&&it.t===originals[i].t)ok++;});
+  document.getElementById(fbId).innerHTML=scoreHtml(ok,items.length,label);
+}
+document.getElementById("btn-tl-eval").onclick=function(){evalOrder(tlItems,TL_EVENTS,"tl-feedback","eventos en su posición correcta");};
+document.getElementById("btn-ev-eval").onclick=function(){evalOrder(evItems,EVIDENCE,"ev-feedback","evidencias en el orden de volatilidad correcto");};
+document.getElementById("btn-tl-sol").onclick=function(){
+  tlItems=TL_EVENTS.slice();
+  renderOrderList("tl-list",tlItems);
+  document.getElementById("tl-feedback").innerHTML="<p class='hint'>Cronología real cargada: infección → persistencia → C2 → cifrado → contención → evidencia.</p>";
+};
+document.getElementById("btn-ev-sol").onclick=function(){
+  evItems=EVIDENCE.slice();
+  renderOrderList("ev-list",evItems);
+  var html="<p class='hint'>Orden del experto (RFC 3227, de lo más volátil a lo menos):</p>";
+  EVIDENCE.forEach(function(e,i){html+="<div class='hint'>"+(i+1)+". "+esc(e.t)+" — "+esc(e.why)+"</div>";});
+  document.getElementById("ev-feedback").innerHTML=html;
+};
+
+/* ============================================================
+   MÓDULO 3 — PHISHING
+============================================================ */
+var MAILS=[
+  {id:1,subject:"Su paquete DHL está retenido en aduana",
+   fromName:"DHL Express",fromAddr:"notificaciones@dhl-express-pago.top",returnPath:"bounce@mail.dhl-express-pago.top",replyTo:"—",
+   auth:"SPF fail (IP 198.51.100.66 no autorizada) · DKIM none · DMARC fail",
+   body:"Estimado cliente: su paquete #ES44719022 está retenido en aduana. Pague la tasa de 2,50 EUR en 24 h o el paquete será devuelto. <a href='#'>Pagar tasas ahora</a>",
+   linkText:"Pagar tasas ahora (2,50 EUR)",linkReal:"http://198.51.100.66/dhl/form-pago.html",
+   phishing:true,
+   expl:"Phishing de mensajería: dominio falso de DHL (.top), SPF fail, URL real en una IP cruda sin TLS y un importe ridículo para robar datos de tarjeta."},
+  {id:2,subject:"Resumen semanal del equipo — Confluence",
+   fromName:"Confluence",fromAddr:"confluence@atlassian.net",returnPath:"bounces@atlassian.net",replyTo:"—",
+   auth:"SPF pass · DKIM pass · DMARC pass",
+   body:"Hola: 14 páginas se han actualizado esta semana en el espacio SOC. <a href='#'>Ver resumen en Confluence</a>",
+   linkText:"Ver resumen en Confluence",linkReal:"https://netonhate.atlassian.net/wiki/soc/resumen",
+   phishing:false,
+   expl:"Legítimo: notificación automática del SaaS con dominio y autenticación correctas y un enlace consistente con el texto."},
+  {id:3,subject:"⚠️ Su contraseña de Microsoft 365 expira hoy",
+   fromName:"Microsoft 365",fromAddr:"noreply@microsoft-security-alerts.com",returnPath:"bounce@mail.sender92.ru",replyTo:"—",
+   auth:"SPF fail (dominio no autorizado) · DKIM none · DMARC fail",
+   body:"Su contraseña caduca hoy. Mantenga el acceso iniciando sesión en el portal: <a href='#'>https://login.microsoftonline.com</a>",
+   linkText:"https://login.microsoftonline.com",linkReal:"http://203.0.113.9/owa/login.php",
+   phishing:true,
+   expl:"Phishing de credenciales: dominio look-alike, Return-Path ruso, SPF fail y el texto del enlace finge la URL oficial pero apunta a una IP del atacante."},
+  {id:4,subject:"[INTERNO] Simulacro de phishing este viernes",
+   fromName:"Equipo SOC",fromAddr:"soc@netonhate.es",returnPath:"bounces@netonhate.es",replyTo:"—",
+   auth:"SPF pass · DKIM pass · DMARC pass",
+   body:"Este viernes haremos un simulacro de phishing a toda la plantilla. Nadie ha de enviar credenciales: si recibes algo raro, repórtalo. <a href='#'>Guía interna de reporte</a>",
+   linkText:"Guía interna de reporte",linkReal:"https://intranet.netonhate.es/soc/reportar-phishing",
+   phishing:false,
+   expl:"Legítimo: correo interno del SOC con dominio propio, autenticación correcta, no pide credenciales y el enlace va a la intranet."},
+  {id:5,subject:"Actividad inusual en su cuenta de PayPal",
+   fromName:"PayPal Service",fromAddr:"paypal@support-desk-verify.xyz",returnPath:"mailer@masssend11.cn",replyTo:"—",
+   auth:"SPF fail · DKIM fail · DMARC fail",
+   body:"Hemos detectado un acceso desde un dispositivo desconocido. Confirme su identidad para evitar el bloqueo de la cuenta: <a href='#'>Confirmar mi cuenta</a>",
+   linkText:"Confirmar mi cuenta",linkReal:"https://paypa1-secure.verify-login.xyz/webscr/login",
+   phishing:true,
+   expl:"Phishing con display-name spoofing: el nombre visible dice PayPal pero el dominio es .xyz, y la URL usa «paypa1» con un 1 en lugar de la L (typosquatting) para robar credenciales."},
+  {id:6,subject:"URGENTE: transferencia pendiente de proveedor AV-88",
+   fromName:"Ana Ruiz (CFO)",fromAddr:"ana.ruiz@netonhate.es",returnPath:"ana.ruiz@netonhate.es",replyTo:"ana.ruiz.cfo@protonmail-consult.com",
+   auth:"SPF pass (cuenta interna comprometida o suplantada)",
+   body:"Estoy en una reunión y no puedo llamar. Necesito que proceses HOY la transferencia del proveedor AV-88 (48.900 EUR) y que NO lo comentes con nadie hasta que confirme. Los datos bancarios nuevos están adjuntos.",
+   linkText:"—",linkReal:"—",
+   phishing:true,
+   expl:"BEC / fraude del CEO: parece interno y autenticado, pero el Reply-To apunta a un correo externo. Urgencia + secreto + cambio de cuenta bancaria = verificar SIEMPRE por canal alternativo antes de pagar."},
+  {id:7,subject:"Su factura de mayo está disponible",
+   fromName:"Banco Solar",fromAddr:"facturacion@bancosolar.es",returnPath:"no-reply@bancosolar.es",replyTo:"—",
+   auth:"SPF pass · DKIM pass · DMARC pass",
+   body:"Ya puede consultar su factura de mayo en su área de cliente habitual. <a href='#'>Ver factura</a>",
+   linkText:"Ver factura",linkReal:"https://www.bancosolar.es/area-cliente/facturas/mayo",
+   phishing:false,
+   expl:"Legítimo: dominio real del banco, autenticación correcta y el enlace coincide con el dominio oficial; no pide credenciales por correo."}
+];
+var mailMarks={}; // id -> true(phishing)/false(legitimo)
+function renderMailList(){
+  var html="";
+  MAILS.forEach(function(m){
+    var mark=mailMarks[m.id];
+    var stamp=mark===undefined?"<span class='stamp none'>sin marcar</span>":(mark?"<span class='stamp phish'>🎣 phishing</span>":"<span class='stamp legit'>✔ legítimo</span>");
+    html+="<div class='mail"+(currentMail===m.id?" active":"")+"' data-mail='"+m.id+"'>"+stamp+
+      "<b>"+esc(m.subject)+"</b><span class='meta'>"+esc(m.fromName)+" &lt;"+esc(m.fromAddr)+"&gt;</span></div>";
+  });
+  document.getElementById("mail-list").innerHTML=html;
+  document.querySelectorAll("[data-mail]").forEach(function(el){
+    el.onclick=function(){openMail(+el.getAttribute("data-mail"));};
+  });
+}
+var currentMail=null;
+function openMail(id){
+  currentMail=id;
+  var m=MAILS.filter(function(x){return x.id===id;})[0];
+  var html="<h3>✉️ "+esc(m.subject)+"</h3>"+
+    "<table style='margin-top:6px'><tr><th>From</th><td>"+esc(m.fromName)+" &lt;<span class='mono'>"+esc(m.fromAddr)+"</span>&gt;</td></tr>"+
+    "<tr><th>Return-Path</th><td class='mono'>"+esc(m.returnPath)+"</td></tr>"+
+    "<tr><th>Reply-To</th><td class='mono'>"+esc(m.replyTo)+"</td></tr>"+
+    "<tr><th>Authentication</th><td>"+esc(m.auth)+"</td></tr></table>"+
+    "<div class='mailbody'>"+esc(m.body).replace(/&lt;a href='#'&gt;/,"<a href='#' onclick='return false'>").replace(/&lt;\/a&gt;/,"</a>")+"</div>"+
+    "<details><summary>🔎 Inspeccionar el enlace real</summary><div class='box'>Texto del enlace: "+esc(m.linkText)+"<br>URL real (href): "+esc(m.linkReal)+"</div></details>"+
+    "<div style='margin-top:12px'>"+
+    "<button class='btn warn' data-mark='1'>🎣 Marcar como phishing</button>"+
+    "<button class='btn ok' data-mark='0'>✔ Marcar como legítimo</button></div>"+
+    "<div class='hint'>Marca el correo y pasa al siguiente. El veredicto real se muestra al evaluar.</div>";
+  document.getElementById("mail-detail").innerHTML=html;
+  document.querySelectorAll("[data-mark]").forEach(function(b){
+    b.onclick=function(){mailMarks[currentMail]=b.getAttribute("data-mark")==="1";renderMailList();};
+  });
+  renderMailList();
+}
+document.getElementById("btn-mail-eval").onclick=function(){
+  var ok=0,marked=0,html="";
+  MAILS.forEach(function(m){
+    var ans=mailMarks[m.id];
+    if(ans===undefined){
+      html+="<div class='hint'>❔ «"+esc(m.subject)+"» — sin marcar.</div>";
+      return;
+    }
+    marked++;
+    var correct=(ans===m.phishing);
+    if(correct)ok++;
+    html+="<div class='hint' style='margin:4px 0'>"+(correct?"✅":"❌")+" «"+esc(m.subject)+"» — "+(m.phishing?"<b>PHISHING:</b> ":"<b>LEGÍTIMO:</b> ")+esc(m.expl)+"</div>";
+  });
+  var box=document.getElementById("mail-results");
+  box.style.display="block";
+  box.innerHTML="<h3>🧪 Resultado del triaje de correo</h3>"+scoreHtml(ok,marked,"correos clasificados correctamente")+html;
+};
+document.getElementById("btn-mail-reset").onclick=function(){
+  mailMarks={};
+  renderMailList();
+  document.getElementById("mail-results").style.display="none";
+  document.getElementById("mail-results").innerHTML="";
+};
+renderMailList();
+
+/* ============================================================
+   MÓDULO 4 — VULNERABILIDADES
+============================================================ */
+var VULNS=[
+  {host:"srv-web (172.16.0.10) · gateway HTTP",cve:"CVE-2024-3400 (RCE pre-autenticación)",cvss:10.0,exploit:"Sí, en Metasploit",expo:"Internet",
+   rec:0,why:"CVSS 10 + exploit público + expuesto a Internet: parchear YA. Es exactamente la vía que usan los ransomware para entrar."},
+  {host:"srv-ssh (172.16.0.20) · OpenSSH",cve:"CVE-2024-6387 (regreSSHion, RCE condicional)",cvss:8.1,exploit:"Sí, PoC público",expo:"DMZ",
+   rec:0,why:"RCE con PoC en un servicio expuesto de la DMZ: parchear YA (o restringir por ACL mientras se despliega el parche)."},
+  {host:"srv-web (172.16.0.10) · HTTP/2",cve:"CVE-2023-44487 (HTTP/2 Rapid Reset, DoS)",cvss:7.5,exploit:"Sí, scripts públicos",expo:"Internet",
+   rec:1,why:"DoS (no RCE): aplicar parche y rate-limiting en ventana de 72 h. Riesgo real pero sin compromiso de datos."},
+  {host:"pc-admin (10.0.1.5) · navegador Chrome",cve:"CVE-2025-3079 (uso tras liberación)",cvss:8.8,exploit:"Detectado en la web",expo:"Interno",
+   rec:1,why:"Alta criticidad en estación de trabajo, pero el ciclo normal de actualización de clientes lo cubre: programar (72 h), forzando reinicio del navegador."},
+  {host:"ws-007 (10.0.1.17) · Windows 7 EOL",cve:"Sin CVE aplicable — sistema fuera de soporte (EOL)",cvss:"—",exploit:"Sí, históricos (eternalblue-style)",expo:"Interno",
+   rec:2,why:"No existe parche: mitigar (segmentar, quitar acceso a Internet, monitorizar con Wazuh) y documentar la aceptación de riesgo con fecha de migración."},
+  {host:"impresora-corp (10.0.1.250) · firmware",cve:"CVE-2024-2039 (infoleak + impresión remota)",cvss:6.1,exploit:"No",expo:"Interno",
+   rec:2,why:"Baja criticidad, sin exploit y activo interno de poco valor: mitigar (restringir a VLAN de impresión) y reponer firmware en el ciclo trimestral."}
+];
+document.getElementById("btn-scan").onclick=function(){
+  var btn=this,st=document.getElementById("scan-status");
+  document.getElementById("scan-results").style.display="block";
+  btn.disabled=true;st.textContent="escaneando 172.16.0.0/24 y 10.0.1.0/24…";
+  var tb=document.getElementById("scan-tbody");
+  var i=0;
+  var iv=setInterval(function(){
+    if(i<VULNS.length){
+      var v=VULNS[i];
+      var cvClass=v.cvss>=9?"cv9":(v.cvss>=7?"cv7":"cv0");
+      tb.innerHTML+="<tr id='vrow-"+i+"'><td>"+(i+1)+"</td><td>"+esc(v.host)+"</td><td>"+esc(v.cve)+"</td>"+
+        "<td class='cvss "+cvClass+"'>"+v.cvss+"</td><td>"+esc(v.exploit)+"</td><td>"+v.expo+"</td>"+
+        "<td><select data-vuln='"+i+"'><option value=''>— elige —</option><option value='0'>🔴 Parchear YA</option><option value='1'>🟡 Programar (≤72 h)</option><option value='2'>🟢 Mitigar / aceptar riesgo</option></select></td></tr>";
+      st.textContent="escaneando… "+(i+1)+"/"+VULNS.length+" hallazgos";
+      i++;
+    }else{
+      clearInterval(iv);
+      st.textContent="✔ escaneo completado: "+VULNS.length+" hallazgos. Asigna tu decisión a cada uno.";
+    }
+  },550);
+};
+document.getElementById("btn-vuln-eval").onclick=function(){
+  var ok=0,answered=0,html="";
+  VULNS.forEach(function(v,i){
+    var sel=document.querySelector("[data-vuln='"+i+"']");
+    if(!sel)return;
+    if(sel.value===""){html+="<div class='hint'>❏ "+esc(v.host)+" · "+esc(v.cve)+" — sin decisión.</div>";return;}
+    answered++;
+    var correct=(+sel.value===v.rec);
+    if(correct)ok++;
+    var recTxt=["🔴 Parchear YA","🟡 Programar (≤72 h)","🟢 Mitigar / aceptar"][v.rec];
+    html+="<div class='hint' style='margin:4px 0'>"+(correct?"✅":"❌")+" "+esc(v.host)+" · "+esc(v.cve)+" — experto: <b>"+recTxt+"</b>. "+esc(v.why)+"</div>";
+  });
+  document.getElementById("vuln-feedback").innerHTML=scoreHtml(ok,answered,"decisiones correctas")+html;
+};
+document.getElementById("btn-vuln-sol").onclick=function(){
+  VULNS.forEach(function(v,i){
+    var sel=document.querySelector("[data-vuln='"+i+"']");
+    if(sel)sel.value=String(v.rec);
+  });
+  document.getElementById("vuln-feedback").innerHTML="<p class='hint'>Recomendación del experto cargada en los desplegables. Pulsa Evaluar para ver el razonamiento de cada una.</p>";
+};
+
+/* ============================================================
+   MÓDULO 5 — WAZUH & SURICATA
+============================================================ */
+var MATCH=[
+  {q:"Integridad de archivos y claves de registro (FIM) en cada endpoint",a:"wazuh"},
+  {q:"Descarta paquetes maliciosos en tiempo real (modo IPS)",a:"suricata"},
+  {q:"Correlación de logs de agentes con decoders y niveles de regla (0-15)",a:"wazuh"},
+  {q:"Firmas de red tipo ET Open con SID, p. ej. check-in de C2 visible en el cable",a:"suricata"},
+  {q:"Sus alertas se combinan en un mismo pipeline del SOC (ELK/Wazuh indexer)",a:"ambos"}
+];
+function renderMatch(){
+  var html="<table><thead><tr><th>Afirmación</th><th>Herramienta</th></tr></thead><tbody>";
+  MATCH.forEach(function(m,i){
+    html+="<tr><td>"+esc(m.q)+"</td><td><select data-match='"+i+"'><option value=''>— elige —</option><option value='wazuh'>Wazuh</option><option value='suricata'>Suricata</option><option value='ambos'>Ambos</option></select></td></tr>";
+  });
+  html+="</tbody></table>";
+  document.getElementById("match-quiz").innerHTML=html;
+}
+renderMatch();
+document.getElementById("btn-match-eval").onclick=function(){
+  var ok=0,html="";
+  MATCH.forEach(function(m,i){
+    var sel=document.querySelector("[data-match='"+i+"']");
+    if(sel&&sel.value===m.a)ok++;
+    var good=(sel&&sel.value===m.a);
+    html+="<div class='hint'>"+(good?"✅":"❌")+" "+esc(m.q)+" — <b>"+(m.a==="wazuh"?"Wazuh":m.a==="suricata"?"Suricata":"Ambos")+"</b></div>";
+  });
+  document.getElementById("match-feedback").innerHTML=scoreHtml(ok,MATCH.length,"emparejamientos correctos")+html;
+};
+
+/* --- flujo de alertas --- */
+var ALERTS=[
+  {src:"Wazuh",lv:"L10",msg:"sshd: 15 fallos de autenticación de root desde 198.51.100.66 en 60 s",threat:true,
+   why:"Fuerza bruta activa contra SSH desde el host malicioso: amenaza real (Wazuh correlaciona los fallos y sube el nivel)."},
+  {src:"Wazuh",lv:"L2",msg:"cron: job «backup-diario» finalizado correctamente",threat:false,
+   why:"Operación rutinaria documentada: benigno. Se cierra sin escalar."},
+  {src:"Suricata",lv:"sid 1:1882",msg:"GPL ATTACK_RESPONSE id check returned root — 198.51.100.66 → 172.16.0.10",threat:true,
+   why:"La respuesta «uid=0(root)» viajó por la red: hay un exploit con éxito de comandos. Amenaza crítica."},
+  {src:"Suricata",lv:"sid 2013336",msg:"ET POLICY curl User-Agent outbound — 10.0.1.12 → api.github.com",threat:false,
+   why:"Tráfico de desarrolladores conocido y hacia destino legítimo: política, no ataque."},
+  {src:"Wazuh",lv:"L7",msg:"Sysmon: proceso vssadmin delete shadows /all /quiet (T1490)",threat:true,
+   why:"Borrado de copias de sombra: comportamiento de ransomware. Contener YA."},
+  {src:"Wazuh",lv:"L3",msg:"Windows Update (WSUS): parches instalados, reinicio pendiente",threat:false,
+   why:"Mantenimiento normal: benigno."},
+  {src:"Suricata",lv:"sid 2027858",msg:"ET TROJAN Posible check-in de C2 TLS 10.0.1.17 → 198.51.100.66:443 (JA3 ONEUPD)",threat:true,
+   why:"El beacon del ransomware ONEUPD hacia su C2: exactamente el caso del laboratorio."},
+  {src:"Wazuh",lv:"L13",msg:"audit: usuario «svc_help» añadido al grupo Administrators a las 02:13",threat:true,
+   why:"Creación de cuenta privilegiada en horario imposible: persistencia de atacante."},
+  {src:"Suricata",lv:"sid 2018839",msg:"ET POLICY TLS conn a streaming multimedia autorizado — 10.0.1.15",threat:false,
+   why:"Uso aceptado de la política corporativa: benigno."},
+  {src:"Wazuh",lv:"L5",msg:"FIM: /var/log/auth.log alcanzó tamaño máximo (rotación)",threat:false,
+   why:"Rotación de log programada: benigno."}
+];
+var feedTimer=null,feedIdx=0,feedT=0;
+var feedStats={seen:0,ok:0,threats:0,fp:0};
+var feedBody=document.querySelector("#feed-table tbody");
+function feedMetrics(){
+  document.getElementById("feed-metrics").innerHTML=
+    "<div class='metric'><div class='k'>Clasificadas</div><div class='v'>"+feedStats.seen+"</div></div>"+
+    "<div class='metric'><div class='k'>Aciertos</div><div class='v ok'>"+feedStats.ok+"</div></div>"+
+    "<div class='metric'><div class='k'>Precisión</div><div class='v'>"+pct(feedStats.ok,feedStats.seen)+"%</div></div>"+
+    "<div class='metric'><div class='k'>Amenazas reales vistas</div><div class='v hot'>"+feedStats.threats+"</div></div>";
+}
+function feedRow(alert,timeMs){
+  var tr=document.createElement("tr");
+  tr.innerHTML="<td>"+fmtClock(timeMs)+"</td><td>"+alert.src+"</td><td>"+esc(alert.lv)+"</td><td>"+esc(alert.msg)+"</td>"+
+    "<td class='tri'><button class='t' data-a='t'>🚨 Amenaza</button><button class='b' data-a='b'>✔ Benigno / FP</button></td>"+
+    "<td class='v-acc'>—</td>";
+  feedBody.insertBefore(tr,feedBody.firstChild);
+  var verdictTd=tr.querySelector("td:last-child");
+  tr.querySelectorAll("[data-a]").forEach(function(b){
+    b.disabled=true;
+    var saidThreat=(b.getAttribute("data-a")==="t");
+    var correct=(saidThreat===alert.threat);
+    feedStats.seen++;
+    if(correct)feedStats.ok++;
+    if(alert.threat)feedStats.threats++;
+    verdictTd.innerHTML=(correct?"✅ ":"❌ ")+(correct?"<span class='v-acc'>correcto</span>":"<span class='v-drop'>incorrecto</span>")+
+      "<br><span style='color:var(--dim);font-size:.72rem'>"+esc(alert.why)+"</span>";
+    tr.querySelectorAll("button").forEach(function(x){x.style.display="none";});
+    feedMetrics();
+    while(feedBody.children.length>60)feedBody.removeChild(feedBody.lastChild);
+  });
+}
+function feedTick(){
+  if(feedIdx>=ALERTS.length*2){ // dos vueltas y pausa
+    document.getElementById("btn-feed").click();
+    return;
+  }
+  feedT+=1000+Math.floor(Math.random()*2000);
+  feedRow(ALERTS[feedIdx%ALERTS.length],feedT);
+  feedIdx++;
+}
+document.getElementById("btn-feed").onclick=function(){
+  if(feedTimer){clearInterval(feedTimer);feedTimer=null;this.textContent="▶ Reanudar flujo de alertas";}
+  else{feedTimer=setInterval(feedTick,1500);this.textContent="⏸ Pausar";}
+};
+document.getElementById("btn-feed-clear").onclick=function(){
+  feedBody.innerHTML="";
+  feedIdx=0;feedT=0;feedStats={seen:0,ok:0,threats:0,fp:0};
+  feedMetrics();
+};
+feedMetrics();
+</script>
+</body>
+</html>

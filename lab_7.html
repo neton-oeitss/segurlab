@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laboratorio OWASP Top 10 · explota y corrige</title>
+<style>
+:root{--bg:#0f1c27;--p:#16293a;--p2:#1d3448;--tx:#dbe7ef;--mu:#8ea6b8;--bad:#ff6b4a;--ok:#3fd0b0;--w:#f2c14e;--ln:#2a4359}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif}
+code,pre,input,textarea{font-family:ui-monospace,Menlo,Consolas,monospace}
+header{padding:18px 22px;border-bottom:1px solid var(--ln);display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between}
+h1{font-size:20px;margin:0}h1 small{display:block;color:var(--mu);font-weight:400;font-size:13px}
+#prog{font-size:13px;color:var(--mu)}
+.wrap{display:grid;grid-template-columns:270px 1fr;min-height:calc(100vh - 140px)}
+nav{border-right:1px solid var(--ln);padding:10px}
+nav button{display:flex;gap:8px;width:100%;text-align:left;background:none;border:0;color:var(--tx);padding:8px 10px;border-radius:6px;cursor:pointer;font:inherit;font-size:14px}
+nav button:hover{background:var(--p)}nav button[aria-current=true]{background:var(--p2)}
+nav b{min-width:34px;color:var(--mu);font-weight:600}nav i{margin-left:auto;font-style:normal}
+main{padding:22px;max-width:900px}
+h2{margin:0 0 4px;font-size:22px}
+.sum{color:var(--mu);margin:0 0 14px;max-width:70ch}
+.goal{background:var(--p);border-left:3px solid var(--w);padding:10px 14px;border-radius:0 6px 6px 0;margin-bottom:14px}
+.mode{display:inline-flex;border:1px solid var(--ln);border-radius:8px;overflow:hidden;margin-bottom:12px}
+.mode button{background:var(--p);color:var(--tx);border:0;padding:8px 16px;cursor:pointer;font:inherit}
+.mode button[aria-pressed=true].v{background:var(--bad);color:#1a0b06}
+.mode button[aria-pressed=true].f{background:var(--ok);color:#06231c}
+.app{background:var(--p);border:2px solid var(--bad);border-radius:8px;padding:16px;margin-bottom:12px}
+.app.fx{border-color:var(--ok)}
+.app label{display:block;font-size:13px;color:var(--mu);margin:8px 0 3px}
+input,textarea{background:#0b1620;color:var(--tx);border:1px solid var(--ln);border-radius:6px;padding:7px 9px;width:100%;max-width:440px;font-size:13px}
+button.a{background:var(--p2);color:var(--tx);border:1px solid var(--ln);border-radius:6px;padding:7px 12px;cursor:pointer;margin:8px 6px 0 0;font:inherit;font-size:14px}
+button.a:hover{border-color:var(--mu)}
+button:focus-visible,input:focus-visible,textarea:focus-visible{outline:2px solid var(--w);outline-offset:2px}
+.out{background:#0b1620;border-radius:6px;padding:10px;margin:10px 0 0;white-space:pre-wrap;min-height:20px;font-size:13px}
+table{border-collapse:collapse;width:100%;font-size:13px}td,th{padding:6px 8px;border-bottom:1px solid var(--ln);text-align:left;word-break:break-all}
+iframe{width:100%;height:130px;border:1px solid var(--ln);border-radius:6px;background:#fff;margin-top:8px}
+#log{background:#0b1620;border-radius:8px;padding:10px 14px;font:12.5px/1.6 ui-monospace,monospace;max-height:190px;overflow:auto;margin-bottom:12px}
+#log .bad{color:var(--bad)}#log .ok{color:var(--ok)}#log .i{color:var(--mu)}
+.code h3,#log+h3{font-size:14px;margin:0 0 6px}
+pre.cd{background:#0b1620;border-radius:8px;padding:12px;overflow-x:auto;font-size:12.5px;margin:0 0 12px}
+.tag{display:inline-block;font-size:12px;padding:2px 8px;border-radius:99px;margin-left:8px}
+.t1{background:#3a1e17;color:var(--bad)}.t2{background:#10342d;color:var(--ok)}
+.hint{color:var(--w);font-size:14px;margin:6px 0}
+footer{padding:14px 22px;border-top:1px solid var(--ln);color:var(--mu);font-size:12.5px}
+@media(max-width:800px){.wrap{grid-template-columns:1fr}nav{border-right:0;border-bottom:1px solid var(--ln)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Laboratorio OWASP Top 10 <small>Explota el fallo, entiende por qué funciona y aplica la corrección · edición 2021</small></h1>
+  <div id="prog"></div>
+</header>
+<div class="wrap"><nav id="nav" aria-label="Laboratorios"></nav><main id="main"></main></div>
+<footer>Todo ocurre en tu navegador: no hay servidor, no se envían datos y los “sistemas” son simulaciones didácticas. Úsalo solo para aprender; atacar sistemas ajenos sin permiso es ilegal.</footer>
+
+<script>
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const $=(r,s)=>r.querySelector(s);
+
+const L=[
+{id:'A01',t:'Broken Access Control (IDOR)',
+ sum:'La API devuelve el recurso que pides sin comprobar a quién pertenece.',
+ goal:'Eres alice (id 1). Lee la factura de otro usuario cambiando el identificador.',
+ hint:'Tus facturas empiezan por 101. Prueba con 102 y 103.',
+ v:`app.get('/api/invoices/:id', auth, (req,res)=>{\n  res.json(db.invoices[req.params.id]);   // ¿de quién es?\n});`,
+ f:`app.get('/api/invoices/:id', auth, (req,res)=>{\n  const inv = db.invoices[req.params.id];\n  if (!inv || inv.ownerId !== req.user.id)\n    return res.sendStatus(403);          // deny by default\n  res.json(inv);\n});`,
+ mount(b,fx,c){
+  b.innerHTML=`<p>Sesión iniciada como <b>alice</b> (id 1)</p><label>ID de factura</label><input id=i value=101 style="width:100px"> <button class=a id=g>GET /api/invoices/{id}</button><pre class=out id=o></pre>`;
+  const D={101:{o:1,t:'alice · Hosting · 39 €'},102:{o:2,t:'bob · Nómina · 4.200 €'},103:{o:0,t:'admin · Auditoría interna · CONFIDENCIAL'}},o=$(b,'#o');
+  $(b,'#g').onclick=()=>{const id=+$(b,'#i').value,d=D[id];c.log('GET /api/invoices/'+id,'i');
+   if(!d)return o.textContent='404 Not Found';
+   if(fx&&d.o!==1){o.textContent='403 Forbidden';c.log('El servidor comprueba el propietario y rechaza la petición','ok');return c.ok()}
+   o.textContent='200 OK\n'+d.t;
+   if(d.o!==1){c.log('Has leído datos de otro usuario. Eso es un IDOR.','bad');c.win()}}}},
+
+{id:'A02',t:'Cryptographic Failures',
+ sum:'Las contraseñas se guardan con un hash rápido y sin sal: una filtración de la base de datos equivale a una filtración de contraseñas.',
+ goal:'Recupera las contraseñas en claro a partir de los hashes filtrados.',
+ hint:'Pulsa “Crackear” en cada fila. En modo corregido compara qué cambia en los hashes.',
+ v:`const hash = md5(password);   // rápido, sin sal\ndb.save(user, hash);`,
+ f:`// Algoritmo lento, con sal única por usuario y coste ajustable\nconst hash = await argon2.hash(password, {type: argon2.argon2id});\ndb.save(user, hash);`,
+ mount(b,fx,c){
+  const R=[['alice','5f4dcc3b5aa765d61d8327deb882cf99','password'],['bob','e10adc3949ba59abbe56e057f20f883e','123456'],['carol','d8578edf8458ce06fbc5bb76a58c5ca4','qwerty']];
+  const fk=['$argon2id$v=19$m=65536,t=3,p=4$Qx7aLm2e…$3vKd9sT1…','$argon2id$v=19$m=65536,t=3,p=4$Zr81pWc0…$aB4nQe7u…','$argon2id$v=19$m=65536,t=3,p=4$K0dh5YtM…$o2LxV8cw…'];
+  b.innerHTML=`<p>Volcado de la tabla <code>users</code> (SQL dump filtrado):</p><table><tr><th>usuario<th>hash<th></tr>${R.map((r,i)=>`<tr><td>${r[0]}<td>${fx?fk[i]:r[1]}<td><button class=a data-i=${i}>Crackear</button><td id=r${i}></tr>`).join('')}</table>`;
+  b.querySelectorAll('button').forEach(x=>x.onclick=()=>{const i=+x.dataset.i,s=$(b,'#r'+i);
+   if(fx){s.textContent='✗ no está en ninguna tabla; sal única + coste alto';c.log('Intento de crackeo de '+R[i][0]+': inviable','ok');return c.ok()}
+   s.textContent='→ '+R[i][2];c.log(R[i][0]+' = '+R[i][2]+' (hash sin sal encontrado en tablas rainbow)','bad');c.win()})}},
+
+{id:'A03a',t:'Injection · SQLi',
+ sum:'La consulta SQL se construye concatenando texto del usuario, así que el usuario puede cambiar su significado.',
+ goal:'Entra como admin sin conocer su contraseña.',
+ hint:'Usuario: admin\'-- (con cualquier contraseña). O prueba  \' OR \'1\'=\'1  en el campo usuario.',
+ v:`const q = "SELECT * FROM users WHERE user='" + u +\n            "' AND pass='" + p + "'";\ndb.query(q);`,
+ f:`const q = "SELECT * FROM users WHERE user = ? AND pass_hash = ?";\ndb.query(q, [u, hash(p)]);   // los datos nunca son código`,
+ mount(b,fx,c){
+  b.innerHTML=`<label>Usuario</label><input id=u autocomplete=off><label>Contraseña</label><input id=p type=text autocomplete=off><br><button class=a id=g>Iniciar sesión</button><pre class=out id=o></pre>`;
+  const U={admin:'S3cr3t!',alice:'hunter2'},o=$(b,'#o');
+  const login=n=>o.textContent='✔ Sesión iniciada como '+n,deny=()=>o.textContent='✗ Credenciales incorrectas';
+  $(b,'#g').onclick=()=>{const u=$(b,'#u').value,p=$(b,'#p').value;
+   if(fx){c.log('SELECT * FROM users WHERE user = ? AND pass_hash = ?   params='+JSON.stringify([u,'…']),'i');
+    if(U[u]!==undefined&&U[u]===p)return login(u);deny();if(/'/.test(u+p)){c.log('La comilla se trata como texto: no hay inyección','ok');c.ok()}return}
+   const q=`SELECT * FROM users WHERE user='${u}' AND pass='${p}'`;c.log(q,'i');let m;
+   if(!/'/.test(u+p))return U[u]!==undefined&&U[u]===p?login(u):deny();
+   if(m=u.match(/^(\w+)'\s*(--|#)/)){if(U[m[1]]!==undefined){login(m[1]);c.log('El comentario -- anuló la comprobación de contraseña','bad');return c.win()}return deny()}
+   if(/'\s*or\s+'?(\w+)'?\s*=\s*'?\1/i.test(u+p)){login('admin (primer registro)');c.log('La condición siempre verdadera devolvió todas las filas','bad');return c.win()}
+   o.textContent='500 · SQL syntax error near \''+esc(u+p).slice(0,20)+'\'';c.log('Un error SQL visible delata que el campo es inyectable','bad')}}},
+
+{id:'A03b',t:'Injection · XSS almacenado',
+ sum:'La aplicación inserta en el HTML el comentario tal cual, por lo que el navegador ejecuta cualquier script que contenga.',
+ goal:'Publica un comentario que ejecute JavaScript y robe la cookie de sesión (simulada).',
+ hint:'Prueba: <img src=x onerror="alert(document.cookie)">',
+ v:`el.innerHTML = comments.map(c => "<p>" + c + "</p>").join("");`,
+ f:`el.textContent = comment;               // o escapa &, <, >, " y '\n// Defensa en profundidad:\n// Content-Security-Policy: default-src 'self'; script-src 'self'\n// Set-Cookie: session=...; HttpOnly; Secure; SameSite=Lax`,
+ mount(b,fx,c){
+  b.innerHTML=`<label>Nuevo comentario</label><textarea id=t rows=2></textarea><br><button class=a id=g>Publicar</button><div>Página de comentarios (iframe aislado con sandbox):</div><iframe sandbox="allow-scripts" title="Comentarios"></iframe>`;
+  const cm=['¡Gran artículo!'],fr=$(b,'iframe');
+  const draw=()=>fr.srcdoc=`<body style="font:14px system-ui;color:#222"><script>Object.defineProperty(document,'cookie',{get:()=>'session=FAKE_9f3a21'});window.alert=m=>parent.postMessage({xss:String(m)},'*')<\/script>`+cm.map(t=>'<p>💬 '+(fx?esc(t):t)+'</p>').join('');
+  draw();c.onmsg=e=>{if(e.data&&e.data.xss!==undefined){c.log('¡Script ejecutado en la víctima! Cookie robada: '+e.data.xss,'bad');c.win()}};
+  $(b,'#g').onclick=()=>{const t=$(b,'#t').value;if(!t)return;cm.push(t);c.log('POST /comments  '+t,'i');draw();
+   if(fx&&/[<>]/.test(t)){c.log('El HTML se muestra como texto inofensivo','ok');c.ok()}}}},
+
+{id:'A05',t:'Security Misconfiguration',
+ sum:'Paneles, ficheros y trazas de depuración expuestos en producción por configuración por defecto o descuido.',
+ goal:'Encuentra secretos expuestos probando rutas habituales.',
+ hint:'Prueba /.env, /admin, /debug y /backup.zip.',
+ v:`DEBUG=true\n# sin auth en /admin\n# el servidor sirve ficheros ocultos y copias de seguridad`,
+ f:`DEBUG=false\nlocation ~ /\\.(env|git) { deny all; }\nlocation /admin { auth_request /auth; allow 10.0.0.0/8; deny all; }\n# los backups no viven en la raíz web`,
+ mount(b,fx,c){
+  const P={'/.env':'DB_PASS=prod_S3cr3t\nAWS_SECRET=AKIA…EXAMPLE','/admin':'Panel de administración (¡sin autenticación!)','/debug':'Traceback (most recent call)…\nSECRET_KEY=dev-key-123','/backup.zip':'users.sql  12 MB'};
+  b.innerHTML=Object.keys(P).map(k=>`<button class=a data-p="${k}">GET ${k}</button>`).join('')+`<pre class=out id=o></pre>`;
+  b.querySelectorAll('button').forEach(x=>x.onclick=()=>{const p=x.dataset.p;c.log('GET '+p,'i');
+   if(fx){$(b,'#o').textContent=p==='/admin'?'403 Forbidden':'404 Not Found';c.log('Ruta no expuesta','ok');return c.ok()}
+   $(b,'#o').textContent='200 OK\n'+P[p];c.log('Información sensible expuesta en '+p,'bad');c.win()})}},
+
+{id:'A07',t:'Authentication Failures',
+ sum:'Sin límite de intentos ni bloqueo, un atacante puede probar miles de contraseñas por minuto.',
+ goal:'Averigua la contraseña de admin con un ataque de diccionario.',
+ hint:'Pulsa “Lanzar ataque”. Luego activa el modo corregido y repítelo.',
+ v:`app.post('/login', (req,res)=>{\n  // intentos ilimitados\n  check(req.body.user, req.body.pass);\n});`,
+ f:`app.post('/login', rateLimit({windowMs: 15*60e3, max: 5}), (req,res)=>{\n  // + bloqueo temporal por cuenta, MFA y avisos al usuario\n  check(req.body.user, req.body.pass);\n});`,
+ mount(b,fx,c){
+  const W='123456 password admin qwerty abc123 111111 iloveyou welcome monkey dragon 123123 sunshine master login princess football shadow letmein michael trustno1 batman hello freedom whatever'.split(' ');
+  b.innerHTML=`<p>Objetivo: usuario <b>admin</b> · diccionario de ${W.length} palabras</p><button class=a id=g>Lanzar ataque</button><pre class=out id=o></pre>`;
+  $(b,'#g').onclick=()=>{let i=0;const g=$(b,'#g'),o=$(b,'#o');g.disabled=true;o.textContent='';
+   const t=setInterval(()=>{const w=W[i++];o.textContent+=`#${i} ${w} → `;
+    if(fx&&i>5){o.textContent+='429 Too Many Requests\n';c.log('Cuenta bloqueada tras 5 intentos fallidos','ok');clearInterval(t);g.disabled=false;return c.ok()}
+    if(!fx&&w==='letmein'){o.textContent+='200 OK ✔\n';c.log('Contraseña encontrada: letmein (intento '+i+')','bad');clearInterval(t);g.disabled=false;return c.win()}
+    o.textContent+='401\n';if(i>=W.length){clearInterval(t);g.disabled=false}},110)}}},
+
+{id:'A10',t:'Server-Side Request Forgery',
+ sum:'El servidor descarga cualquier URL que le des, incluidas direcciones internas inaccesibles desde fuera.',
+ goal:'Usa la función “importar imagen” para leer las credenciales del servicio de metadatos cloud.',
+ hint:'Prueba http://169.254.169.254/latest/meta-data/iam/ o http://localhost:8080/admin.',
+ v:`const r = await fetch(req.body.url);   // cualquier destino\nres.send(await r.buffer());`,
+ f:`const u = new URL(req.body.url);\nif (u.protocol !== 'https:' || !ALLOW.includes(u.hostname))\n  return res.sendStatus(400);        // allowlist estricta\n// + bloquear IPs privadas tras resolver el DNS, sin redirecciones`,
+ mount(b,fx,c){
+  b.innerHTML=`<label>URL de la imagen</label><input id=u value="https://images.example.com/cat.png" style="max-width:100%"><br><button class=a id=g>Importar</button><pre class=out id=o></pre>`;
+  const o=$(b,'#o');
+  $(b,'#g').onclick=()=>{const s=$(b,'#u').value;c.log('POST /api/import  url='+s,'i');let h;
+   try{h=new URL(s)}catch{o.textContent='400 URL inválida';return fx&&c.ok()}
+   if(fx){if(h.protocol==='https:'&&['images.example.com','cdn.example.com'].includes(h.hostname)){o.textContent='200 Imagen importada';return}
+    o.textContent='400 Destino no permitido';c.log('La allowlist bloquea el destino interno','ok');return c.ok()}
+   if(h.hostname==='169.254.169.254'){o.textContent='{"AccessKeyId":"ASIA…EXAMPLE","SecretAccessKey":"wJal…EXAMPLE","Token":"IQoJ…"}';c.log('El servidor consultó el metadata service y filtró credenciales IAM','bad');return c.win()}
+   if(/^(localhost|127\.0\.0\.1)$/.test(h.hostname)){o.textContent='200 · Panel interno de administración (solo accesible desde la red local)';c.log('Has llegado a un servicio interno a través del servidor','bad');return c.win()}
+   o.textContent='200 Imagen importada'}}},
+
+{id:'A04',t:'Insecure Design',theory:1,
+ sum:'No es un bug de código sino un fallo de diseño: ninguna implementación perfecta lo arregla.',
+ e:'Una tienda aplica el cupón de 20 € en el cliente y el servidor confía en el precio recibido. También: preguntas de seguridad con respuestas públicas, o flujos sin límite de compra de entradas que facilitan el acaparamiento por bots.',
+ m:'Modelado de amenazas (STRIDE) desde el diseño, historias de abuso junto a las de uso, lógica de negocio y precios validados en el servidor, límites por usuario y patrones de diseño seguro.'},
+{id:'A06',t:'Vulnerable & Outdated Components',theory:1,
+ sum:'Tu aplicación hereda las vulnerabilidades de cada librería que usa.',
+ e:'Un proyecto mantiene una versión de Log4j afectada por Log4Shell (CVE-2021-44228) porque nadie revisa las dependencias transitivas.',
+ m:'Inventario (SBOM), actualizaciones automáticas con Dependabot/Renovate, escaneo en CI con npm audit, OSV-Scanner o Trivy, y retirar dependencias sin mantenimiento.'},
+{id:'A08',t:'Software & Data Integrity Failures',theory:1,
+ sum:'Se confía en código o datos sin verificar su origen ni su integridad.',
+ e:'Un pipeline descarga un script con curl | bash, un CDN comprometido sirve JS modificado, o se deserializan objetos que llegan del cliente.',
+ m:'Firmar y verificar artefactos, fijar versiones con hashes (lockfiles), Subresource Integrity en scripts externos, evitar deserialización insegura y proteger el CI/CD con revisiones obligatorias.'},
+{id:'A09',t:'Logging & Monitoring Failures',theory:1,
+ sum:'Si no registras ni vigilas, un ataque puede durar meses sin que nadie se entere.',
+ e:'Cientos de logins fallidos y una descarga masiva de datos pasan inadvertidos porque no se registran ni generan alertas.',
+ m:'Registrar eventos de autenticación y control de acceso con contexto, centralizar logs, alertar sobre anomalías, no registrar datos sensibles y ensayar la respuesta a incidentes.'}
+];
+
+let cur=L[0],fx=false,hintOn=false,S={};
+try{S=JSON.parse(localStorage.getItem('owasp_lab')||'{}')}catch(e){S={}}
+const save=()=>{try{localStorage.setItem('owasp_lab',JSON.stringify(S))}catch(e){}};
+const lbl=l=>l.id.replace(/[ab]$/,'');
+
+function nav(){
+  $(document,'#nav').innerHTML=L.map(l=>{const s=S[l.id]||{};const st=l.theory?'📖':s.x&&s.f?'✔':s.x?'◐':'○';
+    return `<button data-id="${l.id}" aria-current="${l===cur}"><b>${lbl(l)}</b>${esc(l.t)}<i>${st}</i></button>`}).join('');
+  document.querySelectorAll('#nav button').forEach(x=>x.onclick=()=>{cur=L.find(l=>l.id===x.dataset.id);fx=false;hintOn=false;render()});
+  const d=L.filter(l=>!l.theory),n=d.filter(l=>(S[l.id]||{}).x&&(S[l.id]||{}).f).length;
+  $(document,'#prog').textContent=`Laboratorios completados (explotado + corregido): ${n}/${d.length}`;
+}
+function render(){
+  nav();const m=$(document,'#main'),l=cur;
+  if(l.theory){m.innerHTML=`<h2>${lbl(l)} · ${esc(l.t)}</h2><p class=sum>${esc(l.sum)}</p><div class=goal><b>Escenario.</b> ${esc(l.e)}</div><div class=goal style="border-color:var(--ok)"><b>Mitigación.</b> ${esc(l.m)}</div><p class=sum>Este riesgo no se explota con un campo de texto; se previene con proceso y diseño.</p>`;return}
+  const s=S[l.id]||{};
+  m.innerHTML=`<h2>${lbl(l)} · ${esc(l.t)}<span class="tag ${s.x?'t1':''}">${s.x?'explotado':''}</span><span class="tag ${s.f?'t2':''}">${s.f?'corregido':''}</span></h2>
+  <p class=sum>${esc(l.sum)}</p><div class=goal><b>Objetivo.</b> ${esc(l.goal)} <button class=a id=h>Pista</button><div class=hint id=hn hidden>${esc(l.hint)}</div></div>
+  <div class=mode role=group aria-label="Modo"><button class=v aria-pressed="${!fx}" data-m=0>Versión vulnerable</button><button class=f aria-pressed="${fx}" data-m=1>Versión corregida</button></div>
+  <div class="app ${fx?'fx':''}" id=app></div><div id=log aria-live=polite><span class=i>Registro de la aplicación…</span></div>
+  <div class=code><h3>${fx?'Código corregido':'Código vulnerable'}</h3><pre class=cd>${esc(fx?l.f:l.v)}</pre></div>`;
+  $(m,'#h').onclick=()=>$(m,'#hn').hidden=!$(m,'#hn').hidden;
+  m.querySelectorAll('.mode button').forEach(x=>x.onclick=()=>{fx=x.dataset.m==='1';render()});
+  const lg=$(m,'#log'),c={onmsg:null,
+    log:(t,k)=>{if(lg.firstChild&&lg.firstChild.className==='i'&&lg.children.length===1&&lg.textContent.startsWith('Registro'))lg.innerHTML='';lg.insertAdjacentHTML('beforeend',`<div class="${k||''}">${esc(t)}</div>`);lg.scrollTop=1e5},
+    win:()=>{if(!fx){(S[l.id]=S[l.id]||{}).x=1;save();nav();$(m,'h2 .tag').className='tag t1';$(m,'h2 .tag').textContent='explotado';c.log('✔ Fallo explotado. Ahora activa la versión corregida y repite el ataque.','ok')}},
+    ok:()=>{(S[l.id]=S[l.id]||{}).f=1;save();nav();const t=m.querySelectorAll('h2 .tag')[1];t.className='tag t2';t.textContent='corregido'}};
+  window.onmessage=e=>c.onmsg&&c.onmsg(e);
+  l.mount($(m,'#app'),fx,c);
+}
+render();
+</script>
+</body>
+</html>

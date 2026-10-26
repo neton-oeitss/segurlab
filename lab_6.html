@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Laboratorio SIEM · Correlación, línea temporal y respuesta al incidente</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+
+  --bg:#EAEEF0; --panel:#FFFFFF; --panel-2:#F3F5F6; --border:#D3DBE0;
+  --text:#1B2429; --muted:#5B6B73; --accent:#0E7C7B; --accent-ink:#FFFFFF;
+  --amber:#9A6400; --amber-bg:#F4E7CC; --danger:#B3261E; --danger-bg:#F6D9D6;
+  --info-bg:#E7ECEE; --row-hover:#E4F3F2; --row-selected:#D8F0EE;
+  --shadow:0 1px 2px rgba(20,30,35,.06), 0 6px 20px rgba(20,30,35,.06);
+}
+:root:not([data-theme="light"]){
+  @media (prefers-color-scheme: dark){
+    --bg:#0B1114; --panel:#121A1E; --panel-2:#0E1519; --border:#223038;
+    --text:#E6EDEF; --muted:#8FA3AC; --accent:#3FD6C6; --accent-ink:#06201E;
+    --amber:#F2A93B; --amber-bg:#3A2E12; --danger:#FF6B6B; --danger-bg:#3A1414;
+    --info-bg:#182226; --row-hover:#16232A; --row-selected:#123230;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1114; --panel:#121A1E; --panel-2:#0E1519; --border:#223038;
+  --text:#E6EDEF; --muted:#8FA3AC; --accent:#3FD6C6; --accent-ink:#06201E;
+  --amber:#F2A93B; --amber-bg:#3A2E12; --danger:#FF6B6B; --danger-bg:#3A1414;
+  --info-bg:#182226; --row-hover:#16232A; --row-selected:#123230;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+html,body{height:100%;}
+body{margin:0; background:var(--bg); color:var(--text); font-family:"Inter",system-ui,-apple-system,Segoe UI,sans-serif; -webkit-font-smoothing:antialiased;}
+.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+button{font-family:inherit;}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+@media (prefers-reduced-motion: reduce){ *{animation-duration:.001ms !important; transition-duration:.001ms !important;} }
+
+.topbar{position:sticky; top:0; top:env(safe-area-inset-top,0px); z-index:20; background:var(--panel); border-bottom:1px solid var(--border);}
+.topbar-inner{max-width:1180px; margin:0 auto; display:flex; align-items:center; gap:14px; padding:12px 20px;}
+.brand{display:flex; align-items:center; gap:10px; flex:1; min-width:0;}
+.brand-mark{width:34px; height:34px; border-radius:9px; background:linear-gradient(160deg,var(--accent),transparent); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;}
+.brand-text{min-width:0;}
+.brand-text .t1{font-weight:700; font-size:15px; line-height:1.2;}
+.brand-text .t2{font-size:12.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.theme-toggle{border:1px solid var(--border); background:var(--panel-2); color:var(--text); border-radius:8px; padding:8px 10px; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;}
+.theme-toggle:hover{background:var(--row-hover);}
+.tabnav{max-width:1180px; margin:0 auto; display:flex; gap:4px; padding:0 20px; overflow-x:auto;}
+.tabnav button{border:none; background:transparent; color:var(--muted); padding:10px 14px; font-size:13.5px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap;}
+.tabnav button.active{color:var(--accent); border-bottom-color:var(--accent);}
+.tabnav button:hover{color:var(--text);}
+
+main{max-width:1180px; margin:0 auto; padding:20px; padding-bottom:60px;}
+.view{display:none;}
+.view.active{display:block;}
+
+.intro{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:18px; box-shadow:var(--shadow);}
+.intro h1{font-size:20px; margin:0 0 6px;}
+.intro p{margin:6px 0; color:var(--muted); font-size:14.5px; line-height:1.55;}
+.intro summary{cursor:pointer; font-weight:600; font-size:13.5px; color:var(--accent); margin-top:8px;}
+.scenario{margin-top:10px; padding-top:10px; border-top:1px dashed var(--border); font-size:13.5px; color:var(--muted); line-height:1.6;}
+
+/* ---------- SIEM console ---------- */
+.filterbar{display:flex; gap:8px; flex-wrap:wrap; align-items:center; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:10px; margin-bottom:12px; box-shadow:var(--shadow);}
+.filterbar input[type=text]{flex:1; min-width:200px; background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px 11px; font-size:13.5px;}
+.filterbar select{background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px 10px; font-size:13px;}
+.filterbar label.chk{display:flex; align-items:center; gap:6px; font-size:12.5px; color:var(--muted);}
+.filter-status{font-size:12.5px; color:var(--muted); width:100%;}
+.filter-status b{color:var(--text);}
+
+.log-shell{background:var(--panel); border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:var(--shadow);}
+.log-wrap{overflow-x:auto; max-height:520px; overflow-y:auto;}
+table.logtbl{width:100%; border-collapse:collapse; font-size:12.5px; min-width:880px;}
+table.logtbl thead th{position:sticky; top:0; background:var(--panel-2); text-align:left; padding:8px 10px; color:var(--muted); font-weight:600; border-bottom:1px solid var(--border);}
+table.logtbl tbody td{padding:7px 10px; border-bottom:1px solid var(--border); vertical-align:top;}
+table.logtbl tbody tr:hover{background:var(--row-hover);}
+.ts-cell{white-space:nowrap; font-family:"JetBrains Mono",monospace; color:var(--muted);}
+.host-cell{white-space:nowrap; font-family:"JetBrains Mono",monospace;}
+.msg-cell{max-width:460px;}
+.badge{display:inline-block; padding:2px 8px; border-radius:5px; font-size:11px; font-weight:700; background:var(--panel-2); border:1px solid var(--border); white-space:nowrap;}
+.sev-info{background:var(--info-bg); color:var(--muted); border-color:var(--border);}
+.sev-bajo{background:transparent; color:var(--accent); border-color:var(--accent);}
+.sev-medio{background:transparent; color:var(--amber); border-color:var(--amber);}
+.sev-alto{background:var(--amber-bg); color:var(--amber); border-color:var(--amber);}
+.sev-critico{background:var(--danger-bg); color:var(--danger); border-color:var(--danger);}
+.star-btn{border:none; background:transparent; cursor:pointer; font-size:16px; color:var(--muted); line-height:1;}
+.star-btn.on{color:var(--amber);}
+
+/* ---------- Guided lab (shared pattern) ---------- */
+.progress-wrap{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:16px; box-shadow:var(--shadow); display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+.progress-bar{flex:1; min-width:160px; height:8px; border-radius:999px; background:var(--panel-2); overflow:hidden;}
+.progress-fill{height:100%; background:var(--accent); width:0%; transition:width .4s ease;}
+.progress-label{font-size:13px; color:var(--muted); font-weight:600;}
+.reset-btn{border:1px solid var(--border); background:transparent; color:var(--muted); border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer;}
+
+.step{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:14px; box-shadow:var(--shadow);}
+.step.done{border-color:var(--accent);}
+.step-head{display:flex; align-items:flex-start; gap:12px;}
+.step-num{width:28px; height:28px; border-radius:8px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; font-family:"JetBrains Mono",monospace;}
+.step.done .step-num{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+.step-title{font-size:15.5px; font-weight:700; margin:0;}
+.step-body{margin-top:8px; margin-left:40px;}
+.step-body p{margin:0 0 10px; font-size:14px; color:var(--muted); line-height:1.55;}
+.step-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px;}
+.step-actions .btn{border:1px solid var(--border); background:var(--panel-2); color:var(--text); border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:600; cursor:pointer;}
+.step-actions .btn:hover{border-color:var(--accent); color:var(--accent);}
+.hint-box{display:none; background:var(--panel-2); border:1px dashed var(--border); border-radius:8px; padding:8px 10px; font-size:13px; color:var(--muted); margin-bottom:10px;}
+.hint-box.show{display:block;}
+.answer-row{display:flex; gap:8px; flex-wrap:wrap;}
+.answer-row input[type=text]{flex:1; min-width:200px; background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px 11px; font-size:13.5px;}
+.check-btn{border:none; background:var(--accent); color:var(--accent-ink); border-radius:8px; padding:9px 16px; font-size:13px; font-weight:700; cursor:pointer;}
+.feedback{font-size:13px; margin-top:8px; display:none;}
+.feedback.ok{color:var(--accent); display:block;}
+.feedback.bad{color:var(--danger); display:block;}
+
+/* ---------- Timeline ---------- */
+.tl-empty{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px; text-align:center; color:var(--muted); font-size:14px; box-shadow:var(--shadow);}
+.tl{position:relative; padding-left:26px;}
+.tl::before{content:""; position:absolute; left:7px; top:4px; bottom:4px; width:2px; background:var(--border);}
+.tl-item{position:relative; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:12px 14px; margin-bottom:10px; box-shadow:var(--shadow);}
+.tl-item::before{content:""; position:absolute; left:-23px; top:16px; width:10px; height:10px; border-radius:50%; background:var(--accent); border:2px solid var(--panel);}
+.tl-time{font-family:"JetBrains Mono",monospace; font-size:12px; color:var(--muted);}
+.tl-msg{font-size:13.5px; margin-top:3px;}
+
+/* ---------- Respuesta ---------- */
+.resp-card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:14px; box-shadow:var(--shadow);}
+.resp-item{display:flex; gap:10px; align-items:flex-start; padding:9px 0; border-bottom:1px solid var(--border);}
+.resp-item:last-child{border-bottom:none;}
+.resp-item input[type=checkbox]{margin-top:3px; width:16px; height:16px; flex-shrink:0;}
+.resp-text{font-size:13.5px; line-height:1.5;}
+.resp-verdict{font-size:12.5px; margin-top:4px; display:none;}
+.resp-verdict.show{display:block;}
+.resp-verdict.ok{color:var(--accent);}
+.resp-verdict.bad{color:var(--danger);}
+.resp-score{font-size:14px; font-weight:700; margin-top:10px;}
+
+footer{max-width:1180px; margin:0 auto; padding:10px 20px 40px; color:var(--muted); font-size:12px; text-align:center;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">🧩</div>
+      <div class="brand-text">
+        <div class="t1">Laboratorio SIEM</div>
+        <div class="t2">Correlación de logs · línea temporal · respuesta al incidente</div>
+      </div>
+    </div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema">🌓 <span id="themeLabel">Tema</span></button>
+  </div>
+  <div class="tabnav" role="tablist">
+    <button data-tab="consola" class="active">Consola SIEM</button>
+    <button data-tab="lab">Laboratorio guiado</button>
+    <button data-tab="timeline">Línea temporal</button>
+    <button data-tab="respuesta">Respuesta</button>
+  </div>
+</div>
+
+<main>
+
+  <!-- ===================== TAB: CONSOLA ===================== -->
+  <section class="view active" id="view-consola">
+    <div class="intro">
+      <h1>Cierra el caso: correlaciona la evidencia</h1>
+      <p>Es la mañana siguiente. Tienes acceso a los logs de firewall, IDS, autenticación, EDR, DNS y DLP de esa noche en Contoso Retail. Entre el ruido normal de la red se esconde la cadena completa del ataque que viste en los laboratorios de Wireshark y Nmap: reconocimiento, acceso inicial, movimiento lateral, ejecución, C2 y exfiltración. Búscala, márcala con ★ y reconstruye la línea temporal.</p>
+      <details class="scenario">
+        <summary>Recordatorio de actores conocidos</summary>
+        <p style="margin:8px 0 0">
+          <b>192.168.1.50</b> — origen del escaneo de puertos (laboratorio Nmap) ·
+          <b>192.168.1.10</b> — estación de un empleado ·
+          <b>192.168.1.20</b> — host con el backdoor en el puerto 4444 (laboratorio Wireshark) ·
+          <b>192.168.1.1</b> — router con SNMP mal configurado ·
+          <b>203.0.113.77</b> — IP externa del posible C2
+        </p>
+      </details>
+    </div>
+
+    <div class="filterbar">
+      <input type="text" id="searchInput" placeholder="Buscar en mensaje, host o fuente..." aria-label="Buscar">
+      <select id="sourceFilter"><option value="">Todas las fuentes</option></select>
+      <select id="sevFilter"><option value="">Toda severidad</option></select>
+      <select id="hostFilter"><option value="">Todos los hosts</option></select>
+      <label class="chk"><input type="checkbox" id="onlyStarred"> Solo marcados ★</label>
+      <div class="filter-status" id="filterStatus">Mostrando <b>0</b> de <b>0</b> eventos.</div>
+    </div>
+
+    <div class="log-shell">
+      <div class="log-wrap">
+        <table class="logtbl">
+          <thead>
+            <tr><th></th><th>Hora</th><th>Fuente</th><th>Host</th><th>Severidad</th><th>Mensaje</th></tr>
+          </thead>
+          <tbody id="logBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== TAB: LAB ===================== -->
+  <section class="view" id="view-lab">
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="progressText">0/8 pasos completados</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <button class="reset-btn" id="resetProgress">Reiniciar progreso</button>
+    </div>
+    <div id="stepsWrap"></div>
+  </section>
+
+  <!-- ===================== TAB: TIMELINE ===================== -->
+  <section class="view" id="view-timeline">
+    <div class="intro" style="margin-bottom:14px">
+      <h1>Tu línea temporal del incidente</h1>
+      <p>Aquí aparecen, en orden cronológico, únicamente los eventos que has marcado con ★ en la Consola SIEM. Úsala para comprobar si tu reconstrucción del ataque tiene sentido de principio a fin.</p>
+    </div>
+    <div id="timelineWrap"></div>
+  </section>
+
+  <!-- ===================== TAB: RESPUESTA ===================== -->
+  <section class="view" id="view-respuesta">
+    <div class="intro" style="margin-bottom:14px">
+      <h1>Plan de contención y respuesta</h1>
+      <p>Con la intrusión confirmada, decide qué acciones incluirías en la respuesta al incidente. Marca todas las que consideres adecuadas y evalúa tu plan.</p>
+    </div>
+    <div class="resp-card">
+      <div id="respList"></div>
+      <button class="check-btn" id="evalResponse" style="margin-top:14px">Evaluar plan de respuesta</button>
+      <div class="resp-score" id="respScore"></div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Laboratorio educativo con datos 100% sintéticos — ninguna dirección IP, host, log ni credencial es real. 
+</footer>
+
+<script>
+(function(){
+
+/* =========================================================================
+   1) LOGS SIMULADOS
+   ========================================================================= */
+let seq = 0;
+function ev(ts, source, host, sev, stage, message, signal){
+  seq++;
+  return {id:seq, ts:ts, source:source, host:host, sev:sev, stage:stage||"Ninguna", message:message, signal:!!signal, starred:false};
+}
+
+const logs = [];
+
+/* --- ruido benigno de la tarde/noche --- */
+logs.push(ev("14/09 21:03:11","Windows-Auth","192.168.1.11 (jgarcia)","Info","","Inicio de sesión local correcto, usuario jgarcia"));
+logs.push(ev("14/09 21:10:44","Windows-Auth","192.168.1.12 (mlopez)","Info","","Inicio de sesión local correcto, usuario mlopez"));
+logs.push(ev("14/09 21:14:02","DNS","192.168.1.11","Info","","Consulta A a outlook.office.com"));
+logs.push(ev("14/09 21:22:37","DNS","192.168.1.12","Info","","Consulta A a teams.microsoft.com"));
+logs.push(ev("14/09 21:40:09","Firewall","192.168.1.15","Info","","Conexión saliente permitida 192.168.1.15 -> 151.101.1.140:443"));
+logs.push(ev("14/09 22:01:15","Web","192.168.1.11","Info","","GET /intranet/noticias HTTP/1.1 200 OK"));
+logs.push(ev("14/09 22:15:52","DNS","192.168.1.10","Info","","Consulta A a update.microsoft.com"));
+logs.push(ev("14/09 22:30:03","Firewall","0.0.0.0/0","Bajo","","Sonda entrante bloqueada hacia puerto 23/tcp desde IP de Internet no relacionada (ruido habitual)"));
+logs.push(ev("14/09 22:47:19","Windows-Auth","192.168.1.12 (mlopez)","Alto","","3 intentos de inicio de sesión fallidos seguidos de bloqueo temporal de cuenta, usuario mlopez"));
+logs.push(ev("14/09 22:58:11","Firewall","192.168.1.15","Info","","Conexión saliente permitida 192.168.1.15 -> 151.101.1.140:443 (renovación de sesión TLS)"));
+logs.push(ev("14/09 23:01:00","Windows-Auth","192.168.1.10 (jgarcia)","Info","","Inicio de sesión local correcto, usuario jgarcia, estación WKS-EMP10"));
+logs.push(ev("14/09 23:04:20","DNS","192.168.1.10","Info","","Consulta A a www.example.com"));
+
+/* --- SEÑAL: reconocimiento (coincide con el laboratorio Nmap) --- */
+logs.push(ev("14/09 23:12:05","IDS","192.168.1.10","Alto","Reconocimiento","Múltiples paquetes SYN desde 192.168.1.50 hacia 20 puertos de 192.168.1.10 en menos de 1 s (firma: ET SCAN Nmap Scripting Engine)", true));
+logs.push(ev("14/09 23:12:06","Firewall","192.168.1.10","Medio","Reconocimiento","20 intentos de conexión TCP registrados desde 192.168.1.50 en 300 ms", true));
+logs.push(ev("14/09 23:12:40","IDS","192.168.1.1","Bajo","Reconocimiento","Escaneo UDP detectado contra el router 192.168.1.1 (puerto 161/udp, SNMP)", true));
+
+/* --- ruido intermedio --- */
+logs.push(ev("14/09 23:13:02","DNS","192.168.1.11","Info","","Consulta A a netflix.com"));
+logs.push(ev("14/09 23:13:47","Web","192.168.1.12","Info","","GET /intranet/rrhh/vacaciones HTTP/1.1 200 OK"));
+
+/* --- SEÑAL: acceso inicial (reutiliza credenciales del laboratorio Wireshark) --- */
+logs.push(ev("14/09 23:14:02","Web","192.168.1.10","Info","Acceso inicial","Intento de inicio de sesión en /login.php con usuario=admin contraseña=admin123, origen 192.168.1.50", true));
+logs.push(ev("14/09 23:16:11","Windows-Auth","192.168.1.10","Medio","Acceso inicial","Inicio de sesión remoto (tipo 10, RDP) correcto, usuario administrador, origen 192.168.1.50", true));
+
+/* --- ruido --- */
+logs.push(ev("14/09 23:18:30","Firewall","192.168.1.13","Info","","Conexión saliente permitida 192.168.1.13 -> 20.190.160.1:443 (autenticación Microsoft)"));
+
+/* --- SEÑAL: movimiento lateral --- */
+logs.push(ev("14/09 23:20:47","EDR","192.168.1.10","Alto","Movimiento lateral","Proceso cmd.exe lanza una herramienta de ejecución remota (PsExec) hacia \\\\192.168.1.20 con credenciales administrativas", true));
+logs.push(ev("14/09 23:22:03","Linux-Auth","192.168.1.20","Bajo","Movimiento lateral","Sesión SSH aceptada para el usuario ubuntu, origen 192.168.1.10", true));
+
+/* --- ruido --- */
+logs.push(ev("14/09 23:23:00","DNS","192.168.1.14","Info","","Consulta A a spotify.com"));
+
+/* --- SEÑAL: ejecución y C2 (coincide con el laboratorio Wireshark) --- */
+logs.push(ev("14/09 23:24:15","EDR","192.168.1.20","Crítico","Ejecución","Proceso no reconocido (backdoor.sh) abre un listener en el puerto 4444/tcp y realiza una conexión saliente hacia 203.0.113.77", true));
+logs.push(ev("14/09 23:24:16","IDS","192.168.1.20","Alto","C2","ET TROJAN Possible Metasploit Meterpreter connection: 192.168.1.20 -> 203.0.113.77:4444", true));
+logs.push(ev("14/09 23:29:16","IDS","192.168.1.20","Medio","C2","Nuevo check-in periódico hacia 203.0.113.77:4444 (patrón de baliza, intervalo ~5 min)", true));
+logs.push(ev("14/09 23:34:17","IDS","192.168.1.20","Medio","C2","Nuevo check-in periódico hacia 203.0.113.77:4444", true));
+logs.push(ev("14/09 23:39:18","IDS","192.168.1.20","Medio","C2","Nuevo check-in periódico hacia 203.0.113.77:4444", true));
+
+/* --- ruido nocturno --- */
+logs.push(ev("14/09 23:50:00","EDR","192.168.1.11","Info","","Análisis antivirus programado completado sin hallazgos"));
+logs.push(ev("14/09 23:55:12","DNS","192.168.1.1","Info","","Consulta A recursiva de cliente interno a ntp.org (sincronización horaria)"));
+logs.push(ev("15/09 00:02:00","Firewall","192.168.1.10","Info","","Conexión saliente permitida 192.168.1.10 -> 93.184.216.34:443"));
+
+/* --- SEÑAL: exfiltración --- */
+logs.push(ev("15/09 00:15:02","DLP","192.168.1.20","Crítico","Exfiltración","Transferencia saliente de aproximadamente 48 MB hacia 203.0.113.77 fuera del horario laboral", true));
+logs.push(ev("15/09 00:15:05","Firewall","192.168.1.20","Alto","Exfiltración","Umbral de tráfico saliente superado para el host 192.168.1.20", true));
+
+/* --- ruido: la copia de seguridad legítima (parecida en tamaño, para no confundir) --- */
+logs.push(ev("15/09 01:00:03","DLP","192.168.1.20","Medio","","Transferencia saliente de aproximadamente 52 MB hacia backup-vendor.contoso-retail.com (198.51.100.9), trabajo programado nocturno"));
+logs.push(ev("15/09 01:00:04","Firewall","192.168.1.20","Info","","Conexión saliente permitida 192.168.1.20 -> 198.51.100.9:443 (backup-vendor.contoso-retail.com)"));
+
+/* --- ruido de madrugada --- */
+logs.push(ev("15/09 02:00:00","EDR","192.168.1.12","Info","","Análisis antivirus programado completado sin hallazgos"));
+logs.push(ev("15/09 02:00:00","EDR","192.168.1.13","Info","","Análisis antivirus programado completado sin hallazgos"));
+logs.push(ev("15/09 03:10:22","Firewall","192.168.1.1","Info","","Renovación de concesión DHCP para 192.168.1.15"));
+logs.push(ev("15/09 04:45:10","DNS","192.168.1.1","Info","","Consulta A de mantenimiento a time.windows.com"));
+logs.push(ev("15/09 05:30:00","Linux-Auth","192.168.1.30","Bajo","","Sesión SSH del administrador de sistemas para mantenimiento programado"));
+logs.push(ev("15/09 06:58:40","Windows-Auth","192.168.1.13 (rsanchez)","Info","","Inicio de sesión local correcto, usuario rsanchez"));
+logs.push(ev("15/09 07:02:15","Web","192.168.1.13","Info","","GET /intranet HTTP/1.1 200 OK"));
+logs.push(ev("15/09 07:45:00","Windows-Auth","192.168.1.14 (rsanchez)","Info","","Inicio de sesión local correcto, usuario rsanchez"));
+
+logs.sort(function(a,b){ return a.id - b.id; }); // ya insertados en orden cronológico
+
+/* =========================================================================
+   2) ESTADO Y PERSISTENCIA
+   ========================================================================= */
+const STAR_KEY = "siemlab_starred_v1";
+function loadStars(){ try{ const raw = localStorage.getItem(STAR_KEY); return raw ? JSON.parse(raw) : []; }catch(e){ return []; } }
+function saveStars(arr){ try{ localStorage.setItem(STAR_KEY, JSON.stringify(arr)); }catch(e){} }
+let starred = new Set(loadStars());
+logs.forEach(function(l){ l.starred = starred.has(l.id); });
+
+function persistStars(){ saveStars(Array.from(starred)); }
+
+/* =========================================================================
+   3) CONSOLA: FILTROS Y RENDER
+   ========================================================================= */
+const searchInput = document.getElementById("searchInput");
+const sourceFilter = document.getElementById("sourceFilter");
+const sevFilter = document.getElementById("sevFilter");
+const hostFilter = document.getElementById("hostFilter");
+const onlyStarred = document.getElementById("onlyStarred");
+const logBody = document.getElementById("logBody");
+const filterStatus = document.getElementById("filterStatus");
+
+function uniqueSorted(arr){ return Array.from(new Set(arr)).sort(); }
+function fillSelect(select, values){
+  values.forEach(function(v){
+    const o = document.createElement("option");
+    o.value = v; o.textContent = v;
+    select.appendChild(o);
+  });
+}
+fillSelect(sourceFilter, uniqueSorted(logs.map(function(l){return l.source;})));
+fillSelect(sevFilter, ["Info","Bajo","Medio","Alto","Crítico"]);
+fillSelect(hostFilter, uniqueSorted(logs.map(function(l){return l.host;})));
+
+function sevClass(sev){
+  return "sev-" + sev.toLowerCase().replace("í","i").replace("é","e");
+}
+
+function matchesFilters(l){
+  const q = searchInput.value.trim().toLowerCase();
+  if(q && (l.message.toLowerCase().indexOf(q) === -1 && l.host.toLowerCase().indexOf(q) === -1 && l.source.toLowerCase().indexOf(q) === -1)) return false;
+  if(sourceFilter.value && l.source !== sourceFilter.value) return false;
+  if(sevFilter.value && l.sev !== sevFilter.value) return false;
+  if(hostFilter.value && l.host !== hostFilter.value) return false;
+  if(onlyStarred.checked && !l.starred) return false;
+  return true;
+}
+
+function renderLogs(){
+  logBody.innerHTML = "";
+  const visible = logs.filter(matchesFilters);
+  visible.forEach(function(l){
+    const tr = document.createElement("tr");
+    tr.innerHTML =
+      '<td><button class="star-btn'+(l.starred?' on':'')+'" data-id="'+l.id+'" title="Marcar como evidencia">'+(l.starred?'★':'☆')+'</button></td>'+
+      '<td class="ts-cell">'+l.ts+'</td>'+
+      '<td><span class="badge">'+l.source+'</span></td>'+
+      '<td class="host-cell">'+l.host+'</td>'+
+      '<td><span class="badge '+sevClass(l.sev)+'">'+l.sev+'</span></td>'+
+      '<td class="msg-cell">'+l.message+'</td>';
+    logBody.appendChild(tr);
+  });
+  filterStatus.innerHTML = 'Mostrando <b>'+visible.length+'</b> de <b>'+logs.length+'</b> eventos.';
+
+  logBody.querySelectorAll(".star-btn").forEach(function(btn){
+    btn.addEventListener("click", function(){
+      const id = parseInt(btn.dataset.id,10);
+      const l = logs.find(function(x){return x.id===id;});
+      l.starred = !l.starred;
+      if(l.starred) starred.add(id); else starred.delete(id);
+      persistStars();
+      renderLogs();
+    });
+  });
+}
+[searchInput, sourceFilter, sevFilter, hostFilter, onlyStarred].forEach(function(el){
+  el.addEventListener("input", renderLogs);
+  el.addEventListener("change", renderLogs);
+});
+renderLogs();
+
+/* =========================================================================
+   4) LÍNEA TEMPORAL
+   ========================================================================= */
+function renderTimeline(){
+  const wrap = document.getElementById("timelineWrap");
+  const items = logs.filter(function(l){ return l.starred; });
+  if(!items.length){
+    wrap.innerHTML = '<div class="tl-empty">Aún no has marcado ningún evento como evidencia.<br>Ve a la <b>Consola SIEM</b> y pulsa ★ en los eventos que consideres relevantes.</div>';
+    return;
+  }
+  wrap.innerHTML = '<div class="tl">' + items.map(function(l){
+    return '<div class="tl-item"><div class="tl-time">'+l.ts+' · '+l.source+' · '+l.host+'</div><div class="tl-msg">'+l.message+'</div></div>';
+  }).join("") + '</div>';
+}
+
+/* =========================================================================
+   5) LABORATORIO GUIADO
+   ========================================================================= */
+const steps = [
+  {id:1, title:"Encuentra el reconocimiento", filterHint:"192.168.1.50",
+   text:"Busca <code>192.168.1.50</code> en la Consola SIEM: es la IP que lanzó el escaneo de puertos en el laboratorio Nmap.",
+   question:"¿A qué hora (aprox., hh:mm) comienza la actividad de escaneo?", answers:["23:12"],
+   hint:"Fíjate en la primera alerta IDS que menciona múltiples paquetes SYN."},
+  {id:2, title:"Localiza el acceso inicial", filterHint:"RDP",
+   text:"Busca el evento de inicio de sesión remoto (RDP) en 192.168.1.10.",
+   question:"¿Desde qué IP se origina ese inicio de sesión sospechoso?", answers:["192.168.1.50"],
+   hint:"Es la misma IP que ya identificaste como origen del escaneo."},
+  {id:3, title:"Rastrea el movimiento lateral", filterHint:"192.168.1.20",
+   text:"Filtra por el host 192.168.1.20 y busca cómo llega la conexión desde 192.168.1.10.",
+   question:"¿Qué protocolo/servicio se usó para el movimiento lateral hacia 192.168.1.20?", answers:["ssh"],
+   hint:"Revisa el log de tipo Linux-Auth de ese host."},
+  {id:4, title:"Confirma el C2", filterHint:"203.0.113.77",
+   text:"Busca <code>203.0.113.77</code>: es la IP externa que ya viste como destino de la baliza en el laboratorio Wireshark.",
+   question:"¿Qué puerto usa la comunicación con el servidor de C2?", answers:["4444"],
+   hint:"Aparece tanto en el log de EDR como en las alertas IDS repetidas."},
+  {id:5, title:"Cuantifica la exfiltración", filterHint:"exfiltra",
+   text:"Busca el evento de tipo DLP marcado como Crítico esa madrugada.",
+   question:"¿Cuántos MB aproximados se transfirieron en el evento de exfiltración real?", answers:["48"],
+   hint:"No confundas este evento con otra transferencia parecida que ocurre 45 minutos después."},
+  {id:6, title:"No todo lo grande es malicioso", filterHint:"backup-vendor",
+   text:"Compara el evento de exfiltración de las 00:15 con la transferencia de la 01:00 hacia backup-vendor.contoso-retail.com.",
+   question:"¿Por qué esa segunda transferencia NO debería marcarse como evidencia del incidente?", answers:["backup","legitim","198.51.100.9"],
+   hint:"Fíjate en la IP y el nombre de dominio de destino: no es la misma que la del C2."},
+  {id:7, title:"Construye tu línea temporal", filterHint:null, checkTimeline:true,
+   text:"Ve marcando con ★ en la Consola SIEM todos los eventos que consideres evidencia real del incidente (recorre las 6 etapas: reconocimiento, acceso inicial, movimiento lateral, ejecución, C2 y exfiltración). Cuando creas que la tienes, comprueba tu selección aquí.",
+   question:null},
+  {id:8, title:"Diseña la respuesta", filterHint:null, goResponse:true,
+   text:"Con la intrusión confirmada, ve a la pestaña Respuesta y marca las acciones de contención y remediación que aplicarías. Este paso se completa automáticamente al evaluar tu plan allí.",
+   question:null}
+];
+
+const trueSignalIds = logs.filter(function(l){return l.signal;}).map(function(l){return l.id;});
+
+const stepsWrap = document.getElementById("stepsWrap");
+const PROGRESS_KEY = "siemlab_progress_v1";
+function loadProgress(){ try{ const raw = localStorage.getItem(PROGRESS_KEY); return raw ? JSON.parse(raw) : {}; }catch(e){ return {}; } }
+function saveProgress(p){ try{ localStorage.setItem(PROGRESS_KEY, JSON.stringify(p)); }catch(e){} }
+let progress = loadProgress();
+
+function updateProgressBar(){
+  const done = steps.filter(function(s){return progress[s.id];}).length;
+  document.getElementById("progressText").textContent = done + "/" + steps.length + " pasos completados";
+  document.getElementById("progressFill").style.width = Math.round(done/steps.length*100) + "%";
+}
+
+function goToConsolaWithSearch(text){
+  if(text){ searchInput.value = text; renderLogs(); }
+  document.querySelector('.tabnav button[data-tab="consola"]').click();
+  document.querySelector(".log-shell").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function checkTimelineSelection(card){
+  const starredIds = Array.from(starred);
+  const tp = starredIds.filter(function(id){ return trueSignalIds.indexOf(id) !== -1; }).length;
+  const fp = starredIds.length - tp;
+  const fn = trueSignalIds.length - tp;
+  const recall = trueSignalIds.length ? tp/trueSignalIds.length : 0;
+  const fb = card.querySelector('[data-role="fb"]');
+  fb.textContent = "Has marcado " + tp + " de " + trueSignalIds.length + " eventos clave del incidente, con " + fp + " marca(s) que no forman parte de él.";
+  if(recall >= 0.6){
+    fb.className = "feedback ok";
+    progress[7] = true; saveProgress(progress);
+    card.classList.add("done");
+  } else {
+    fb.className = "feedback bad";
+  }
+  updateProgressBar();
+  renderTimeline();
+}
+
+function buildSteps(){
+  stepsWrap.innerHTML = "";
+  steps.forEach(function(s){
+    const done = !!progress[s.id];
+    const card = document.createElement("div");
+    card.className = "step" + (done ? " done" : "");
+    card.id = "step-" + s.id;
+
+    let actionsHtml = "";
+    if(s.filterHint){ actionsHtml += '<button class="btn" data-act="apply">Buscar en la consola</button>'; }
+    if(s.checkTimeline){ actionsHtml += '<button class="btn" data-act="check-tl">Comprobar mi selección</button>'; }
+    if(s.goResponse){ actionsHtml += '<button class="btn" data-act="go-resp">Ir a Respuesta</button>'; }
+    actionsHtml += '<button class="btn" data-act="hint">Ver pista</button>';
+
+    let answerHtml = "";
+    if(s.question){
+      answerHtml =
+        '<div class="answer-row">'+
+          '<input type="text" placeholder="Tu respuesta...">'+
+          '<button class="check-btn" data-act="check">Comprobar</button>'+
+        '</div>'+
+        '<div class="feedback" data-role="fb"></div>';
+    } else {
+      answerHtml = '<div class="feedback" data-role="fb"></div>';
+    }
+
+    card.innerHTML =
+      '<div class="step-head">'+
+        '<div class="step-num">'+s.id+'</div>'+
+        '<h3 class="step-title">'+s.title+'</h3>'+
+      '</div>'+
+      '<div class="step-body">'+
+        '<p>'+s.text+'</p>'+
+        '<div class="step-actions">'+actionsHtml+'</div>'+
+        (s.hint ? '<div class="hint-box" data-role="hint">💡 '+s.hint+'</div>' : '')+
+        (s.question ? '<p><b>'+s.question+'</b></p>' : '')+
+        answerHtml+
+      '</div>';
+
+    if(s.filterHint){
+      card.querySelector('[data-act="apply"]').addEventListener("click", function(){ goToConsolaWithSearch(s.filterHint); });
+    }
+    if(s.checkTimeline){
+      card.querySelector('[data-act="check-tl"]').addEventListener("click", function(){ checkTimelineSelection(card); });
+    }
+    if(s.goResponse){
+      card.querySelector('[data-act="go-resp"]').addEventListener("click", function(){
+        document.querySelector('.tabnav button[data-tab="respuesta"]').click();
+      });
+    }
+    if(s.hint){
+      card.querySelector('[data-act="hint"]').addEventListener("click", function(){
+        card.querySelector('[data-role="hint"]').classList.toggle("show");
+      });
+    }
+    if(s.question){
+      card.querySelector('[data-act="check"]').addEventListener("click", function(){
+        const val = card.querySelector('input[type="text"]').value.trim().toLowerCase();
+        const fb = card.querySelector('[data-role="fb"]');
+        const ok = s.answers.some(function(a){ return val.indexOf(a.toLowerCase()) !== -1; });
+        if(ok){
+          fb.textContent = "✅ Correcto.";
+          fb.className = "feedback ok";
+          progress[s.id] = true; saveProgress(progress);
+          card.classList.add("done");
+        } else {
+          fb.textContent = "❌ No es del todo correcto. Revisa la pista y busca de nuevo en la consola.";
+          fb.className = "feedback bad";
+        }
+        updateProgressBar();
+      });
+    }
+    stepsWrap.appendChild(card);
+  });
+  updateProgressBar();
+}
+
+document.getElementById("resetProgress").addEventListener("click", function(){
+  progress = {};
+  saveProgress(progress);
+  buildSteps();
+});
+
+/* =========================================================================
+   6) RESPUESTA AL INCIDENTE
+   ========================================================================= */
+const responseItems = [
+  {text:"Aislar el host 192.168.1.20 de la red para detener la comunicación con el C2.", correct:true,
+   why:"Correcto: contener el host comprometido corta el canal de C2 y evita más exfiltración."},
+  {text:"Bloquear la IP 203.0.113.77 en el firewall perimetral.", correct:true,
+   why:"Correcto: corta cualquier comunicación futura con la infraestructura del atacante."},
+  {text:"Forzar el cambio de las credenciales administrativas comprometidas (incluida la reutilizada admin/admin123).", correct:true,
+   why:"Correcto: esas credenciales ya están expuestas y permitieron el acceso inicial."},
+  {text:"Cambiar la comunidad SNMP por defecto (\"public\") del router 192.168.1.1.", correct:true,
+   why:"Correcto: cierra una vía de reconocimiento/información que el atacante ya aprovechó."},
+  {text:"Restringir el acceso RDP expuesto en 192.168.1.10 (VPN y/o autenticación multifactor).", correct:true,
+   why:"Correcto: el RDP directo a Internet o sin MFA fue la puerta de entrada."},
+  {text:"Preservar una imagen forense y copia de los logs antes de modificar los sistemas afectados.", correct:true,
+   why:"Correcto: sin evidencia preservada, el análisis y una posible causa legal se pierden."},
+  {text:"Notificar al equipo directivo/legal según el plan de respuesta a incidentes de la organización.", correct:true,
+   why:"Correcto: la comunicación interna estructurada es parte de cualquier plan de IR serio."},
+  {text:"Reinstalar inmediatamente el sistema operativo de 192.168.1.20 sin preservar evidencias.", correct:false,
+   why:"Incorrecto: borra la evidencia antes de analizarla; primero se preserva, luego se remedia."},
+  {text:"Borrar los registros del SIEM relacionados con el incidente para \"limpiar\" el sistema.", correct:false,
+   why:"Incorrecto: destruir evidencia dificulta la investigación y puede tener implicaciones legales."},
+  {text:"Anunciar públicamente el incidente en redes sociales antes de confirmarlo internamente.", correct:false,
+   why:"Incorrecto: la comunicación debe seguir el proceso definido (legal, dirección, clientes), no ser improvisada."},
+  {text:"Descartar la alerta de exfiltración porque su tamaño se parece al de la copia de seguridad nocturna.", correct:false,
+   why:"Incorrecto: el tamaño similar no descarta nada; lo que importa es la IP/dominio de destino, que era distinto."}
+];
+
+const respList = document.getElementById("respList");
+respList.innerHTML = responseItems.map(function(it, idx){
+  return '<div class="resp-item">'+
+    '<input type="checkbox" id="resp-'+idx+'">'+
+    '<div style="flex:1"><label class="resp-text" for="resp-'+idx+'">'+it.text+'</label>'+
+    '<div class="resp-verdict" data-role="verdict-'+idx+'"></div></div>'+
+  '</div>';
+}).join("");
+
+document.getElementById("evalResponse").addEventListener("click", function(){
+  let score = 0;
+  responseItems.forEach(function(it, idx){
+    const checked = document.getElementById("resp-"+idx).checked;
+    const rightChoice = checked === it.correct;
+    if(rightChoice) score++;
+    const v = document.querySelector('[data-role="verdict-'+idx+'"]');
+    v.textContent = (rightChoice ? "✅ " : "❌ ") + it.why;
+    v.className = "resp-verdict show " + (rightChoice ? "ok" : "bad");
+  });
+  document.getElementById("respScore").textContent = "Puntuación: " + score + " / " + responseItems.length + " decisiones correctas.";
+  progress[8] = true; saveProgress(progress);
+  buildSteps();
+});
+
+/* =========================================================================
+   7) TABS + TEMA
+   ========================================================================= */
+document.querySelectorAll(".tabnav button").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll(".tabnav button").forEach(function(b){b.classList.remove("active");});
+    document.querySelectorAll(".view").forEach(function(v){v.classList.remove("active");});
+    btn.classList.add("active");
+    document.getElementById("view-"+btn.dataset.tab).classList.add("active");
+    if(btn.dataset.tab === "timeline") renderTimeline();
+  });
+});
+
+function currentTheme(){ try{ return localStorage.getItem("siemlab_theme") || "auto"; }catch(e){ return "auto"; } }
+function applyTheme(mode){
+  if(mode === "auto"){ document.documentElement.removeAttribute("data-theme"); }
+  else { document.documentElement.setAttribute("data-theme", mode); }
+  document.getElementById("themeLabel").textContent = mode === "auto" ? "Auto" : (mode === "dark" ? "Oscuro" : "Claro");
+  try{ localStorage.setItem("siemlab_theme", mode); }catch(e){}
+}
+document.getElementById("themeToggle").addEventListener("click", function(){
+  const order = ["auto","dark","light"];
+  applyTheme(order[(order.indexOf(currentTheme())+1) % order.length]);
+});
+applyTheme(currentTheme());
+
+buildSteps();
+renderTimeline();
+
+})();
+</script>
+</body>
+</html>

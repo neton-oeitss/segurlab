@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Laboratorio Nmap · Escaneo de red simulado</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+
+  --bg:#EAEEF0;
+  --panel:#FFFFFF;
+  --panel-2:#F3F5F6;
+  --border:#D3DBE0;
+  --text:#1B2429;
+  --muted:#5B6B73;
+  --accent:#0E7C7B;
+  --accent-ink:#FFFFFF;
+  --amber:#9A6400;
+  --danger:#B3261E;
+  --row-hover:#E4F3F2;
+  --term-bg:#101617;
+  --term-text:#DCE6E4;
+  --shadow:0 1px 2px rgba(20,30,35,.06), 0 6px 20px rgba(20,30,35,.06);
+}
+:root:not([data-theme="light"]){
+  @media (prefers-color-scheme: dark){
+    --bg:#0B1114; --panel:#121A1E; --panel-2:#0E1519; --border:#223038;
+    --text:#E6EDEF; --muted:#8FA3AC; --accent:#3FD6C6; --accent-ink:#06201E;
+    --amber:#F2A93B; --danger:#FF6B6B; --row-hover:#16232A;
+    --term-bg:#05080A; --term-text:#CFEDE7;
+    --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0B1114; --panel:#121A1E; --panel-2:#0E1519; --border:#223038;
+  --text:#E6EDEF; --muted:#8FA3AC; --accent:#3FD6C6; --accent-ink:#06201E;
+  --amber:#F2A93B; --danger:#FF6B6B; --row-hover:#16232A;
+  --term-bg:#05080A; --term-text:#CFEDE7;
+  --shadow:0 1px 2px rgba(0,0,0,.3), 0 8px 24px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box;}
+html{scroll-padding-top:env(safe-area-inset-top,0px);}
+html,body{height:100%;}
+body{margin:0; background:var(--bg); color:var(--text); font-family:"Inter",system-ui,-apple-system,Segoe UI,sans-serif; -webkit-font-smoothing:antialiased;}
+.mono{font-family:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;}
+button{font-family:inherit;}
+:focus-visible{outline:2px solid var(--accent); outline-offset:2px;}
+@media (prefers-reduced-motion: reduce){ *{animation-duration:.001ms !important; transition-duration:.001ms !important;} }
+
+.topbar{position:sticky; top:0; top:env(safe-area-inset-top,0px); z-index:20; background:var(--panel); border-bottom:1px solid var(--border);}
+.topbar-inner{max-width:1180px; margin:0 auto; display:flex; align-items:center; gap:14px; padding:12px 20px;}
+.brand{display:flex; align-items:center; gap:10px; flex:1; min-width:0;}
+.brand-mark{width:34px; height:34px; border-radius:9px; background:linear-gradient(160deg,var(--accent),transparent); display:flex; align-items:center; justify-content:center; font-size:18px; flex-shrink:0;}
+.brand-text{min-width:0;}
+.brand-text .t1{font-weight:700; font-size:15px; line-height:1.2;}
+.brand-text .t2{font-size:12.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+.theme-toggle{border:1px solid var(--border); background:var(--panel-2); color:var(--text); border-radius:8px; padding:8px 10px; cursor:pointer; font-size:13px; display:flex; align-items:center; gap:6px;}
+.theme-toggle:hover{background:var(--row-hover);}
+.tabnav{max-width:1180px; margin:0 auto; display:flex; gap:4px; padding:0 20px; overflow-x:auto;}
+.tabnav button{border:none; background:transparent; color:var(--muted); padding:10px 14px; font-size:13.5px; font-weight:600; cursor:pointer; border-bottom:2px solid transparent; white-space:nowrap;}
+.tabnav button.active{color:var(--accent); border-bottom-color:var(--accent);}
+.tabnav button:hover{color:var(--text);}
+
+main{max-width:1180px; margin:0 auto; padding:20px; padding-bottom:60px;}
+.view{display:none;}
+.view.active{display:block;}
+
+.intro{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:18px 20px; margin-bottom:18px; box-shadow:var(--shadow);}
+.intro h1{font-size:20px; margin:0 0 6px;}
+.intro p{margin:6px 0; color:var(--muted); font-size:14.5px; line-height:1.55;}
+.intro summary{cursor:pointer; font-weight:600; font-size:13.5px; color:var(--accent); margin-top:8px;}
+.scenario{margin-top:10px; padding-top:10px; border-top:1px dashed var(--border);}
+.scenario table{width:100%; border-collapse:collapse; margin-top:8px; font-size:13px;}
+.scenario td{padding:5px 8px; border-bottom:1px solid var(--border);}
+.scenario td:first-child{font-family:"JetBrains Mono",monospace; white-space:nowrap; color:var(--accent);}
+
+.chips{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;}
+.chip{border:1px solid var(--border); background:var(--panel); color:var(--muted); border-radius:999px; padding:6px 12px; font-size:12px; cursor:pointer;}
+.chip:hover{color:var(--text); border-color:var(--accent);}
+
+.term-shell{background:var(--panel); border:1px solid var(--border); border-radius:12px; overflow:hidden; box-shadow:var(--shadow);}
+.term-header{display:flex; align-items:center; gap:8px; padding:9px 14px; border-bottom:1px solid var(--border); background:var(--panel-2);}
+.term-dot{width:10px; height:10px; border-radius:50%;}
+.term-title{font-size:12px; color:var(--muted); margin-left:6px;}
+.term-body{background:var(--term-bg); color:var(--term-text); max-height:420px; overflow-y:auto; padding:14px 16px; font-size:12.8px; line-height:1.55;}
+.term-body pre{margin:0 0 10px; white-space:pre-wrap; word-break:break-word;}
+.term-line{color:var(--accent); margin:0 0 2px;}
+.term-input-row{display:flex; align-items:center; gap:8px; background:var(--term-bg); padding:10px 16px; border-top:1px solid #ffffff14;}
+.term-prompt{color:var(--accent); font-size:12.8px; white-space:nowrap;}
+.term-input-row input{
+  flex:1; background:transparent; border:none; color:var(--term-text); font-size:12.8px;
+  font-family:"JetBrains Mono",monospace; outline:none;
+}
+.term-hint{padding:8px 16px; font-size:11.5px; color:var(--muted); background:var(--panel-2); border-top:1px solid var(--border);}
+
+.progress-wrap{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:14px 16px; margin-bottom:16px; box-shadow:var(--shadow); display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
+.progress-bar{flex:1; min-width:160px; height:8px; border-radius:999px; background:var(--panel-2); overflow:hidden;}
+.progress-fill{height:100%; background:var(--accent); width:0%; transition:width .4s ease;}
+.progress-label{font-size:13px; color:var(--muted); font-weight:600;}
+.reset-btn{border:1px solid var(--border); background:transparent; color:var(--muted); border-radius:8px; padding:6px 10px; font-size:12px; cursor:pointer;}
+
+.step{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:14px; box-shadow:var(--shadow);}
+.step.done{border-color:var(--accent);}
+.step-head{display:flex; align-items:flex-start; gap:12px;}
+.step-num{width:28px; height:28px; border-radius:8px; background:var(--panel-2); border:1px solid var(--border); display:flex; align-items:center; justify-content:center; font-weight:700; font-size:13px; flex-shrink:0; font-family:"JetBrains Mono",monospace;}
+.step.done .step-num{background:var(--accent); color:var(--accent-ink); border-color:var(--accent);}
+.step-title{font-size:15.5px; font-weight:700; margin:0;}
+.step-body{margin-top:8px; margin-left:40px;}
+.step-body p{margin:0 0 10px; font-size:14px; color:var(--muted); line-height:1.55;}
+.step-actions{display:flex; gap:8px; flex-wrap:wrap; align-items:center; margin-bottom:10px;}
+.step-actions .btn{border:1px solid var(--border); background:var(--panel-2); color:var(--text); border-radius:8px; padding:8px 12px; font-size:12.5px; font-weight:600; cursor:pointer;}
+.step-actions .btn:hover{border-color:var(--accent); color:var(--accent);}
+.hint-box{display:none; background:var(--panel-2); border:1px dashed var(--border); border-radius:8px; padding:8px 10px; font-size:13px; color:var(--muted); margin-bottom:10px;}
+.hint-box.show{display:block;}
+.answer-row{display:flex; gap:8px; flex-wrap:wrap;}
+.answer-row input[type=text]{flex:1; min-width:200px; background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px 11px; font-size:13.5px;}
+.answer-row textarea{width:100%; min-height:80px; background:var(--panel-2); border:1px solid var(--border); color:var(--text); border-radius:8px; padding:9px 11px; font-size:13.5px; font-family:inherit; resize:vertical;}
+.check-btn{border:none; background:var(--accent); color:var(--accent-ink); border-radius:8px; padding:9px 16px; font-size:13px; font-weight:700; cursor:pointer;}
+.feedback{font-size:13px; margin-top:8px; display:none;}
+.feedback.ok{color:var(--accent); display:block;}
+.feedback.bad{color:var(--danger); display:block;}
+
+.ref-card{background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:16px 18px; margin-bottom:16px; box-shadow:var(--shadow);}
+.ref-card h2{font-size:15px; margin:0 0 10px;}
+table.flags{width:100%; border-collapse:collapse; font-size:13px;}
+table.flags th{text-align:left; color:var(--muted); padding:6px 8px; border-bottom:1px solid var(--border); font-size:12px;}
+table.flags td{padding:7px 8px; border-bottom:1px solid var(--border); vertical-align:top;}
+table.flags td:first-child{font-family:"JetBrains Mono",monospace; white-space:nowrap; color:var(--accent); font-weight:600;}
+
+footer{max-width:1180px; margin:0 auto; padding:10px 20px 40px; color:var(--muted); font-size:12px; text-align:center;}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-inner">
+    <div class="brand">
+      <div class="brand-mark">🛰️</div>
+      <div class="brand-text">
+        <div class="t1">Laboratorio Nmap</div>
+        <div class="t2">Terminal simulada · reconocimiento y escaneo de red</div>
+      </div>
+    </div>
+    <button class="theme-toggle" id="themeToggle" aria-label="Cambiar tema">🌓 <span id="themeLabel">Tema</span></button>
+  </div>
+  <div class="tabnav" role="tablist">
+    <button data-tab="terminal" class="active">Terminal</button>
+    <button data-tab="lab">Laboratorio guiado</button>
+    <button data-tab="ref">Referencia</button>
+  </div>
+</div>
+
+<main>
+
+  <!-- ===================== TAB: TERMINAL ===================== -->
+  <section class="view active" id="view-terminal">
+    <div class="intro">
+      <h1>Reconocimiento de la red de Contoso Retail</h1>
+      <p>Sigues la investigación del incidente: ahora te pones en el lugar del atacante para entender qué pudo ver al reconocer la red 192.168.1.0/24 antes de comprometer el equipo 192.168.1.20. Escribe comandos <code>nmap</code> reales en la terminal de abajo; esta simulación reconoce un subconjunto de opciones habituales.</p>
+      <details class="scenario">
+        <summary>Ver mapa de red conocido</summary>
+        <table>
+          <tr><td>192.168.1.1</td><td>Router / puerta de enlace</td></tr>
+          <tr><td>192.168.1.10</td><td>Estación de un empleado</td></tr>
+          <tr><td>192.168.1.15</td><td>Portátil personal, muy restringido por firewall</td></tr>
+          <tr><td>192.168.1.20</td><td>Equipo comprometido (visto en el laboratorio de Wireshark)</td></tr>
+          <tr><td>192.168.1.30</td><td>Servidor interno que no responde a ping</td></tr>
+        </table>
+      </details>
+    </div>
+
+    <div class="chips" id="chipRow"></div>
+
+    <div class="term-shell">
+      <div class="term-header">
+        <span class="term-dot" style="background:#ff5f56"></span>
+        <span class="term-dot" style="background:#ffbd2e"></span>
+        <span class="term-dot" style="background:#27c93f"></span>
+        <span class="term-title mono">attacker@kali: ~</span>
+      </div>
+      <div class="term-body mono" id="termBody"></div>
+      <div class="term-input-row">
+        <span class="term-prompt mono">attacker@kali:~$</span>
+        <input type="text" id="termInput" class="mono" autocomplete="off" spellcheck="false" aria-label="Comando">
+      </div>
+      <div class="term-hint">Escribe <code class="mono">help</code> para ver los comandos soportados, o usa los chips de arriba. ↑ / ↓ recorren el historial.</div>
+    </div>
+  </section>
+
+  <!-- ===================== TAB: LAB ===================== -->
+  <section class="view" id="view-lab">
+    <div class="progress-wrap">
+      <div class="progress-label"><span id="progressText">0/8 pasos completados</span></div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill"></div></div>
+      <button class="reset-btn" id="resetProgress">Reiniciar progreso</button>
+    </div>
+    <div id="stepsWrap"></div>
+  </section>
+
+  <!-- ===================== TAB: REFERENCIA ===================== -->
+  <section class="view" id="view-ref">
+    <div class="ref-card">
+      <h2>Opciones de Nmap soportadas en este simulador</h2>
+      <table class="flags">
+        <tr><th>Opción</th><th>Qué hace</th></tr>
+        <tr><td>(ninguna)</td><td>Escaneo TCP por defecto sobre los puertos más comunes: muestra puerto, estado y servicio.</td></tr>
+        <tr><td>-sS</td><td>Escaneo SYN ("sigiloso"): en Nmap real requiere privilegios de administrador; no completa la conexión TCP.</td></tr>
+        <tr><td>-sT</td><td>Escaneo de conexión TCP completa: no requiere privilegios, pero es más fácil de detectar/loguear.</td></tr>
+        <tr><td>-sV</td><td>Detección de versión: añade la columna VERSION con el software y versión detectados en cada puerto.</td></tr>
+        <tr><td>-O</td><td>Detección de sistema operativo mediante huella TCP/IP.</td></tr>
+        <tr><td>-sC</td><td>Ejecuta scripts básicos de reconocimiento (equivalente a --script=default) sobre los puertos abiertos.</td></tr>
+        <tr><td>-A</td><td>Modo agresivo: combina -sV, -O, -sC y un traceroute simplificado.</td></tr>
+        <tr><td>-sn</td><td>Solo descubrimiento de hosts (ping scan): no escanea puertos, útil para saber qué IPs están activas.</td></tr>
+        <tr><td>-Pn</td><td>Omite la fase de descubrimiento por ping y escanea igualmente, útil con hosts que bloquean ICMP.</td></tr>
+        <tr><td>-sU</td><td>Escaneo de puertos UDP (más lento y con resultados ambiguos: "open|filtered").</td></tr>
+        <tr><td>-p &lt;spec&gt;</td><td>Limita el escaneo a puertos concretos: <code class="mono">-p 22,80,443</code> o un rango <code class="mono">-p 1-1000</code>.</td></tr>
+        <tr><td>--top-ports N</td><td>Limita el escaneo a los N puertos más comunes (aquí aplicado sobre todo a UDP).</td></tr>
+        <tr><td>-oN archivo</td><td>En Nmap real guarda la salida en un fichero de texto; aquí solo se muestra el aviso.</td></tr>
+      </table>
+    </div>
+    <div class="ref-card">
+      <h2>Otros comandos disponibles en la terminal</h2>
+      <table class="flags">
+        <tr><td>ping &lt;ip&gt;</td><td>Envía ecos ICMP de prueba; algunos hosts del laboratorio no responden a propósito.</td></tr>
+        <tr><td>whoami / ifconfig</td><td>Información básica de la máquina atacante simulada.</td></tr>
+        <tr><td>history</td><td>Muestra los comandos ejecutados en esta sesión.</td></tr>
+        <tr><td>clear</td><td>Limpia la pantalla de la terminal.</td></tr>
+      </table>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  Laboratorio educativo con datos 100% sintéticos — ninguna dirección IP ni host es real. Segunda parte de la serie iniciada con el laboratorio de Wireshark.
+</footer>
+
+<script>
+(function(){
+
+/* =========================================================================
+   1) INVENTARIO DE RED SIMULADO
+   ========================================================================= */
+const hosts = {
+  "192.168.1.1": {
+    up:true, blocksIcmp:false,
+    os:"Linux embebido 3.x–4.x (típico de un router doméstico / SOHO con firmware tipo OpenWrt)",
+    ports:[
+      {port:53, service:"domain", version:"dnsmasq 2.85"},
+      {port:80, service:"http", version:"lighttpd 1.4.55 (panel de administración del router)"},
+      {port:443, service:"https", version:"lighttpd 1.4.55 (ssl)"}
+    ],
+    udp:[
+      {port:53, service:"domain", version:"dnsmasq"},
+      {port:161, service:"snmp", version:"net-snmp (comunidad \"public\" aceptada)"}
+    ]
+  },
+  "192.168.1.10": {
+    up:true, blocksIcmp:false,
+    os:"Microsoft Windows 10 Pro (con el servicio OpenSSH y Escritorio remoto habilitados)",
+    ports:[
+      {port:22, service:"ssh", version:"OpenSSH for Windows 8.1"},
+      {port:80, service:"http", version:"Microsoft IIS httpd 10.0"},
+      {port:443, service:"https", version:"Microsoft IIS httpd 10.0 (ssl)"},
+      {port:3389, service:"ms-wbt-server", version:"Microsoft Terminal Services"}
+    ],
+    udp:[]
+  },
+  "192.168.1.15": {
+    up:true, blocksIcmp:false,
+    os:null,
+    allFiltered:true,
+    ports:[], udp:[]
+  },
+  "192.168.1.20": {
+    up:true, blocksIcmp:false,
+    os:"Linux 5.x (Ubuntu Server 22.04)",
+    ports:[
+      {port:22, service:"ssh", version:"OpenSSH 8.9p1 Ubuntu 3ubuntu0.6"},
+      {port:4444, service:"unknown", version:"sin banner claro — con -A: patrón compatible con un shell Meterpreter/Metasploit"}
+    ],
+    udp:[]
+  },
+  "192.168.1.30": {
+    up:true, blocksIcmp:true,
+    os:"Linux 4.x (servidor interno con firewall estricto)",
+    ports:[
+      {port:22, service:"ssh", version:"OpenSSH 7.6p1 Ubuntu 4ubuntu0.7"},
+      {port:80, service:"http", version:"nginx 1.18.0 (intranet interna)"}
+    ],
+    udp:[]
+  }
+};
+
+const scriptDB = {
+  ssh:      ["ssh-hostkey:", "  2048 4a:1f:9c:aa:bb:cc:dd:ee:ff:00:11:22:33:44:55:66 (RSA)"],
+  http:     ["http-title: Contoso Retail — Portal interno"],
+  https:    ["http-title: Contoso Retail — Portal interno (TLS)", "ssl-cert: emitido para *.contoso-retail.local, autofirmado"],
+  "ms-wbt-server":["rdp-enum-encryption:", "  Security layer: SSL/TLS"],
+  domain:   ["dns-nsid: version.bind: dnsmasq-2.85"],
+  snmp:     ["snmp-info: no se pudo evitar exponer sysDescr con la comunidad por defecto"]
+};
+
+const udpCommonPorts = [53,67,68,69,123,135,137,138,161,162,443,500,514,520,631,1434,1900,4500,5353,49152];
+
+/* =========================================================================
+   2) UTILIDADES DE FORMATO
+   ========================================================================= */
+function nowStr(){
+  const d = new Date();
+  const pad = function(n){return String(n).padStart(2,"0");};
+  return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate())+" "+pad(d.getHours())+":"+pad(d.getMinutes())+" CEST";
+}
+function isIPv4(s){ return /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(s); }
+function inLabSubnet(ip){ return ip.indexOf("192.168.1.") === 0; }
+
+function parsePortSpec(spec){
+  const out = new Set();
+  spec.split(",").forEach(function(part){
+    if(part.indexOf("-") !== -1){
+      const bounds = part.split("-").map(Number);
+      for(let p=bounds[0]; p<=bounds[1]; p++) out.add(p);
+    } else {
+      out.add(parseInt(part,10));
+    }
+  });
+  return out;
+}
+
+function padRow(cols, widths){
+  return cols.map(function(c,i){ return String(c).padEnd(widths[i]); }).join(" ").trimEnd();
+}
+
+/* =========================================================================
+   3) PARSER DE COMANDOS
+   ========================================================================= */
+function parseCommand(raw){
+  const trimmed = raw.trim();
+  if(trimmed === "") return {type:"empty"};
+  const tokens = trimmed.split(/\s+/);
+  const cmd = tokens[0].toLowerCase();
+
+  if(cmd === "clear") return {type:"clear"};
+  if(cmd === "help" || cmd === "--help" || cmd === "-h") return {type:"help"};
+  if(cmd === "whoami") return {type:"whoami"};
+  if(cmd === "history") return {type:"history"};
+  if(cmd === "ifconfig" || (cmd === "ip" && tokens[1] === "a")) return {type:"ifconfig"};
+  if(cmd === "man" && tokens[1] && tokens[1].toLowerCase() === "nmap") return {type:"man"};
+  if(cmd === "ping") return {type:"ping", target: tokens[1] || ""};
+  if(cmd !== "nmap") return {type:"unknown", raw:trimmed};
+
+  const flags = {sS:false,sT:false,sV:false,O:false,sC:false,A:false,sn:false,sU:false,Pn:false};
+  let portsSpec=null, topPorts=null, target=null, outFile=null;
+  const unsupported = [];
+
+  for(let i=1;i<tokens.length;i++){
+    const tok = tokens[i];
+    if(tok === "-sS") flags.sS = true;
+    else if(tok === "-sT") flags.sT = true;
+    else if(tok === "-sV") flags.sV = true;
+    else if(tok === "-O") flags.O = true;
+    else if(tok === "-sC") flags.sC = true;
+    else if(tok === "-A") flags.A = true;
+    else if(tok === "-sn") flags.sn = true;
+    else if(tok === "-sU") flags.sU = true;
+    else if(tok.toLowerCase() === "-pn") flags.Pn = true;
+    else if(tok === "-v" || tok === "-vv"){ /* verbosidad: ignorada en la simulación */ }
+    else if(tok === "-p"){ portsSpec = tokens[++i]; }
+    else if(tok === "--top-ports"){ topPorts = parseInt(tokens[++i],10); }
+    else if(tok === "-oN"){ outFile = tokens[++i]; }
+    else if(tok[0] === "-"){ unsupported.push(tok); }
+    else { target = tok; }
+  }
+  return {type:"nmap", flags, portsSpec, topPorts, target, outFile, unsupported};
+}
+
+/* =========================================================================
+   4) MOTOR DE SIMULACIÓN NMAP
+   ========================================================================= */
+function scanTime(flags){
+  let t = 0.6 + Math.random()*0.4;
+  if(flags.sV) t += 0.8;
+  if(flags.O) t += 1.1;
+  if(flags.sC) t += 0.5;
+  if(flags.sU) t += 2.2;
+  if(flags.A) t += 0.3;
+  return t.toFixed(2);
+}
+
+function buildPortTable(list, withVersion){
+  const widths = withVersion ? [9,9,13] : [9,9,13];
+  let out = "PORT     STATE    SERVICE" + (withVersion ? "      VERSION" : "") + "\n";
+  list.forEach(function(p){
+    const line = String(p.port)+"/tcp".padEnd(0);
+    const portCol = (p.port + "/tcp").padEnd(9);
+    const stateCol = "open".padEnd(9);
+    const svcCol = withVersion ? p.service.padEnd(13) : p.service;
+    out += portCol + stateCol + svcCol + (withVersion ? (" " + p.version) : "") + "\n";
+  });
+  return out;
+}
+
+function osBlock(hostData){
+  if(!hostData.os){
+    return "No exact OS matches for host (los resultados no son fiables con tan pocos puertos de referencia).\n";
+  }
+  return "Device type: general purpose\nRunning: (huella TCP/IP compatible)\nOS details: " + hostData.os + "\nNetwork Distance: 2 hops\n";
+}
+
+function scriptBlock(list){
+  let out = "";
+  list.forEach(function(p){
+    const lines = scriptDB[p.service];
+    if(lines){
+      out += "\n" + (p.port+"/tcp") + " " + p.service + " script results:\n";
+      lines.forEach(function(l){ out += "|_" + l + "\n"; });
+    }
+  });
+  return out;
+}
+
+function nmapScan(p){
+  if(p.unsupported && p.unsupported.length){
+    var warn = "Aviso: se ignoran opciones no soportadas por este simulador: " + p.unsupported.join(" ") + "\n\n";
+  } else { var warn = ""; }
+
+  if(!p.target){
+    return warn + "QUITTING!: se requiere al menos un objetivo (prueba: nmap 192.168.1.10)";
+  }
+
+  const header = "Starting Nmap 7.94 ( https://nmap.org ) at " + nowStr() + "\n";
+
+  /* --- rango CIDR (solo pensado para -sn) --- */
+  if(p.target.indexOf("/24") !== -1){
+    if(!p.flags.sn){
+      return warn + header + "Nota: escanear puertos sobre un rango /24 completo tardaría demasiado en este laboratorio.\nPrueba primero \"nmap -sn 192.168.1.0/24\" para descubrir hosts activos, y después escanea uno en concreto.";
+    }
+    let out = warn + header;
+    let upCount = 0;
+    Object.keys(hosts).forEach(function(ip){
+      if(hosts[ip].up){
+        upCount++;
+        out += "Nmap scan report for " + ip + "\nHost is up (0.00" + (30+Math.floor(Math.random()*60)) + "s latency).\n";
+      }
+    });
+    out += "Nmap done: 254 IP addresses (" + upCount + " hosts up) scanned in " + scanTime(p.flags) + " seconds";
+    return out;
+  }
+
+  if(!isIPv4(p.target)){
+    return warn + header + "Failed to resolve \"" + p.target + "\". Este laboratorio solo reconoce direcciones dentro de 192.168.1.0/24.";
+  }
+  if(!inLabSubnet(p.target)){
+    return warn + header + "Nmap scan report for " + p.target + "\nNota: esa dirección queda fuera del rango simulado en este laboratorio (192.168.1.0/24).";
+  }
+
+  const hostData = hosts[p.target];
+  if(!hostData){
+    if(p.flags.Pn){
+      return warn + header + "Nmap scan report for " + p.target + "\nHost is up.\nAll 1000 scanned ports on " + p.target + " are filtered\n\nNmap done: 1 IP address (1 host up) scanned in " + scanTime(p.flags) + " seconds";
+    }
+    return warn + header + "Note: Host seems down. If it is really up, but blocking our ping probes, try -Pn\nNmap done: 0 IP addresses (0 hosts up) scanned in " + scanTime(p.flags) + " seconds";
+  }
+
+  if(hostData.blocksIcmp && !p.flags.Pn){
+    return warn + header + "Note: Host seems down. If it is really up, but blocking our ping probes, try -Pn\nNmap done: 0 IP addresses (0 hosts up) scanned in " + scanTime(p.flags) + " seconds";
+  }
+
+  let out = warn + header;
+  out += "Nmap scan report for " + p.target + "\nHost is up (0.00" + (20+Math.floor(Math.random()*70)) + "s latency).\n";
+
+  if(p.flags.sn){
+    out += "Nmap done: 1 IP address (1 host up) scanned in " + scanTime(p.flags) + " seconds";
+    return out;
+  }
+
+  const withVersion = p.flags.sV || p.flags.A;
+
+  if(p.flags.sU){
+    const capacity = p.topPorts ? Math.min(p.topPorts, udpCommonPorts.length) : 20;
+    const candidates = udpCommonPorts.slice(0, capacity);
+    const openList = (hostData.udp||[]).filter(function(u){ return candidates.indexOf(u.port) !== -1; });
+    const ambiguous = capacity - openList.length;
+    out += "Not shown: " + ambiguous + " open|filtered udp ports\n";
+    if(openList.length){
+      out += buildPortTable(openList.map(function(u){return {port:u.port, service:u.service, version:u.version};}), withVersion).replace(/\/tcp/g, "/udp");
+    }
+    if(p.flags.sC || p.flags.A) out += scriptBlock(openList);
+  } else {
+    let list = hostData.ports || [];
+    if(p.portsSpec){
+      const spec = parsePortSpec(p.portsSpec);
+      list = list.filter(function(pt){ return spec.has(pt.port); });
+      const totalScanned = spec.size;
+      const notShown = totalScanned - list.length;
+      if(hostData.allFiltered){
+        out += "All " + totalScanned + " scanned ports on " + p.target + " are filtered\n";
+      } else {
+        if(notShown > 0) out += "Not shown: " + notShown + " closed ports\n";
+        if(list.length) out += buildPortTable(list, withVersion);
+        else if(notShown === 0) out += "(ninguno de los puertos indicados coincide con servicios conocidos de este host)\n";
+      }
+    } else {
+      if(hostData.allFiltered){
+        out += "All 1000 scanned ports on " + p.target + " are filtered\n";
+      } else {
+        out += "Not shown: " + (1000 - list.length) + " closed ports\n";
+        out += buildPortTable(list, withVersion);
+      }
+    }
+    if((p.flags.sC || p.flags.A) && !hostData.allFiltered) out += scriptBlock(list);
+  }
+
+  if(p.flags.O || p.flags.A){
+    out += "\n" + osBlock(hostData);
+  }
+  if(p.flags.A){
+    out += "\nTRACEROUTE (using port 443/tcp)\nHOP RTT     ADDRESS\n1   0.4" + Math.floor(Math.random()*9) + " ms 192.168.1.1\n2   0.9" + Math.floor(Math.random()*9) + " ms " + p.target + "\n";
+  }
+
+  out += "\nNmap done: 1 IP address (1 host up) scanned in " + scanTime(p.flags) + " seconds";
+  if(p.outFile){
+    out += "\n\n(En un escaneo real, la salida también se habría guardado en \"" + p.outFile + "\" gracias a -oN; este simulador no genera ningún archivo.)";
+  }
+  return out;
+}
+
+function pingSim(target){
+  if(!isIPv4(target)) return "ping: " + target + ": No se pudo resolver el nombre";
+  const hostData = hosts[target];
+  if(hostData && hostData.blocksIcmp){
+    return "PING " + target + " (" + target + ") 56(84) bytes of data.\n(sin respuesta)\n(sin respuesta)\n(sin respuesta)\n(sin respuesta)\n\n--- " + target + " ping statistics ---\n4 packets transmitted, 0 received, 100% packet loss, time 3045ms";
+  }
+  if(hostData && hostData.up){
+    let out = "PING " + target + " (" + target + ") 56(84) bytes of data.\n";
+    for(let i=1;i<=4;i++){
+      out += "64 bytes from " + target + ": icmp_seq=" + i + " ttl=64 time=0." + (200+Math.floor(Math.random()*400)) + " ms\n";
+    }
+    out += "\n--- " + target + " ping statistics ---\n4 packets transmitted, 4 received, 0% packet loss, time 3006ms";
+    return out;
+  }
+  return "PING " + target + " (" + target + ") 56(84) bytes of data.\n(sin respuesta)\n(sin respuesta)\n(sin respuesta)\n(sin respuesta)\n\n--- " + target + " ping statistics ---\n4 packets transmitted, 0 received, 100% packet loss, time 3045ms";
+}
+
+const HELP_TEXT =
+"Comandos disponibles en esta terminal simulada:\n\n" +
+"  nmap [opciones] <objetivo>   escáner de red (ver pestaña Referencia)\n" +
+"  ping <ip>                    prueba de conectividad ICMP\n" +
+"  whoami / ifconfig             información de la máquina atacante\n" +
+"  history                      historial de comandos de esta sesión\n" +
+"  clear                        limpia la pantalla\n\n" +
+"Ejemplo: nmap -sV -O 192.168.1.10";
+
+const MAN_TEXT =
+"NMAP(1) — resumen simulado con fines educativos\n\n" +
+"Nmap (\"Network Mapper\") es una herramienta de código abierto para el\n" +
+"descubrimiento de redes y la auditoría de seguridad. Permite averiguar\n" +
+"qué hosts están activos, qué puertos y servicios exponen, y en muchos\n" +
+"casos qué sistema operativo y versión de software ejecutan.\n\n" +
+"Esta simulación reconoce un subconjunto reducido de opciones reales;\n" +
+"consulta la pestaña \"Referencia\" para ver la lista completa.";
+
+/* =========================================================================
+   5) TERMINAL: RENDER + INTERACCIÓN
+   ========================================================================= */
+const termBody = document.getElementById("termBody");
+const termInput = document.getElementById("termInput");
+let cmdHistory = [];
+let histPos = -1;
+
+function printEntry(cmdText, outputText){
+  const wrap = document.createElement("div");
+  const promptLine = document.createElement("div");
+  promptLine.className = "term-line";
+  promptLine.textContent = "attacker@kali:~$ " + cmdText;
+  wrap.appendChild(promptLine);
+  if(outputText !== null && outputText !== undefined && outputText !== ""){
+    const pre = document.createElement("pre");
+    pre.textContent = outputText;
+    wrap.appendChild(pre);
+  }
+  termBody.appendChild(wrap);
+  termBody.scrollTop = termBody.scrollHeight;
+}
+
+function runCommand(raw){
+  const parsed = parseCommand(raw);
+  let output = "";
+  switch(parsed.type){
+    case "empty": return;
+    case "clear": termBody.innerHTML = ""; return;
+    case "help": output = HELP_TEXT; break;
+    case "man": output = MAN_TEXT; break;
+    case "whoami": output = "attacker"; break;
+    case "ifconfig": output = "eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500\n        inet 192.168.1.50  netmask 255.255.255.0  broadcast 192.168.1.255"; break;
+    case "history": output = cmdHistory.length ? cmdHistory.map(function(c,i){return (i+1)+"  "+c;}).join("\n") : "(vacío)"; break;
+    case "ping": output = parsed.target ? pingSim(parsed.target) : "ping: falta el objetivo (uso: ping <ip>)"; break;
+    case "unknown": output = "bash: " + parsed.raw.split(/\s+/)[0] + ": orden no encontrada"; break;
+    case "nmap": output = nmapScan(parsed); break;
+  }
+  printEntry(raw, output);
+}
+
+termInput.addEventListener("keydown", function(e){
+  if(e.key === "Enter"){
+    const val = termInput.value;
+    if(val.trim() !== ""){ cmdHistory.push(val); }
+    histPos = cmdHistory.length;
+    runCommand(val);
+    termInput.value = "";
+  } else if(e.key === "ArrowUp"){
+    if(cmdHistory.length){
+      histPos = Math.max(0, histPos-1);
+      termInput.value = cmdHistory[histPos] || "";
+      setTimeout(function(){ termInput.setSelectionRange(termInput.value.length, termInput.value.length); },0);
+    }
+    e.preventDefault();
+  } else if(e.key === "ArrowDown"){
+    if(cmdHistory.length){
+      histPos = Math.min(cmdHistory.length, histPos+1);
+      termInput.value = cmdHistory[histPos] || "";
+    }
+    e.preventDefault();
+  }
+});
+
+printEntry("help", "Bienvenido a la terminal simulada de Nmap. Escribe \"help\" en cualquier momento para ver los comandos disponibles.\n\n" + HELP_TEXT);
+
+const chipDefs = [
+  "nmap -sn 192.168.1.0/24",
+  "nmap 192.168.1.10",
+  "nmap -sV 192.168.1.10",
+  "nmap -O 192.168.1.10",
+  "nmap -Pn 192.168.1.30",
+  "nmap -sU --top-ports 20 192.168.1.1",
+  "nmap -A 192.168.1.20"
+];
+const chipRow = document.getElementById("chipRow");
+chipDefs.forEach(function(c){
+  const b = document.createElement("button");
+  b.className = "chip mono"; b.textContent = c;
+  b.addEventListener("click", function(){
+    termInput.value = c;
+    termInput.focus();
+  });
+  chipRow.appendChild(b);
+});
+
+/* =========================================================================
+   6) LABORATORIO GUIADO
+   ========================================================================= */
+const steps = [
+  {id:1, title:"Descubre qué hosts están activos", cmd:"nmap -sn 192.168.1.0/24",
+   text:"Antes de escanear puertos conviene saber qué máquinas responden. Ejecuta un ping scan sobre toda la subred.",
+   question:"¿Cuántos hosts aparecen como \"up\"?", answers:["5","cinco"],
+   hint:"Cuenta las líneas \"Host is up\" que aparecen en el resultado."},
+  {id:2, title:"Escaneo por defecto de un objetivo", cmd:"nmap 192.168.1.10",
+   text:"Escanea la estación del empleado con las opciones por defecto.",
+   question:"¿Cuántos puertos abiertos tiene 192.168.1.10?", answers:["4","cuatro"],
+   hint:"Cuenta las filas de la tabla PORT/STATE/SERVICE."},
+  {id:3, title:"Detección de versión de servicios", cmd:"nmap -sV 192.168.1.10",
+   text:"Añade -sV para averiguar qué software concreto atiende cada puerto.",
+   question:"¿Qué servidor web corre en los puertos 80 y 443 de 192.168.1.10?", answers:["iis","microsoft iis"],
+   hint:"Mira la columna VERSION; no es el mismo servidor que viste en el laboratorio de Wireshark."},
+  {id:4, title:"Detección de sistema operativo", cmd:"nmap -O 192.168.1.10",
+   text:"Añade -O para que Nmap intente identificar el sistema operativo por huella TCP/IP.",
+   question:"¿Qué sistema operativo detecta Nmap en 192.168.1.10?", answers:["windows"],
+   hint:"Aparece en la línea \"OS details\"."},
+  {id:5, title:"Un host que no responde al ping", cmd:"nmap -Pn 192.168.1.30",
+   text:"Prueba primero <code>nmap 192.168.1.30</code> a secas: parecerá que está caído. Luego repite con -Pn.",
+   question:"¿Qué opción permite escanear un host aunque no responda a las sondas de ping?", answers:["-pn","pn"],
+   hint:"Es la misma opción que usaste en el comando sugerido de este paso."},
+  {id:6, title:"Escaneo UDP del router", cmd:"nmap -sU --top-ports 20 192.168.1.1",
+   text:"Los puertos UDP suelen quedar fuera de un escaneo TCP normal. Escanea el router con -sU.",
+   question:"¿Qué servicio UDP aparece abierto y por qué supone un riesgo?", answers:["snmp"],
+   hint:"El puerto 161/udp con la comunidad por defecto \"public\" es un fallo de configuración muy común."},
+  {id:7, title:"El host comprometido", cmd:"nmap -A 192.168.1.20",
+   text:"Lanza un escaneo agresivo sobre el equipo que en el laboratorio de Wireshark hacía \"check-ins\" hacia una IP externa.",
+   question:"¿Qué puerto inusual aparece abierto y qué podrías sospechar? (indica el número de puerto)", answers:["4444"],
+   hint:"Es el mismo puerto que viste como destino de la baliza en la captura de tráfico."},
+  {id:8, title:"Redacta tu informe de reconocimiento", cmd:null, reflection:true,
+   text:"Resume qué encontrarías si fueras el atacante: hosts activos, servicios expuestos, versiones desactualizadas, el fallo de SNMP del router y el puerto sospechoso en el host comprometido.",
+   question:"Resumen del reconocimiento:"}
+];
+
+const stepsWrap = document.getElementById("stepsWrap");
+const STORAGE_KEY = "nmaplab_progress_v1";
+const NOTES_KEY = "nmaplab_notes_v1";
+
+function loadProgress(){ try{ const raw = localStorage.getItem(STORAGE_KEY); return raw ? JSON.parse(raw) : {}; }catch(e){ return {}; } }
+function saveProgress(p){ try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(p)); }catch(e){} }
+function loadNote(){ try{ return localStorage.getItem(NOTES_KEY) || ""; }catch(e){ return ""; } }
+function saveNote(v){ try{ localStorage.setItem(NOTES_KEY, v); }catch(e){} }
+
+let progress = loadProgress();
+
+function updateProgressBar(){
+  const done = steps.filter(function(s){return progress[s.id];}).length;
+  document.getElementById("progressText").textContent = done + "/" + steps.length + " pasos completados";
+  document.getElementById("progressFill").style.width = Math.round(done/steps.length*100) + "%";
+}
+
+function goToTerminalWithCmd(cmd){
+  termInput.value = cmd;
+  document.querySelector('.tabnav button[data-tab="terminal"]').click();
+  termInput.focus();
+  document.querySelector(".term-shell").scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+function buildSteps(){
+  stepsWrap.innerHTML = "";
+  steps.forEach(function(s){
+    const done = !!progress[s.id];
+    const card = document.createElement("div");
+    card.className = "step" + (done ? " done" : "");
+    card.id = "step-" + s.id;
+
+    let actionsHtml = "";
+    if(s.cmd){ actionsHtml += '<button class="btn" data-act="apply">Usar comando sugerido</button>'; }
+    actionsHtml += '<button class="btn" data-act="hint">Ver pista</button>';
+
+    let answerHtml = "";
+    if(s.reflection){
+      answerHtml =
+        '<div class="answer-row"><textarea placeholder="Escribe tu resumen aquí...">'+(loadNote())+'</textarea></div>'+
+        '<div style="margin-top:8px"><button class="check-btn" data-act="save">Guardar resumen</button></div>'+
+        '<div class="feedback" data-role="fb"></div>';
+    } else {
+      answerHtml =
+        '<div class="answer-row">'+
+          '<input type="text" placeholder="Tu respuesta...">'+
+          '<button class="check-btn" data-act="check">Comprobar</button>'+
+        '</div>'+
+        '<div class="feedback" data-role="fb"></div>';
+    }
+
+    card.innerHTML =
+      '<div class="step-head">'+
+        '<div class="step-num">'+s.id+'</div>'+
+        '<h3 class="step-title">'+s.title+'</h3>'+
+      '</div>'+
+      '<div class="step-body">'+
+        '<p>'+s.text+'</p>'+
+        '<div class="step-actions">'+actionsHtml+'</div>'+
+        '<div class="hint-box" data-role="hint">💡 '+s.hint+'</div>'+
+        (s.question ? '<p><b>'+s.question+'</b></p>' : '')+
+        answerHtml+
+      '</div>';
+
+    if(s.cmd){
+      card.querySelector('[data-act="apply"]').addEventListener("click", function(){ goToTerminalWithCmd(s.cmd); });
+    }
+    card.querySelector('[data-act="hint"]').addEventListener("click", function(){
+      card.querySelector('[data-role="hint"]').classList.toggle("show");
+    });
+    if(s.reflection){
+      card.querySelector('[data-act="save"]').addEventListener("click", function(){
+        saveNote(card.querySelector("textarea").value);
+        progress[s.id] = true; saveProgress(progress);
+        const fb = card.querySelector('[data-role="fb"]');
+        fb.textContent = "Resumen guardado en este navegador. ¡Laboratorio completado!";
+        fb.className = "feedback ok";
+        card.classList.add("done");
+        updateProgressBar();
+      });
+    } else {
+      card.querySelector('[data-act="check"]').addEventListener("click", function(){
+        const val = card.querySelector('input[type="text"]').value.trim().toLowerCase();
+        const fb = card.querySelector('[data-role="fb"]');
+        const ok = s.answers.some(function(a){ return val.indexOf(a.toLowerCase()) !== -1; });
+        if(ok){
+          fb.textContent = "✅ Correcto.";
+          fb.className = "feedback ok";
+          progress[s.id] = true; saveProgress(progress);
+          card.classList.add("done");
+        } else {
+          fb.textContent = "❌ No es del todo correcto. Revisa la pista y prueba el comando sugerido.";
+          fb.className = "feedback bad";
+        }
+        updateProgressBar();
+      });
+    }
+    stepsWrap.appendChild(card);
+  });
+  updateProgressBar();
+}
+
+document.getElementById("resetProgress").addEventListener("click", function(){
+  progress = {};
+  saveProgress(progress);
+  try{ localStorage.removeItem(NOTES_KEY); }catch(e){}
+  buildSteps();
+});
+
+/* =========================================================================
+   7) TABS + TEMA
+   ========================================================================= */
+document.querySelectorAll(".tabnav button").forEach(function(btn){
+  btn.addEventListener("click", function(){
+    document.querySelectorAll(".tabnav button").forEach(function(b){b.classList.remove("active");});
+    document.querySelectorAll(".view").forEach(function(v){v.classList.remove("active");});
+    btn.classList.add("active");
+    document.getElementById("view-"+btn.dataset.tab).classList.add("active");
+  });
+});
+
+function currentTheme(){ try{ return localStorage.getItem("nmaplab_theme") || "auto"; }catch(e){ return "auto"; } }
+function applyTheme(mode){
+  if(mode === "auto"){ document.documentElement.removeAttribute("data-theme"); }
+  else { document.documentElement.setAttribute("data-theme", mode); }
+  document.getElementById("themeLabel").textContent = mode === "auto" ? "Auto" : (mode === "dark" ? "Oscuro" : "Claro");
+  try{ localStorage.setItem("nmaplab_theme", mode); }catch(e){}
+}
+document.getElementById("themeToggle").addEventListener("click", function(){
+  const order = ["auto","dark","light"];
+  applyTheme(order[(order.indexOf(currentTheme())+1) % order.length]);
+});
+applyTheme(currentTheme());
+
+buildSteps();
+
+})();
+</script>
+</body>
+</html>
