@@ -69,6 +69,23 @@
   footer{padding:14px 32px; border-top:1px solid var(--border); display:flex; justify-content:space-between; align-items:center;}
   .hint{font-size:12px; color:var(--muted); font-style:italic;}
   .grid2{display:grid; grid-template-columns:1fr 1fr; gap:16px;}
+  /* ---- pestañas ---- */
+  #topbar{display:flex; gap:6px; padding:10px 32px 0; border-bottom:1px solid var(--border); background:var(--panel);}
+  #topbar button{background:transparent; border:1px solid var(--border); border-bottom:none; border-radius:8px 8px 0 0;
+    padding:9px 18px; font-size:12px; cursor:pointer; color:var(--muted); font-family:inherit; font-weight:600;}
+  #topbar button.active{background:var(--bg); color:var(--accent); border-color:var(--accent);}
+  #tabManual{padding:24px 32px; overflow-y:auto;}
+  #tabManual[hidden]{display:none;}
+  .manual h2{font-size:18px; margin:28px 0 10px; color:var(--accent);}
+  .manual h2:first-child{margin-top:0;}
+  .manual h3{font-size:14px; margin:16px 0 6px;}
+  .manual p{color:var(--muted); font-size:13px; line-height:1.6; margin:6px 0; max-width:860px;}
+  .manual ul,.manual ol{color:var(--muted); font-size:13px; line-height:1.7; padding-left:22px; margin:6px 0; max-width:860px;}
+  .manual li{margin:4px 0;}
+  .manual code{color:var(--accent2); font-size:12px;}
+  .manual li code{color:var(--text);}
+  .manual .warnbox{border:1px solid rgba(210,153,34,.5); color:var(--yellow); border-radius:8px;
+    padding:10px 14px; margin:14px 0; font-size:12px; line-height:1.6; max-width:860px;}
   @media(max-width:900px){ .grid2{grid-template-columns:1fr;} body{flex-direction:column; overflow:auto; height:auto;} #sidebar{width:100%; min-width:0; border-right:none; border-bottom:1px solid var(--border);} #main{overflow:visible;} #content{overflow:visible;} }
 </style>
 </head>
@@ -87,6 +104,11 @@
 </aside>
 
 <main id="main">
+  <div id="topbar">
+    <button id="tabBtnLab" class="active" type="button">🕷️ Laboratorio</button>
+    <button id="tabBtnManual" type="button">📘 Manual Burp Suite</button>
+  </div>
+  <div id="tabLab" class="tabpane" style="flex:1; display:flex; flex-direction:column; overflow:hidden;">
   <div id="content"></div>
   <footer>
     <span class="hint" id="hint"></span>
@@ -95,6 +117,100 @@
       <button class="btn" id="btnNext" onclick="nextStep()" disabled>Siguiente ▶</button>
     </span>
   </footer>
+  </div>
+
+  <div id="tabManual" class="tabpane manual" hidden>
+    <h2>1. ¿Qué es Burp Suite?</h2>
+    <p><strong>Burp Suite</strong> (PortSwigger) es la plataforma de referencia para pruebas de seguridad en aplicaciones web. Actúa como proxy local que intercepta todo el tráfico entre tu navegador y la aplicación objetivo, y agrupa herramientas para inspeccionar, manipular y atacar ese tráfico. Es el estándar de facto en pentesting web.</p>
+    <div class="warnbox">Uso legal: solo se debe usar contra aplicaciones para las que tengas <strong>autorización explícita por escrito</strong> (proyectos propios, laboratorios PortSwigger, bug bounty con scope claro). Probar sistemas de terceros sin permiso es ilegal.</div>
+
+    <h2>2. Ediciones</h2>
+    <ul>
+      <li><strong>Community (gratis)</strong> — Proxy, Repeater, Intruder (limitado), Decoder, Comparer. Ideal para aprender.</li>
+      <li><strong>Professional</strong> — añade Burp Scanner (escáner automatizado), Burp Collaborator (detección out-of-band), proyectos guardados, generador de informes.</li>
+      <li><strong>Enterprise</strong> — escaneo continuo integrado en CI/CD.</li>
+    </ul>
+
+    <h2>3. Puesta en marcha</h2>
+    <ol>
+      <li>Descarga desde <code>portswigger.net/burp</code> (o <code>sudo apt install burpsuite</code> en Kali).</li>
+      <li>El proxy escucha por defecto en <code>127.0.0.1:8080</code> (Proxy → Settings → Proxy listeners).</li>
+      <li>Usa el «Built-in browser» de Burp (Chromium ya preconfigurado) o configura tu navegador con ese proxy.</li>
+      <li>Para HTTPS: visita <code>http://burp/cert</code> con el proxy activo e instala el certificado CA como autoridad de confianza.</li>
+    </ol>
+
+    <h2>4. Herramientas principales</h2>
+    <h3>Proxy</h3>
+    <ul>
+      <li><strong>Intercept</strong> — retiene cada petición para inspeccionarla/editarla antes de reenviarla (Forward, Drop, Intercept on/off).</li>
+      <li><strong>HTTP history</strong> — registro completo y filtrable de todo el tráfico que pasa por el proxy.</li>
+      <li><strong>WebSockets history</strong> — lo mismo para conexiones WebSocket.</li>
+    </ul>
+    <h3>Target</h3>
+    <ul>
+      <li><strong>Site map</strong> — árbol del contenido descubierto de la aplicación; útil para mapearla.</li>
+      <li><strong>Scope</strong> — define qué dominios/rutas están dentro del alcance (clave para respetar el scope pactado).</li>
+    </ul>
+    <h3>Repeater</h3>
+    <ul>
+      <li>Reenvía una misma petición tantas veces como quieras, editándola manualmente: inyecciones, IDOR, bypasses de lógica.</li>
+      <li>Atajos: <code>Ctrl+R</code> enviar a Repeater, <code>Ctrl+U</code> URL-encode; vistas pretty/raw/hex/render.</li>
+    </ul>
+    <h3>Intruder</h3>
+    <ul>
+      <li>Automatiza peticiones modificando posiciones marcadas con <code>§…§</code>.</li>
+      <li><strong>Attack types</strong>: Sniper, Battering ram, Pitchfork, Cluster bomb.</li>
+      <li>Payloads: listas de palabras, números, fechas, fuzzing, payloads personalizados.</li>
+      <li>En la versión gratuita es muy lento (throttling); para fuerza bruta masiva se usa ffuf/wfuzz por CLI.</li>
+      <li>Analiza resultados ordenando por status, longitud o grep-match: la anomalía delata el hallazgo.</li>
+    </ul>
+    <h3>Decoder</h3>
+    <ul>
+      <li>Transforma datos: Base64, URL, hex, HTML, gzip… y encadena transformaciones.</li>
+      <li>«Smart decode» detecta el esquema automáticamente; ideal para cookies y tokens JWT.</li>
+    </ul>
+    <h3>Comparer y Sequencer</h3>
+    <ul>
+      <li><strong>Comparer</strong> — compara dos peticiones/respuestas byte o palabra a palabra; revela diferencias mínimas.</li>
+      <li><strong>Sequencer</strong> — mide la entropía y predictibilidad de tokens de sesión y CSRF.</li>
+    </ul>
+
+    <h2>5. Metodología típica de un test web</h2>
+    <ol>
+      <li><strong>Mapeo</strong> — navega la app con el proxy activo para poblar el site map; define el scope.</li>
+      <li><strong>Análisis pasivo</strong> — revisa HTTP history: tecnologías, cabeceras, tokens, parámetros ocultos, endpoints de API.</li>
+      <li><strong>Análisis activo</strong> — con Repeater/Intruder: SQLi, XSS, IDOR, lógica de negocio, enumeración.</li>
+      <li><strong>Escaneo dirigido</strong> (Pro) — Burp Scanner sobre puntos concretos.</li>
+      <li><strong>Documentación</strong> — cada hallazgo con evidencia (petición/respuesta), severidad (CVSS) y corrección recomendada.</li>
+    </ol>
+
+    <h2>6. Vulnerabilidades habituales que se buscan con Burp</h2>
+    <ul>
+      <li><strong>IDOR</strong> — cambiar IDs/parámetros para acceder a recursos ajenos (Repeater).</li>
+      <li><strong>Inyección SQL / comandos</strong> — modificar parámetros con payloads (Repeater + Intruder).</li>
+      <li><strong>XSS</strong> — reflejo de entradas en respuestas; Intruder con listas de payloads XSS.</li>
+      <li><strong>Broken auth / session management</strong> — tokens predecibles (Sequencer), cookies sin HttpOnly/Secure/SameSite.</li>
+      <li><strong>SSRF, XXE, escalada de roles</strong> — manipulación de peticiones internas y parámetros de rol.</li>
+    </ul>
+
+    <h2>7. Trucos y buenas prácticas</h2>
+    <ul>
+      <li>Usa el navegador integrado para no pelear con certificados del sistema.</li>
+      <li>Define el scope pronto y activa «Show only in-scope items» para reducir ruido.</li>
+      <li>Extensiones útiles de BApp Store: Authz (bypass de autorización), Turbo Intruder, JWT Editor, Hackvertor; FoxyProxy para gestionar el proxy del navegador.</li>
+      <li>Filtra HTTP history por MIME type, status o palabra clave; etiqueta peticiones interesantes.</li>
+      <li>Guarda el proyecto (.burp) y exporta peticiones como evidencia.</li>
+      <li>«Intercept off» sigue registrando en HTTP history sin frenar tu navegación: actívalo solo cuando necesites retener.</li>
+    </ul>
+
+    <h2>8. Recursos para profundizar</h2>
+    <ul>
+      <li><strong>PortSwigger Web Security Academy</strong> — laboratorios gratuitos, el mejor recurso.</li>
+      <li>Documentación oficial: portswigger.net/burp/documentation.</li>
+      <li>OWASP Top 10 y OWASP Web Security Testing Guide.</li>
+      <li>Práctica legal: labs de PortSwigger, TryHackMe, Hack The Box, DVWA, OWASP Juice Shop.</li>
+    </ul>
+  </div>
 </main>
 
 <script>
@@ -403,6 +519,20 @@ VIEWS[6] = function(){
 };
 
 /* init */
+var tabBtnLab = document.getElementById("tabBtnLab");
+var tabBtnManual = document.getElementById("tabBtnManual");
+var tabLabEl = document.getElementById("tabLab");
+var tabManualEl = document.getElementById("tabManual");
+function showTab(which){
+  var manual = which === "manual";
+  tabManualEl.hidden = !manual;
+  tabLabEl.style.display = manual ? "none" : "flex";
+  tabBtnManual.classList.toggle("active", manual);
+  tabBtnLab.classList.toggle("active", !manual);
+}
+tabBtnLab.addEventListener("click", function(){ showTab("lab"); });
+tabBtnManual.addEventListener("click", function(){ showTab("manual"); });
+
 loadStep();
 </script>
 </body>

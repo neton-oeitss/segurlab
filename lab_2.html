@@ -27,9 +27,19 @@ header{
 }
 header h1{font-size:14px; margin:0; letter-spacing:.5px; color:var(--green); font-weight:700;}
 header .warn{font-size:11px; color:var(--amber); max-width:520px; line-height:1.5;}
+/* ---- pestañas ---- */
+nav#tabs{
+  display:flex; gap:8px; padding:10px 16px 0; max-width:1100px; margin:0 auto; width:100%;
+}
+nav#tabs button{
+  background:var(--panel); border:1px solid var(--line); border-bottom:none; color:var(--muted);
+  font-family:inherit; font-size:12px; padding:8px 14px; border-radius:4px 4px 0 0; cursor:pointer;
+}
+nav#tabs button.active{color:var(--green); border-color:var(--green-dim); font-weight:700;}
 main{
   flex:1; display:flex; gap:16px; padding:16px; max-width:1100px; margin:0 auto; width:100%;
 }
+main.tabpanel[hidden]{display:none;}
 #objectives{
   width:230px; flex-shrink:0; border:1px solid var(--line); border-radius:4px; padding:12px;
   font-size:12px; height:fit-content; position:sticky; top:16px;
@@ -74,6 +84,26 @@ main{
   main{flex-direction:column;}
   #objectives{width:auto; position:static;}
 }
+/* ---- manual ---- */
+#tab-manual{flex-direction:column; align-items:stretch;}
+.manual-body{
+  border:1px solid var(--line); border-radius:4px; background:var(--panel);
+  padding:20px 26px; overflow-y:auto; font-size:13px; line-height:1.7;
+}
+.manual-body h2{font-size:15px; color:var(--green); margin:26px 0 10px; font-weight:700;}
+.manual-body h2:first-child{margin-top:0;}
+.manual-body h3{font-size:13px; color:var(--text); margin:18px 0 6px;}
+.manual-body p{color:var(--muted); margin:6px 0;}
+.manual-body ul, .manual-body ol{margin:6px 0; padding-left:22px; color:var(--muted);}
+.manual-body li{margin:4px 0;}
+.manual-body code{
+  color:var(--green); background:rgba(57,255,106,.07); padding:1px 5px; border-radius:3px; font-size:12px;
+}
+.manual-body li code{color:var(--text);}
+.manual-body .warnbox{
+  border:1px solid rgba(255,180,0,.4); color:var(--amber); border-radius:4px;
+  padding:10px 14px; margin:14px 0; font-size:12px; line-height:1.6;
+}
 </style>
 </head>
 <body>
@@ -83,7 +113,12 @@ main{
   <div class="warn">Simulación educativa. No es Metasploit real, no se ejecuta ni envía nada. El host 192.0.2.10 es una IP de documentación (RFC 5737), no existe en internet.</div>
 </header>
 
-<main>
+<nav id="tabs">
+  <button id="tabBtnLab" class="active" type="button">Laboratorio</button>
+  <button id="tabBtnManual" type="button">Manual Metasploit</button>
+</nav>
+
+<main id="tab-lab" class="tabpanel">
   <div id="objectives">
     <h2>OBJETIVOS DEL LAB</h2>
     <ol id="objlist"></ol>
@@ -100,6 +135,112 @@ main{
       <span class="prompt" id="livePrompt">msf6 &gt;</span>
       <input id="cmdin" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" placeholder="escribe un comando y pulsa Enter">
     </div>
+  </div>
+</main>
+
+<main id="tab-manual" class="tabpanel" hidden>
+  <div class="manual-body">
+    <h2>1. ¿Qué es Metasploit?</h2>
+    <p><strong>Metasploit Framework</strong> es un framework de código abierto para pruebas de penetración (pentesting) mantenido por Rapid7. Es la herramienta de explotación más usada del mundo de la seguridad ofensiva: contiene miles de módulos de explotación, payloads, codificadores y módulos auxiliares (escáneres, fuzzers, sniffers…), además de herramientas para el trabajo post-explotación.</p>
+    <div class="warnbox">Uso legal: Metasploit solo debe usarse contra sistemas para los que tengas <strong>autorización explícita por escrito</strong> (laboratorios propios, CTFs, programas de bug bounty o contratos de pentesting). Usarlo contra terceros sin permiso es un delito en la mayoría de jurisdicciones.</div>
+
+    <h2>2. Interfaces y componentes</h2>
+    <ul>
+      <li><code>msfconsole</code> — consola interactiva principal (la que simula el laboratorio de la otra pestaña).</li>
+      <li><code>msfvenom</code> — genera payloads standalone (ejecutables, shells de una línea, etc.) fuera de la consola.</li>
+      <li><code>msfbd</code> / Metasploit Pro — versión comercial con GUI, campañas y reportes.</li>
+      <li>Arkal <code>data/</code> y <code>modules/</code> — los módulos se organizan en <code>exploits/</code>, <code>auxiliary/</code>, <code>post/</code>, <code>payloads/</code> y <code>encoders/</code>.</li>
+    </ul>
+
+    <h2>3. Flujo de trabajo típico</h2>
+    <ol>
+      <li><strong>Reconocimiento</strong> — nmap, Nessus o módulos auxiliares de escaneo (<code>auxiliary/scanner/*</code>) para identificar servicios y versiones vulnerables.</li>
+      <li><strong>Búsqueda del módulo</strong> — <code>search</code> por CVE, nombre o plataforma.</li>
+      <li><strong>Selección</strong> — <code>use</code> para cargar el exploit.</li>
+      <li><strong>Configuración</strong> — revisar <code>show options</code> y asignar <code>RHOSTS</code>, <code>LHOST</code>, <code>PAYLOAD</code>, etc.</li>
+      <li><strong>Verificación y explotación</strong> — <code>check</code> (si el módulo lo soporta) y <code>exploit</code> o <code>run</code>.</li>
+      <li><strong>Post-explotación</strong> — Meterpreter: recopilación, escalada, persistencia, pivoting.</li>
+      <li><strong>Documentación</strong> — registrar cada paso y hallazgo; es clave en un pentest real.</li>
+    </ol>
+
+    <h2>4. Comandos esenciales de msfconsole</h2>
+    <h3>Navegación y ayuda</h3>
+    <ul>
+      <li><code>help</code> — lista de comandos disponibles.</li>
+      <li><code>search &lt;término&gt;</code> — busca módulos (admite filtros como <code>type:exploit</code>, <code>platform:windows</code>, <code>cve:2017-0144</code>).</li>
+      <li><code>use &lt;módulo&gt;</code> — carga un módulo; <code>back</code> sale de él.</li>
+      <li><code>info</code> — descripción, referencias y opciones del módulo actual.</li>
+      <li><code>show options / show advanced / show payloads</code> — enumera parámetros.</li>
+    </ul>
+    <h3>Configuración</h3>
+    <ul>
+      <li><code>set &lt;OPCIÓN&gt; &lt;valor&gt;</code> — asigna un valor; <code>unset</code> lo borra.</li>
+      <li><code>setg / unsetg</code> — variables globales persistentes entre módulos.</li>
+      <li><code>set PAYLOAD &lt;ruta&gt;</code> — elige el payload (ej. <code>windows/x64/meterpreter/reverse_tcp</code>).</li>
+      <li><code>save</code> — guarda la configuración actual.</li>
+    </ul>
+    <h3>Ejecución</h3>
+    <ul>
+      <li><code>exploit</code> o <code>run</code> — lanza el módulo.</li>
+      <li><code>exploit -j</code> — lo lanza como tarea en segundo plano (job).</li>
+      <li><code>check</code> — comprueba si el objetivo parece vulnerable sin explotar.</li>
+      <li><code>jobs</code> / <code>kill &lt;id&gt;</code> — gestiona tareas en curso.</li>
+      <li><code>sessions -l</code> / <code>sessions -i &lt;id&gt;</code> — lista e interactúa con sesiones abiertas.</li>
+    </ul>
+
+    <h2>5. Payloads: tipos principales</h2>
+    <ul>
+      <li><strong>Singles / inline</strong> — todo en un payload (ej. <code>windows/x64/shell_reverse_tcp</code>); más pequeños pero sin staging.</li>
+      <li><strong>Stagers</strong> — establecen el canal y descargan el stage (ej. <code>reverse_tcp</code>, <code>bind_tcp</code>, <code>reverse_https</code>).</li>
+      <li><strong>Stages</strong> — el payload final (ej. <code>meterpreter</code>), enviado por el stager.</li>
+      <li><strong>reverse_tcp</strong> — la víctima conecta hacia ti (atraviesa NAT/firewall del lado víctima); <strong>bind_tcp</strong> — conectas tú hacia un puerto abierto en la víctima.</li>
+      <li><strong>meterpreter</strong> — payload avanzado en memoria, con su propio conjunto de comandos y mayor sigilo.</li>
+    </ul>
+
+    <h2>6. Meterpreter (post-explotación)</h2>
+    <ul>
+      <li><code>sysinfo</code>, <code>getuid</code>, <code>getpid</code> — información de la máquina y del contexto actual.</li>
+      <li><code>ps</code> / <code>migrate &lt;pid&gt;</code> — listar procesos y migrar la sesión a otro proceso (por ejemplo, a uno estable como <code>explorer.exe</code>).</li>
+      <li><code>hashdump</code> — vuelca los hashes SAM (requiere SYSTEM).</li>
+      <li><code>shell</code> — cae a una cmd normal del sistema.</li>
+      <li><code>upload</code> / <code>download</code> — transferencia de archivos.</li>
+      <li><code>screenshot</code>, <code>keyscan_start</code>, <code>webcam_snap</code> — espionaje (solo con autorización).</li>
+      <li><code>portfwd</code>, <code>route add</code> — pivoting hacia redes internas.</li>
+      <li><code>getsystem</code> — intenta escalada a SYSTEM (técnica histórica; hoy suele fallar en sistemas parcheados).</li>
+      <li><code>background</code> — devuelve la sesión a segundo plano sin cerrarla.</li>
+    </ul>
+
+    <h2>7. Módulos auxiliares y base de datos</h2>
+    <ul>
+      <li>Escáneres: <code>auxiliary/scanner/portscan/tcp</code>, <code>auxiliary/scanner/smb/smb_version</code>, etc.</li>
+      <li>Fuzzing, servers falsos (<code>auxiliary/server/capture/*</code>), spoofing (<code>auxiliary/spoof/*</code>).</li>
+      <li>Con PostgreSQL: <code>db_status</code>, <code>workspace</code>, <code>hosts</code>, <code>services</code>, <code>creds</code>, <code>vulns</code> — guardan y consultan los resultados del pentest.</li>
+    </ul>
+
+    <h2>8. msfvenom (generación de payloads)</h2>
+    <ul>
+      <li>Sintaxis: <code>msfvenom -p &lt;payload&gt; LHOST=&lt;ip&gt; LPORT=&lt;puerto&gt; -f &lt;formato&gt; -o &lt;archivo&gt;</code>.</li>
+      <li>Formatos comunes: <code>exe</code>, <code>dll</code>, <code>elf</code>, <code>python</code>, <code>raw</code>, <code>bash</code>.</li>
+      <li>Codificación y evasión: <code>-e x86/shikata_ga_nai -i 3</code> (útil para entender conceptos; los antivirus modernos detectan lo básico).</li>
+      <li>Listar: <code>msfvenom --list payloads</code> / <code>--list formats</code>.</li>
+    </ul>
+
+    <h2>9. Buenas prácticas</h2>
+    <ul>
+      <li>Verifica siempre <code>RHOSTS</code> antes de lanzar un exploit: un error puede tirar el servicio del objetivo.</li>
+      <li>Usa <code>check</code> cuando esté disponible para validar la vulnerabilidad sin causar daño.</li>
+      <li>Prefiere <code>reverse_https</code> o <code>reverse_tcp</code> con <code>set ExitOnSession false</code> + <code>exploit -j</code> para sesiones múltiples.</li>
+      <li>Documenta: <code>notes</code>, <code>loot</code>, y capturas de pantalla de cada paso.</li>
+      <li>Mantén el framework actualizado (<code>apt</code> o <code>msfupdate</code>): los módulos cambian constantemente.</li>
+    </ul>
+
+    <h2>10. Recursos para profundizar</h2>
+    <ul>
+      <li>Documentación oficial: docs.rapid7.com/metasploit.</li>
+      <li>Metasploit Unleashed (curso gratuito de Offensive Security / Kali).</li>
+      <li>Laboratorios legales: Metasploitable 2/3, Hack The Box, TryHackMe, VulnHub.</li>
+      <li>Repositorio y changelog: github.com/rapid7/metasploit-framework.</li>
+    </ul>
   </div>
 </main>
 
@@ -246,6 +387,22 @@ function resetLab(){
   renderObjectives();
 }
 
+// ---- pestañas ----
+const tabLab = document.getElementById('tab-lab');
+const tabManual = document.getElementById('tab-manual');
+const tabBtnLab = document.getElementById('tabBtnLab');
+const tabBtnManual = document.getElementById('tabBtnManual');
+function showTab(which){
+  const manual = which === 'manual';
+  tabManual.hidden = !manual;
+  tabLab.hidden = manual;
+  tabBtnManual.classList.toggle('active', manual);
+  tabBtnLab.classList.toggle('active', !manual);
+  if(!manual) input.focus();
+}
+tabBtnLab.addEventListener('click', ()=>showTab('lab'));
+tabBtnManual.addEventListener('click', ()=>showTab('manual'));
+
 input.addEventListener('keydown', e=>{
   if(e.key === 'Enter' && input.value.length){
     handle(input.value);
@@ -254,7 +411,7 @@ input.addEventListener('keydown', e=>{
 });
 document.getElementById('hintBtn').addEventListener('click', giveHint);
 document.getElementById('resetBtn').addEventListener('click', resetLab);
-document.body.addEventListener('click', ()=>input.focus());
+document.body.addEventListener('click', ()=>{ if(tabLab.hidden) return; input.focus(); });
 
 resetLab();
 input.focus();
