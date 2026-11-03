@@ -292,7 +292,7 @@ iptables -L FORWARD -n -v --line-numbers</pre>
 </main>
 
 <footer>
-  Training SOC.
+  <b>Despliegue en GitHub Pages:</b> guarda este archivo como <code>index.html</code> en la rama principal de un repositorio y activa <i>Settings → Pages → Deploy from a branch</i>. Es 100% autocontenido (sin CDN ni llamadas de red), así que funciona también offline. Combínalo con el lab DNS para una suite completa de training SOC.
 </footer>
 
 <script>
@@ -420,7 +420,11 @@ function attachBuilder(rootId,store,opts){
     if(s.err||d.err)return "Origen o destino inválido: usa IP (10.0.1.5), CIDR (10.0.1.0/24) o vacío.";
     if(r.proto==="icmp"&&r.dport.trim()!=="")return "ICMP no tiene puerto: deja el puerto vacío.";
     if(r.dport.trim()!==""&&!(r.proto==="tcp"||r.proto==="udp"))return "El puerto destino exige protocolo tcp o udp.";
-    if(r.dport.trim()!==""&&!portMatch(r.dport,1,r.proto))return "Puerto inválido: usa un puerto (443) o rango (3000-3010).";
+    if(r.dport.trim()!==""){
+      var pm=r.dport.trim().match(/^(\d{1,5})(-(\d{1,5}))?$/);
+      var pOK=pm,pa=pm?+pm[1]:0,pb=pm&&pm[3]?+pm[3]:pa;
+      if(!pOK||pa<1||pa>65535||pb<1||pb>65535||pb<pa)return "Puerto inválido: usa un puerto (443) o rango (3000-3010).";
+    }
     return "";
   }
   root.querySelectorAll("[data-f]").forEach(function(el){el.addEventListener("change",preview);el.addEventListener("input",preview);});
