@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberLab - Simulación y Explicación DoS / DDoS</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            bg: '#0a0f1d',
+                            card: '#111827',
+                            border: '#1f2937',
+                            accent: '#00f0ff',
+                            danger: '#ff0055',
+                            warning: '#ffb700',
+                            success: '#00ff66'
+                        }
+                    },
+                    fontFamily: {
+                        mono: ['Fira Code', 'Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Chart.js para métricas en tiempo real -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #070a13;
+            color: #e2e8f0;
+            font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+        }
+        .glow-red { box-shadow: 0 0 15px rgba(255, 0, 85, 0.4); }
+        .glow-cyan { box-shadow: 0 0 15px rgba(0, 240, 255, 0.3); }
+        .glow-green { box-shadow: 0 0 15px rgba(0, 255, 102, 0.3); }
+        .cyber-grid {
+            background-image: linear-gradient(to right, rgba(255,255,255,0.03) 1px, transparent 1px),
+                              linear-gradient(to bottom, rgba(255,255,255,0.03) 1px, transparent 1px);
+            background-size: 24px 24px;
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b1120; }
+        ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #00f0ff; }
+    </style>
+</head>
+<body class="cyber-grid min-h-screen flex flex-col justify-between text-slate-200">
+
+    <!-- Header / Navbar -->
+    <header class="border-b border-slate-800 bg-slate-900/80 backdrop-blur sticky top-0 z-50 px-4 py-3">
+        <div class="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-center gap-4">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-cyan-500/10 border border-cyan-500/30 rounded-lg text-cyan-400">
+                    <i class="fa-solid fa-shield-halved text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-white tracking-wide flex items-center gap-2">
+                        LABORATORIO INTERACTIVO DOS / DDOS
+                        <span class="text-xs font-mono px-2 py-0.5 bg-red-500/20 text-red-400 border border-red-500/30 rounded">SOC ACADEMY</span>
+                    </h1>
+                    <p class="text-xs text-slate-400">Análisis Didáctico, Vectores de Ataque y Mitigación de Denegación de Servicio</p>
+                </div>
+            </div>
+            
+            <!-- Global Stats Ribbon -->
+            <div class="flex items-center gap-4 text-xs font-mono bg-slate-950/60 border border-slate-800 px-4 py-2 rounded-lg">
+                <div>
+                    <span class="text-slate-500">ESTADO SERVIDOR:</span>
+                    <span id="server-status-badge" class="ml-1 font-bold text-emerald-400">NORMAL</span>
+                </div>
+                <div class="h-4 w-px bg-slate-800"></div>
+                <div>
+                    <span class="text-slate-500">CARGA OBJETIVO:</span>
+                    <span id="global-load-text" class="ml-1 font-bold text-cyan-400">12%</span>
+                </div>
+                <div class="h-4 w-px bg-slate-800"></div>
+                <div>
+                    <span class="text-slate-500">DEFENSAS:</span>
+                    <span id="global-def-text" class="ml-1 font-bold text-slate-400">INACTIVAS</span>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <main class="max-w-7xl mx-auto w-full p-4 md:p-6 space-y-6 flex-grow">
+
+        <!-- Attack Selection Tabs -->
+        <section class="space-y-3">
+            <h2 class="text-xs font-mono text-cyan-400 tracking-wider uppercase flex items-center gap-2">
+                <i class="fa-solid fa-layer-group"></i> 1. Seleccione Vector de Ataque
+            </h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <!-- Volumetric Category -->
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
+                    <span class="text-xs font-semibold text-rose-400 uppercase tracking-wide mb-2 flex items-center justify-between">
+                        <span>Ataques Volumétricos (Capa 3/4)</span>
+                        <i class="fa-solid fa-network-wired text-slate-500"></i>
+                    </span>
+                    <div class="grid grid-cols-1 gap-1.5">
+                        <button onclick="selectAttack('udp')" id="btn-udp" class="attack-btn px-3 py-2 rounded-lg text-left text-xs font-medium transition-all bg-slate-800 hover:bg-slate-700 border border-transparent flex justify-between items-center">
+                            <span>UDP Flood</span>
+                            <span class="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded">Gbps / L4</span>
+                        </button>
+                        <button onclick="selectAttack('icmp')" id="btn-icmp" class="attack-btn px-3 py-2 rounded-lg text-left text-xs font-medium transition-all bg-slate-800 hover:bg-slate-700 border border-transparent flex justify-between items-center">
+                            <span>ICMP / Ping Flood</span>
+                            <span class="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded">Ping / L3</span>
+                        </button>
+                        <button onclick="selectAttack('dns')" id="btn-dns" class="attack-btn px-3 py-2 rounded-lg text-left text-xs font-medium transition-all bg-slate-800 hover:bg-slate-700 border border-transparent flex justify-between items-center">
+                            <span>DNS Amplification</span>
+                            <span class="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded">Reflejado</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Protocol Category -->
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
+                    <span class="text-xs font-semibold text-amber-400 uppercase tracking-wide mb-2 flex items-center justify-between">
+                        <span>Ataques de Protocolo (Capa 3/4)</span>
+                        <i class="fa-solid fa-microchip text-slate-500"></i>
+                    </span>
+                    <div class="grid grid-cols-1 gap-1.5">
+                        <button onclick="selectAttack('syn')" id="btn-syn" class="attack-btn px-3 py-2 rounded-lg text-left text-xs font-medium transition-all bg-slate-800 hover:bg-slate-700 border border-transparent flex justify-between items-center">
+                            <span>SYN Flood</span>
+                            <span class="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded">TCP / Handshake</span>
+                        </button>
+                        <button onclick="selectAttack('pod')" id="btn-pod" class="attack-btn px-3 py-2 rounded-lg text-left text-xs font-medium transition-all bg-slate-800 hover:bg-slate-700 border border-transparent flex justify-between items-center">
+                            <span>Ping of Death</span>
+                            <span class="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded">Malformed IP</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Application Layer Category -->
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3 flex flex-col justify-between">
+                    <span class="text-xs font-semibold text-cyan-400 uppercase tracking-wide mb-2 flex items-center justify-between">
+                        <span>Capa de Aplicación (Capa 7)</span>
+                        <i class="fa-solid fa-globe text-slate-500"></i>
+                    </span>
+                    <div class="grid grid-cols-1 gap-1.5">
+                        <button onclick="selectAttack('http')" id="btn-http" class="attack-btn px-3 py-2 rounded-lg text-left text-xs font-medium transition-all bg-slate-800 hover:bg-slate-700 border border-transparent flex justify-between items-center">
+                            <span>HTTP GET/POST Flood</span>
+                            <span class="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded">Web / L7</span>
+                        </button>
+                        <button onclick="selectAttack('slowloris')" id="btn-slowloris" class="attack-btn px-3 py-2 rounded-lg text-left text-xs font-medium transition-all bg-slate-800 hover:bg-slate-700 border border-transparent flex justify-between items-center">
+                            <span>Slowloris</span>
+                            <span class="text-[10px] text-slate-400 bg-slate-900 px-1.5 py-0.5 rounded">Lento / Agotamiento</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Main Simulation & Controls Workspace Grid -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+            <!-- Left 2 Columns: Canvas Canvas & Interactive Controls -->
+            <div class="lg:col-span-2 space-y-4 flex flex-col">
+                
+                <!-- Canvas Stage Box -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex-grow relative overflow-hidden flex flex-col">
+                    <div class="flex justify-between items-center mb-3">
+                        <div class="flex items-center gap-2">
+                            <span class="inline-block w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse"></span>
+                            <h3 class="text-sm font-mono font-bold text-slate-200">TOPOLOGÍA Y FLUKO DE RED EN TIEMPO REAL</h3>
+                        </div>
+                        <span id="attack-title-badge" class="text-xs font-mono text-cyan-400 bg-cyan-950/60 border border-cyan-800 px-2.5 py-1 rounded">
+                            UDP Flood Seleccionado
+                        </span>
+                    </div>
+
+                    <!-- Canvas Interactive Area -->
+                    <div class="relative w-full h-[320px] bg-slate-950 border border-slate-800 rounded-lg overflow-hidden flex-grow">
+                        <canvas id="simCanvas" class="w-full h-full block"></canvas>
+                        
+                        <!-- Overlay Legend -->
+                        <div class="absolute bottom-2 left-2 bg-slate-900/90 backdrop-blur border border-slate-800 rounded p-2 text-[10px] font-mono flex gap-3 text-slate-300 pointer-events-none">
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-red-500"></span> Paquete Malicioso
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-emerald-400"></span> Trafico Legítimo
+                            </div>
+                            <div class="flex items-center gap-1.5">
+                                <span class="w-2 h-2 rounded-full bg-cyan-400"></span> Mitigado
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Interactive Control Panel -->
+                    <div class="mt-4 pt-4 border-t border-slate-800 grid grid-cols-1 md:grid-cols-2 gap-4">
+                        
+                        <!-- Attack Execution Controls -->
+                        <div class="space-y-3 bg-slate-950/40 p-3 rounded-lg border border-slate-800/80">
+                            <label class="text-xs font-mono font-bold text-slate-300 block">CONTROLES DE ATAQUE</label>
+                            
+                            <div class="flex gap-2">
+                                <button id="startBtn" onclick="toggleAttack()" class="flex-1 py-2 px-3 rounded-lg font-bold text-xs bg-red-600 hover:bg-red-500 text-white transition-all shadow-lg shadow-red-950 flex items-center justify-center gap-2">
+                                    <i class="fa-solid fa-play"></i>
+                                    <span>INICIAR ATAQUE</span>
+                                </button>
+                                <button id="resetBtn" onclick="resetSim()" class="py-2 px-3 rounded-lg text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 transition-all border border-slate-700">
+                                    <i class="fa-solid fa-rotate-right"></i>
+                                </button>
+                            </div>
+
+                            <!-- Traffic Intensity Slider -->
+                            <div class="space-y-1">
+                                <div class="flex justify-between text-[11px] font-mono text-slate-400">
+                                    <span>Intensidad de Botnet:</span>
+                                    <span id="intensity-val" class="text-cyan-400 font-bold">50 bots</span>
+                                </div>
+                                <input type="range" id="intensitySlider" min="10" max="200" value="50" class="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-cyan-400">
+                            </div>
+                        </div>
+
+                        <!-- Defensive Mitigation Controls -->
+                        <div class="space-y-3 bg-slate-950/40 p-3 rounded-lg border border-slate-800/80">
+                            <label class="text-xs font-mono font-bold text-slate-300 block">MITIGACIÓN & DEFENSAS SOC</label>
+                            
+                            <div class="grid grid-cols-2 gap-2">
+                                <button id="btn-waf" onclick="toggleDefense('waf')" class="py-2 px-2 rounded-lg text-[11px] font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700 hover:border-cyan-500 transition-all flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-shield-cat"></i> WAF / L7
+                                </button>
+                                <button id="btn-scrub" onclick="toggleDefense('scrubbing')" class="py-2 px-2 rounded-lg text-[11px] font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700 hover:border-cyan-500 transition-all flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-filter"></i> Scrubbing
+                                </button>
+                                <button id="btn-rate" onclick="toggleDefense('rateLimit')" class="py-2 px-2 rounded-lg text-[11px] font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700 hover:border-cyan-500 transition-all flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-gauge-high"></i> Rate Limit
+                                </button>
+                                <button id="btn-syn-cookie" onclick="toggleDefense('synCookie')" class="py-2 px-2 rounded-lg text-[11px] font-mono font-semibold bg-slate-800 text-slate-400 border border-slate-700 hover:border-cyan-500 transition-all flex items-center justify-center gap-1.5">
+                                    <i class="fa-solid fa-cookie"></i> SYN Cookies
+                                </button>
+                            </div>
+                        </div>
+
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Right Column: Real-time Metrics & Impact Dashboard -->
+            <div class="space-y-4 flex flex-col justify-between">
+                
+                <!-- Telemetry Metrics Card -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 space-y-4">
+                    <h3 class="text-xs font-mono text-cyan-400 tracking-wider uppercase flex items-center justify-between">
+                        <span><i class="fa-solid fa-chart-line"></i> TELEMETRÍA DEL SERVIDOR</span>
+                        <span id="latency-display" class="text-slate-400 text-[10px]">Latencia: 24ms</span>
+                    </h3>
+
+                    <!-- Chart Container -->
+                    <div class="h-44 relative">
+                        <canvas id="metricsChart"></canvas>
+                    </div>
+
+                    <!-- Gauge Indicators -->
+                    <div class="grid grid-cols-3 gap-2 text-center pt-2 border-t border-slate-800">
+                        <div class="p-2 bg-slate-950/60 rounded-lg border border-slate-800">
+                            <span class="text-[10px] text-slate-400 block uppercase">Ancho Banda</span>
+                            <span id="metric-bw" class="text-sm font-bold font-mono text-emerald-400">12%</span>
+                        </div>
+                        <div class="p-2 bg-slate-950/60 rounded-lg border border-slate-800">
+                            <span class="text-[10px] text-slate-400 block uppercase">Uso CPU</span>
+                            <span id="metric-cpu" class="text-sm font-bold font-mono text-emerald-400">8%</span>
+                        </div>
+                        <div class="p-2 bg-slate-950/60 rounded-lg border border-slate-800">
+                            <span class="text-[10px] text-slate-400 block uppercase">Conex. RAM</span>
+                            <span id="metric-conn" class="text-sm font-bold font-mono text-emerald-400">5%</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SOC Live Incident Log -->
+                <div class="bg-slate-900 border border-slate-800 rounded-xl p-4 flex-grow flex flex-col">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-xs font-mono text-slate-300 font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-terminal text-cyan-400"></i> CONSOLA DE EVENTOS SOC
+                        </h3>
+                        <button onclick="clearLogs()" class="text-[10px] text-slate-500 hover:text-slate-300">Limpiar</button>
+                    </div>
+                    <div id="log-console" class="bg-slate-950 border border-slate-800/80 rounded-lg p-2.5 font-mono text-[11px] h-36 overflow-y-auto space-y-1 text-slate-400 flex-grow">
+                        <p class="text-slate-500">[SYSTEM] Sistema listo. Seleccione vector e inicie simulación.</p>
+                    </div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Comprehensive Educational Breakdown Section -->
+        <section class="bg-slate-900 border border-slate-800 rounded-xl p-5 space-y-6">
+            <div class="border-b border-slate-800 pb-3 flex flex-col md:flex-row justify-between md:items-center gap-2">
+                <div>
+                    <h2 id="attack-doc-title" class="text-lg font-bold text-white flex items-center gap-2">
+                        <span>UDP Flood (Inundación UDP)</span>
+                    </h2>
+                    <p id="attack-doc-subtitle" class="text-xs text-cyan-400 font-mono">Ataque Volumétrico de Capa de Transporte (Layer 4)</p>
+                </div>
+                <div class="flex items-center gap-2 text-xs font-mono">
+                    <span class="px-2.5 py-1 bg-slate-800 rounded border border-slate-700 text-slate-300" id="badge-impact">Impacto: Saturación Ancho de Banda</span>
+                </div>
+            </div>
+
+            <!-- Details Grid -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                
+                <!-- Funcionamiento Paso a Paso -->
+                <div class="space-y-3 bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                    <h3 class="text-xs font-mono font-bold text-amber-400 uppercase tracking-wide flex items-center gap-2">
+                        <i class="fa-solid fa-list-ol"></i> Funcionamiento Paso a Paso
+                    </h3>
+                    <ol id="doc-steps" class="text-xs text-slate-300 space-y-2 list-decimal list-inside leading-relaxed">
+                        <!-- Dynamic Steps -->
+                    </ol>
+                </div>
+
+                <!-- Indicadores de Compromiso (IoCs) -->
+                <div class="space-y-3 bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                    <h3 class="text-xs font-mono font-bold text-rose-400 uppercase tracking-wide flex items-center gap-2">
+                        <i class="fa-solid fa-triangle-exclamation"></i> Indicadores de Compromiso (IoC)
+                    </h3>
+                    <ul id="doc-iocs" class="text-xs text-slate-300 space-y-2 list-disc list-inside leading-relaxed">
+                        <!-- Dynamic IoCs -->
+                    </ul>
+                </div>
+
+                <!-- Estrategias de Mitigación -->
+                <div class="space-y-3 bg-slate-950/50 p-4 rounded-xl border border-slate-800">
+                    <h3 class="text-xs font-mono font-bold text-emerald-400 uppercase tracking-wide flex items-center gap-2">
+                        <i class="fa-solid fa-shield-virus"></i> Mitigación y Defensa
+                    </h3>
+                    <ul id="doc-mitigation" class="text-xs text-slate-300 space-y-2 list-disc list-inside leading-relaxed">
+                        <!-- Dynamic Mitigations -->
+                    </ul>
+                </div>
+
+            </div>
+        </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="border-t border-slate-800 bg-slate-950 py-4 px-6 text-center text-xs text-slate-500 font-mono">
+        Laboratorio Educativo Didáctico de Ciberseguridad &bull; Módulo de Demostración DoS/DDoS
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // --- Attack Types Knowledge Base Database ---
+        const ATTACK_DB = {
+            udp: {
+                name: "UDP Flood (Inundación UDP)",
+                type: "Volumétrico (Capa 4)",
+                badgeClass: "text-rose-400 border-rose-800 bg-rose-950/40",
+                impact: "Saturación de Ancho de Banda",
+                desc: "Inundación masiva con paquetes User Datagram Protocol dirigidos a puertos aleatorios del servidor víctima.",
+                steps: [
+                    "El atacante/botnet envía miles de paquetes IP con datagramas UDP a puertos aleatorios del servidor.",
+                    "El servidor víctima procesa cada paquete comprobando la aplicación escuchando en ese puerto.",
+                    "Al no encontrar aplicación activa, el servidor responde con paquetes 'ICMP Destination Unreachable'.",
+                    "El sistema se colapsa intentando procesar la entrada de paquetes masiva y emitir respuestas ICMP."
+                ],
+                iocs: [
+                    "Picos súbitos de tráfico UDP hacia puertos aleatorios (ej. High ports > 1024).",
+                    "Ratios desproporcionados de tráfico saliente ICMP tipo 3 (Unreachable).",
+                    "Consumo del 100% de la capacidad del canal de red (Ancho de Banda)."
+                ],
+                mitigation: [
+                    "Filtrado/Bloqueo de tráfico UDP innecesario a nivel de Firewall perimetral.",
+                    "Despliegue de centros de Scrubbing (limpieza de tráfico masivo BGP).",
+                    "Limitación de tasa (Rate Limiting) para respuestas ICMP salientes."
+                ],
+                primaryMetric: "bw" // Focus on Bandwidth
+            },
+            icmp: {
+                name: "ICMP Ping Flood",
+                type: "Volumétrico (Capa 3)",
+                badgeClass: "text-rose-400 border-rose-800 bg-rose-950/40",
+                impact: "Agotamiento de Ancho de Banda e Interfaz",
+                desc: "Ataque que envía continuamente solicitudes Echo Request (ping) sin esperar las respuestas.",
+                steps: [
+                    "Múltiples nodos atacantes envían ráfagas continuas de paquetes ICMP Echo Request.",
+                    "El servidor intenta responder a cada solicitud generando un ICMP Echo Reply.",
+                    "Las interfaces de entrada y salida quedan totalmente congestionadas.",
+                    "La red se vuelve inaccesible para los usuarios legítimos por colapso de ancho de banda."
+                ],
+                iocs: [
+                    "Volumen anómalo de tráfico ICMP Tipo 8 (Echo Request).",
+                    "Saturación de la tabla de interfaces de red.",
+                    "Pérdida generalizada de paquetes legítimos."
+                ],
+                mitigation: [
+                    "Deshabilitar las respuestas a solicitudes Ping (ICMP) en el Firewall o SO.",
+                    "Aplicar Rate Limiting estricto al protocolo ICMP.",
+                    "Filtrado upstream en el proveedor de Internet (ISP)."
+                ],
+                primaryMetric: "bw"
+            },
+            dns: {
+                name: "DNS Amplification (Amplificación DNS)",
+                type: "Volumétrico / Reflejado (Capa 4/7)",
+                badgeClass: "text-rose-400 border-rose-800 bg-rose-950/40",
+                impact: "Amplificación x20 - x50 de Ancho de Banda",
+                desc: "Explotación de servidores DNS recursivos abiertos falsificando (Spoofing) la IP de la víctima.",
+                steps: [
+                    "El atacante falsifica (IP Spoofing) la dirección IP origen colocando la IP de la víctima.",
+                    "Envía solicitudes DNS 'ANY' pequeñas (60 bytes) a múltiples servidores DNS abiertos.",
+                    "Los servidores DNS responden a la víctima con respuestas masivas de claves DNSSEC (3000+ bytes).",
+                    "La víctima recibe un alud gigante de respuestas amplificadas sin haberlas solicitado."
+                ],
+                iocs: [
+                    "Tráfico entrante masivo procedente del puerto UDP 53.",
+                    "Respuestas DNS gigantescas (registros TXT/ANY).",
+                    "IPs de origen correspondientes a resolvers DNS legítimos de todo el mundo."
+                ],
+                mitigation: [
+                    "Bloqueo de respuestas DNS no solicitadas mediante inspección de estado.",
+                    "Implementación de BCP 38 (Source Address Validation) por los proveedores.",
+                    "Configurar DNS Response Rate Limiting (RRL) en servidores DNS."
+                ],
+                primaryMetric: "bw"
+            },
+            syn: {
+                name: "SYN Flood",
+                type: "Ataque de Protocolo (Capa 4 TCP)",
+                badgeClass: "text-amber-400 border-amber-800 bg-amber-950/40",
+                impact: "Agotamiento de Tabla de Conexiones (TCL Stack)",
+                desc: "Aprovechamiento de la vulnerabilidad en el apretón de manos de tres vías (3-way handshake) de TCP.",
+                steps: [
+                    "El atacante envía una oleada de paquetes TCP SYN con IPs de origen falsificadas.",
+                    "El servidor responde con TCP SYN-ACK y reserva espacio de memoria en la tabla de conexiones.",
+                    "El servidor espera el ACK final que jamás llegará (Half-Open connection).",
+                    "La memoria asignada a la tabla de conexiones se llena, rechazando a clientes reales."
+                ],
+                iocs: [
+                    "Miles de conexiones TCP en estado 'SYN_RECV' o incompletas.",
+                    "Agotamiento de la pila TCP/IP a pesar de un uso bajo de Ancho de Banda.",
+                    "Nuevos intentos de conexión TCP fallan inmediatamente por Time-Out."
+                ],
+                mitigation: [
+                    "Activar **SYN Cookies** en el kernel (no asigna memoria hasta completar ACK).",
+                    "Reducir el tiempo de expiración de conexiones semi-abiertas (SYN-RECEIVED timeout).",
+                    "Inspección de estado con Firewalls con capacidad TCP Proxy."
+                ],
+                primaryMetric: "conn"
+            },
+            pod: {
+                name: "Ping of Death (PoD)",
+                type: "Ataque de Protocolo (Capa 3 Fragmentación)",
+                badgeClass: "text-amber-400 border-amber-800 bg-amber-950/40",
+                impact: "Crash de Sistema / Kernel Panic (BSOD)",
+                desc: "Envío de paquetes IP malformados o mayores al tamaño máximo permitido por el protocolo IP (65,535 bytes).",
+                steps: [
+                    "El atacante fragmenta un paquete ICMP/IP malformado superior a 65,535 bytes.",
+                    "Los fragmentos viajan por la red como paquetes válidos normativos.",
+                    "Al reensamblar los fragmentos en la víctima, se produce un desbordamiento de búfer (Buffer Overflow).",
+                    "El sistema operativo colapsa o sufre un Kernel Panic/BSOD."
+                ],
+                iocs: [
+                    "Registro de fragmentos IP con desfasajes (offsets) inválidos o superpuestos.",
+                    "Caídas repentinas de servidores web o routers sin saturación previa de red.",
+                    "Alertas de IDS/IPS registrando 'Malformed IP Packet'."
+                ],
+                mitigation: [
+                    "Parches de seguridad del sistema operativo y pila de red.",
+                    "Inspección profunda de paquetes (DPI) en Firewalls para descartar fragmentos anómalos.",
+                    "Rechazo de paquetes cuyo tamaño reensamblado supere el MTU máximo."
+                ],
+                primaryMetric: "cpu"
+            },
+            http: {
+                name: "HTTP GET/POST Flood",
+                type: "Capa de Aplicación (Capa 7)",
+                badgeClass: "text-cyan-400 border-cyan-800 bg-cyan-950/40",
+                impact: "Agotamiento de CPU, RAM y Base de Datos",
+                desc: "Inundación con peticiones HTTP parecidas a las de usuarios reales hacia endpoints pesados (búsquedas, login).",
+                steps: [
+                    "La botnet establece conexiones TCP legítimas completas.",
+                    "Envía miles de peticiones HTTP GET o POST por segundo dirigidas a scripts complejos.",
+                    "El servidor web obliga a la Base de Datos a ejecutar consultas complejas para cada request.",
+                    "La CPU y la memoria de la aplicación web se agotan al 100%, dejando de responder."
+                ],
+                iocs: [
+                    "Picos extremos de peticiones por segundo (RPS) a URLs específicas.",
+                    "Uso elevado de CPU/RAM en procesos como Nginx, Apache, Node.js o MySQL.",
+                    "User-Agents idénticos o patrones repetitivos en los registros de acceso HTTP."
+                ],
+                mitigation: [
+                    "Implementación de WAF (Web Application Firewall) con reglas anti-bot.",
+                    "Uso de Desafíos Javascript / CAPTCHA (Cloudflare, reCAPTCHA).",
+                    "Rate Limiting por dirección IP a nivel de servidor Web."
+                ],
+                primaryMetric: "cpu"
+            },
+            slowloris: {
+                name: "Slowloris",
+                type: "Capa de Aplicación (Capa 7 Low & Slow)",
+                badgeClass: "text-cyan-400 border-cyan-800 bg-cyan-950/40",
+                impact: "Agotamiento de Hilos / Sockets Web",
+                desc: "Ataque 'Lento y Sigiloso' que mantiene múltiples conexiones HTTP abiertas enviando cabeceras de forma muy lenta.",
+                steps: [
+                    "El atacante abre cientos de conexiones HTTP con el servidor objetivo.",
+                    "Envía cabeceras HTTP incompletas (ej: 'X-a: b\\r\\n') de forma periódica a intervalos lentos (cada 10-15s).",
+                    "El servidor mantiene los hilos de conexión abiertos esperando la finalización de la petición.",
+                    "El pool de hilos del servidor web se agota por completo, imposibilitando atender a clientes reales."
+                ],
+                iocs: [
+                    "Consumo casi nulo de ancho de banda pero incapacidad de aceptar peticiones HTTP.",
+                    "Cientos de conexiones en estado ESTABLISHED mantenidas por largos períodos por la misma IP.",
+                    "Registros HTTP incompletos o atascados en lectura de cabeceras."
+                ],
+                mitigation: [
+                    "Limitar el tiempo máximo de recepción de cabeceras HTTP (Header Timeout).",
+                    "Establecer un ancho de banda mínimo de conexión entrante.",
+                    "Limitar el número de conexiones simultáneas permitidas por IP."
+                ],
+                primaryMetric: "conn"
+            }
+        };
+
+        // --- Application State ---
+        let currentAttack = 'udp';
+        let isAttacking = false;
+        let intensity = 50;
+        
+        let defenses = {
+            waf: false,
+            scrubbing: false,
+            rateLimit: false,
+            synCookie: false
+        };
+
+        // Telemetry metrics
+        let metrics = {
+            bw: 12,    // Bandwidth %
+            cpu: 8,    // CPU %
+            conn: 5    // Active Connections %
+        };
+
+        // --- Canvas Engine Setup ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+        let particles = [];
+        let animFrameId = null;
+
+        function resizeCanvas() {
+            canvas.width = canvas.parentElement.clientWidth;
+            canvas.height = canvas.parentElement.clientHeight;
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Canvas Node Positions
+        function getTopologyNodes() {
+            const w = canvas.width;
+            const h = canvas.height;
+            
+            return {
+                botnet: { x: w * 0.12, y: h * 0.5, radius: 28, label: "BOTNET / ATACANTE" },
+                scrubber: { x: w * 0.38, y: h * 0.5, radius: 24, label: "SCRUBBING / WAF" },
+                target: { x: w * 0.85, y: h * 0.5, radius: 32, label: "SERVIDOR VÍCTIMA" },
+                legitimate: { x: w * 0.12, y: h * 0.2, radius: 20, label: "USUARIO REAL" }
+            };
+        }
+
+        // --- Chart.js Telemetry Initialization ---
+        const chartCtx = document.getElementById('metricsChart').getContext('2d');
+        const metricsChart = new Chart(chartCtx, {
+            type: 'line',
+            data: {
+                labels: Array(20).fill(''),
+                datasets: [
+                    { label: 'Ancho Banda (%)', borderColor: '#00ff66', borderWidth: 2, data: Array(20).fill(12), fill: false, tension: 0.3, pointRadius: 0 },
+                    { label: 'Uso CPU (%)', borderColor: '#ffb700', borderWidth: 2, data: Array(20).fill(8), fill: false, tension: 0.3, pointRadius: 0 },
+                    { label: 'Conexiones (%)', borderColor: '#00f0ff', borderWidth: 2, data: Array(20).fill(5), fill: false, tension: 0.3, pointRadius: 0 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                scales: {
+                    x: { display: false },
+                    y: { min: 0, max: 100, grid: { color: '#1e293b' }, ticks: { color: '#64748b', font: { size: 9 } } }
+                },
+                plugins: {
+                    legend: { labels: { color: '#94a3b8', font: { size: 10 }, boxWidth: 10 } }
+                }
+            }
+        });
+
+        // --- Interactive Actions & Selection ---
+        function selectAttack(attackKey) {
+            currentAttack = attackKey;
+            
+            // Update Tab UI States
+            document.querySelectorAll('.attack-btn').forEach(btn => {
+                btn.classList.remove('border-cyan-400', 'bg-slate-700/80', 'glow-cyan');
+                btn.classList.add('border-transparent', 'bg-slate-800');
+            });
+            const activeBtn = document.getElementById(`btn-${attackKey}`);
+            if(activeBtn) {
+                activeBtn.classList.remove('border-transparent', 'bg-slate-800');
+                activeBtn.classList.add('border-cyan-400', 'bg-slate-700/80');
+            }
+
+            // Update Badge
+            const info = ATTACK_DB[attackKey];
+            document.getElementById('attack-title-badge').innerText = `${info.name}`;
+
+            // Render Documentation
+            renderDocumentation();
+
+            logMessage(`[VECTOR] Cambiado a: ${info.name} (${info.type})`);
+        }
+
+        function toggleAttack() {
+            isAttacking = !isAttacking;
+            const btn = document.getElementById('startBtn');
+            if (isAttacking) {
+                btn.innerHTML = `<i class="fa-solid fa-pause"></i> <span>DETENER ATAQUE</span>`;
+                btn.classList.remove('bg-red-600', 'hover:bg-red-500');
+                btn.classList.add('bg-amber-600', 'hover:bg-amber-500');
+                logMessage(`[ALERTA] !!! ATAQUE ${ATTACK_DB[currentAttack].name.toUpperCase()} INICIADO !!!`, 'danger');
+            } else {
+                btn.innerHTML = `<i class="fa-solid fa-play"></i> <span>INICIAR ATAQUE</span>`;
+                btn.classList.remove('bg-amber-600', 'hover:bg-amber-500');
+                btn.classList.add('bg-red-600', 'hover:bg-red-500');
+                logMessage(`[INFO] Ataque pausado por el usuario.`);
+            }
+        }
+
+        function resetSim() {
+            isAttacking = false;
+            particles = [];
+            const btn = document.getElementById('startBtn');
+            btn.innerHTML = `<i class="fa-solid fa-play"></i> <span>INICIAR ATAQUE</span>`;
+            btn.classList.remove('bg-amber-600', 'hover:bg-amber-500');
+            btn.classList.add('bg-red-600', 'hover:bg-red-500');
+
+            // Reset Defenses
+            defenses = { waf: false, scrubbing: false, rateLimit: false, synCookie: false };
+            ['waf', 'scrub', 'rate', 'syn-cookie'].forEach(d => {
+                const b = document.getElementById(`btn-${d}`);
+                b.classList.remove('border-cyan-400', 'bg-cyan-950/80', 'text-cyan-300');
+                b.classList.add('border-slate-700', 'bg-slate-800', 'text-slate-400');
+            });
+
+            metrics = { bw: 12, cpu: 8, conn: 5 };
+            updateMetricsUI();
+            logMessage(`[SISTEMA] Estado reiniciado a valores por defecto.`);
+        }
+
+        function toggleDefense(defKey) {
+            defenses[defKey] = !defenses[defKey];
+            
+            let btnId = `btn-${defKey}`;
+            if(defKey === 'scrubbing') btnId = 'btn-scrub';
+            if(defKey === 'rateLimit') btnId = 'btn-rate';
+            if(defKey === 'synCookie') btnId = 'btn-syn-cookie';
+
+            const btn = document.getElementById(btnId);
+            if (defenses[defKey]) {
+                btn.classList.remove('border-slate-700', 'bg-slate-800', 'text-slate-400');
+                btn.classList.add('border-cyan-400', 'bg-cyan-950/80', 'text-cyan-300');
+                logMessage(`[DEFENSA] Módulo ${defKey.toUpperCase()} ACTIVADO.`, 'success');
+            } else {
+                btn.classList.remove('border-cyan-400', 'bg-cyan-950/80', 'text-cyan-300');
+                btn.classList.add('border-slate-700', 'bg-slate-800', 'text-slate-400');
+                logMessage(`[DEFENSA] Módulo ${defKey.toUpperCase()} DESACTIVADO.`, 'warning');
+            }
+
+            updateDefenseStatusBadge();
+        }
+
+        function updateDefenseStatusBadge() {
+            const activeCount = Object.values(defenses).filter(Boolean).length;
+            const badge = document.getElementById('global-def-text');
+            if (activeCount > 0) {
+                badge.innerText = `${activeCount} ACTIVAS`;
+                badge.className = "ml-1 font-bold text-cyan-400";
+            } else {
+                badge.innerText = "INACTIVAS";
+                badge.className = "ml-1 font-bold text-slate-400";
+            }
+        }
+
+        // Intensity Slider Event
+        document.getElementById('intensitySlider').addEventListener('input', (e) => {
+            intensity = parseInt(e.target.value);
+            document.getElementById('intensity-val').innerText = `${intensity} bots`;
+        });
+
+        // --- Log Console Helper ---
+        function logMessage(msg, type = 'normal') {
+            const consoleEl = document.getElementById('log-console');
+            const p = document.createElement('p');
+            const time = new Date().toLocaleTimeString();
+            
+            if (type === 'danger') p.className = 'text-rose-400 font-bold';
+            else if (type === 'success') p.className = 'text-emerald-400';
+            else if (type === 'warning') p.className = 'text-amber-400';
+            else p.className = 'text-slate-300';
+
+            p.innerText = `[${time}] ${msg}`;
+            consoleEl.appendChild(p);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('log-console').innerHTML = `<p class="text-slate-500">[SYSTEM] Consola limpia.</p>`;
+        }
+
+        // --- Documentation Renderer ---
+        function renderDocumentation() {
+            const data = ATTACK_DB[currentAttack];
+            
+            document.getElementById('attack-doc-title').innerHTML = `<span>${data.name}</span>`;
+            document.getElementById('attack-doc-subtitle').innerText = `${data.type} — ${data.desc}`;
+            document.getElementById('badge-impact').innerText = `Impacto: ${data.impact}`;
+
+            // Render Steps
+            const stepsEl = document.getElementById('doc-steps');
+            stepsEl.innerHTML = data.steps.map(s => `<li class="pl-1">${s}</li>`).join('');
+
+            // Render IoCs
+            const iocsEl = document.getElementById('doc-iocs');
+            iocsEl.innerHTML = data.iocs.map(i => `<li class="pl-1">${i}</li>`).join('');
+
+            // Render Mitigations
+            const mitEl = document.getElementById('doc-mitigation');
+            mitEl.innerHTML = data.mitigation.map(m => `<li class="pl-1">${m}</li>`).join('');
+        }
+
+        // --- Particle System & Simulation Engine ---
+        function createParticle(isMalicious = true) {
+            const nodes = getTopologyNodes();
+            const startNode = isMalicious ? nodes.botnet : nodes.legitimate;
+            
+            particles.push({
+                x: startNode.x,
+                y: startNode.y + (Math.random() * 20 - 10),
+                targetX: nodes.target.x,
+                targetY: nodes.target.y,
+                speed: 3 + Math.random() * 3,
+                isMalicious: isMalicious,
+                mitigated: false,
+                progress: 0
+            });
+        }
+
+        function updateAndDrawParticles() {
+            const nodes = getTopologyNodes();
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 1. Draw Network Connection Lines
+            ctx.strokeStyle = '#1e293b';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([4, 4]);
+            
+            // Botnet -> Scrubber -> Target
+            ctx.beginPath();
+            ctx.moveTo(nodes.botnet.x, nodes.botnet.y);
+            ctx.lineTo(nodes.scrubber.x, nodes.scrubber.y);
+            ctx.lineTo(nodes.target.x, nodes.target.y);
+            ctx.stroke();
+
+            // Legitimate -> Scrubber
+            ctx.beginPath();
+            ctx.moveTo(nodes.legitimate.x, nodes.legitimate.y);
+            ctx.lineTo(nodes.scrubber.x, nodes.scrubber.y);
+            ctx.stroke();
+            
+            ctx.setLineDash([]); // Reset line dash
+
+            // 2. Spawn Particles if attacking
+            if (isAttacking) {
+                const spawnRate = Math.ceil(intensity / 15);
+                for(let i = 0; i < spawnRate; i++) {
+                    if (Math.random() < 0.6) createParticle(true);
+                }
+            }
+            // Always spawn a few legitimate packets
+            if (Math.random() < 0.2) {
+                createParticle(false);
+            }
+
+            // 3. Process & Animate Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+
+                // Calculate Scrubbing Firewall Interception
+                const distToScrubber = Math.abs(p.x - nodes.scrubber.x);
+                if (distToScrubber < 10 && p.isMalicious && !p.mitigated) {
+                    // Check Defense Mechanics vs Attack Vector
+                    let blocked = false;
+
+                    if (currentAttack === 'http' || currentAttack === 'slowloris') {
+                        if (defenses.waf || defenses.rateLimit) blocked = true;
+                    } else if (currentAttack === 'syn') {
+                        if (defenses.synCookie || defenses.scrubbing) blocked = true;
+                    } else { // Volumetric (UDP, ICMP, DNS, PoD)
+                        if (defenses.scrubbing || defenses.rateLimit) blocked = true;
+                    }
+
+                    if (blocked) {
+                        p.mitigated = true;
+                    }
+                }
+
+                // Move Particle
+                p.x += p.speed;
+                // Vertical alignment towards target center
+                if (p.x > nodes.scrubber.x) {
+                    p.y += (nodes.target.y - p.y) * 0.05;
+                }
+
+                // Render Particle
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.isMalicious ? 4 : 3, 0, Math.PI * 2);
+                
+                if (p.mitigated) {
+                    ctx.fillStyle = '#00f0ff'; // Cyan mitigated
+                    p.y += 2; // Deflect downwards
+                } else if (p.isMalicious) {
+                    ctx.fillStyle = '#ff0055'; // Red malicious
+                } else {
+                    ctx.fillStyle = '#00ff66'; // Green legitimate
+                }
+                ctx.fill();
+
+                // Remove out of bounds particles
+                if (p.x >= nodes.target.x || p.y > canvas.height || p.x > canvas.width) {
+                    particles.splice(i, 1);
+                }
+            }
+
+            // 4. Draw Topology Node Icons
+            drawNode(nodes.botnet, '#ff0055', 'fa-robot');
+            drawNode(nodes.scrubber, Object.values(defenses).some(Boolean) ? '#00f0ff' : '#64748b', 'fa-shield-halved');
+            drawNode(nodes.target, metrics.cpu > 80 ? '#ff0055' : '#00ff66', 'fa-server');
+            drawNode(nodes.legitimate, '#00ff66', 'fa-user');
+
+            // Loop Frame
+            animFrameId = requestAnimationFrame(updateAndDrawParticles);
+        }
+
+        // Render Canvas Node Icon Helper
+        function drawNode(node, color, iconClass) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(node.x, node.y, node.radius, 0, Math.PI * 2);
+            ctx.fillStyle = '#0f172a';
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 3;
+            ctx.fill();
+            ctx.stroke();
+
+            // Label
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(node.label, node.x, node.y + node.radius + 14);
+            ctx.restore();
+        }
+
+        // --- Metrics Telemetry Calculation Engine ---
+        setInterval(() => {
+            if (isAttacking) {
+                const attackInfo = ATTACK_DB[currentAttack];
+                const baseImpact = intensity * 0.45;
+
+                // Mitigation Factor calculation
+                let defenseEfficiency = 0;
+                if (currentAttack === 'http' && defenses.waf) defenseEfficiency += 0.8;
+                if (currentAttack === 'slowloris' && defenses.rateLimit) defenseEfficiency += 0.85;
+                if (currentAttack === 'syn' && defenses.synCookie) defenseEfficiency += 0.9;
+                if (defenses.scrubbing) defenseEfficiency += 0.6;
+                if (defenses.rateLimit) defenseEfficiency += 0.3;
+
+                defenseEfficiency = Math.min(defenseEfficiency, 0.95); // Cap at 95% protection
+                const effectiveAttack = baseImpact * (1 - defenseEfficiency);
+
+                // Apply load based on attack vector type
+                if (attackInfo.primaryMetric === 'bw') {
+                    metrics.bw = Math.min(100, Math.max(12, metrics.bw + effectiveAttack * 0.8));
+                    metrics.cpu = Math.min(100, Math.max(8, metrics.cpu + effectiveAttack * 0.2));
+                    metrics.conn = Math.min(100, Math.max(5, metrics.conn + effectiveAttack * 0.1));
+                } else if (attackInfo.primaryMetric === 'cpu') {
+                    metrics.cpu = Math.min(100, Math.max(8, metrics.cpu + effectiveAttack * 0.9));
+                    metrics.bw = Math.min(100, Math.max(12, metrics.bw + effectiveAttack * 0.2));
+                    metrics.conn = Math.min(100, Math.max(5, metrics.conn + effectiveAttack * 0.3));
+                } else if (attackInfo.primaryMetric === 'conn') {
+                    metrics.conn = Math.min(100, Math.max(5, metrics.conn + effectiveAttack * 0.95));
+                    metrics.cpu = Math.min(100, Math.max(8, metrics.cpu + effectiveAttack * 0.3));
+                    metrics.bw = Math.min(100, Math.max(12, metrics.bw + effectiveAttack * 0.1));
+                }
+            } else {
+                // Natural Recovery when no attack is active
+                metrics.bw = Math.max(12, metrics.bw - 5);
+                metrics.cpu = Math.max(8, metrics.cpu - 4);
+                metrics.conn = Math.max(5, metrics.conn - 5);
+            }
+
+            updateMetricsUI();
+        }, 300);
+
+        function updateMetricsUI() {
+            // Update Text Counters
+            document.getElementById('metric-bw').innerText = `${Math.round(metrics.bw)}%`;
+            document.getElementById('metric-cpu').innerText = `${Math.round(metrics.cpu)}%`;
+            document.getElementById('metric-conn').innerText = `${Math.round(metrics.conn)}%`;
+
+            // Style Text based on critical levels
+            const maxMetric = Math.max(metrics.bw, metrics.cpu, metrics.conn);
+            const statusBadge = document.getElementById('server-status-badge');
+            const globalLoadText = document.getElementById('global-load-text');
+            const latencyDisp = document.getElementById('latency-display');
+
+            globalLoadText.innerText = `${Math.round(maxMetric)}%`;
+
+            if (maxMetric > 85) {
+                statusBadge.innerText = "DENEGADO / CAÍDO";
+                statusBadge.className = "ml-1 font-bold text-rose-500 animate-pulse";
+                latencyDisp.innerText = "Latencia: TIMEOUT (>5000ms)";
+                latencyDisp.className = "text-rose-400 font-bold text-[10px]";
+            } else if (maxMetric > 50) {
+                statusBadge.innerText = "BAJO ATAQUE (DEGRADADO)";
+                statusBadge.className = "ml-1 font-bold text-amber-400";
+                latencyDisp.innerText = `Latencia: ${Math.round(maxMetric * 12)}ms`;
+                latencyDisp.className = "text-amber-400 text-[10px]";
+            } else {
+                statusBadge.innerText = "OPERATIVO (NORMAL)";
+                statusBadge.className = "ml-1 font-bold text-emerald-400";
+                latencyDisp.innerText = "Latencia: 24ms";
+                latencyDisp.className = "text-slate-400 text-[10px]";
+            }
+
+            // Push to Chart
+            metricsChart.data.datasets[0].data.push(metrics.bw);
+            metricsChart.data.datasets[0].data.shift();
+
+            metricsChart.data.datasets[1].data.push(metrics.cpu);
+            metricsChart.data.datasets[1].data.shift();
+
+            metricsChart.data.datasets[2].data.push(metrics.conn);
+            metricsChart.data.datasets[2].data.shift();
+
+            metricsChart.update();
+        }
+
+        // --- Init Function ---
+        window.onload = function() {
+            selectAttack('udp');
+            updateAndDrawParticles();
+            logMessage(`[SISTEMA] Laboratorio iniciado correctamente.`);
+        };
+    </script>
+</body>
+</html>

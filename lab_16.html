@@ -1,0 +1,677 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>EVIL FOCA v3.1 - Eleven Paths / Telefónica Tech (Simulador)</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        foca: {
+                            bg: '#18191c',
+                            panel: '#202225',
+                            header: '#2f3136',
+                            border: '#36393f',
+                            accent: '#e53935', // Rojo FOCA
+                            text: '#dcddde',
+                            green: '#43b581',
+                            blue: '#00aff0'
+                        }
+                    },
+                    fontFamily: {
+                        win: ['Segoe UI', 'Tahoma', 'Geneva', 'Verdana', 'sans-serif'],
+                        mono: ['Consolas', 'Courier New', 'monospace']
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- FontAwesome icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        body {
+            background-color: #121315;
+            color: #dcddde;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none;
+            overflow: hidden;
+        }
+        /* Custom Windows Scrollbars */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #1e2124; }
+        ::-webkit-scrollbar-thumb { background: #36393f; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #e53935; }
+        
+        .win-btn {
+            background: linear-gradient(to bottom, #36393f, #2f3136);
+            border: 1px solid #484c52;
+            box-shadow: inset 0 1px 0 rgba(255,255,255,0.1);
+        }
+        .win-btn:hover {
+            background: linear-gradient(to bottom, #40444b, #36393f);
+            border-color: #e53935;
+        }
+        .win-btn:active {
+            background: #202225;
+        }
+        .win-table th {
+            background: #2f3136;
+            border-bottom: 2px solid #18191c;
+            border-right: 1px solid #36393f;
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+        .win-table td {
+            border-bottom: 1px solid #2f3136;
+            border-right: 1px solid #292b2f;
+        }
+        .win-table tr:hover {
+            background-color: #292b2f;
+        }
+        .win-table tr.selected {
+            background-color: #004b75 !important;
+            color: #ffffff;
+        }
+    </style>
+</head>
+<body class="h-screen w-screen flex flex-col justify-between">
+
+    <!-- 1. WINDOWS TITLEBAR & MENU BAR -->
+    <div class="bg-foca-header text-xs flex flex-col border-b border-foca-border">
+        <!-- Title bar -->
+        <div class="flex justify-between items-center px-3 py-1.5 bg-[#1e1f22] text-slate-300 border-b border-[#2b2d31]">
+            <div class="flex items-center gap-2 font-semibold">
+                <i class="fa-solid fa-fire text-red-500 text-sm"></i>
+                <span>EVIL FOCA v3.1.0 - Network MitM & Metadata Inspection (Eleven Paths / Telefónica Tech)</span>
+            </div>
+            <div class="flex items-center gap-2">
+                <span class="text-[10px] font-mono bg-red-950/80 text-red-400 border border-red-800 px-2 py-0.5 rounded">IPv4 / IPv6 Dual Engine</span>
+                <div class="flex gap-1 ml-4 text-slate-400">
+                    <button class="px-2 hover:bg-slate-700">&#8212;</button>
+                    <button class="px-2 hover:bg-slate-700">&#9633;</button>
+                    <button class="px-2 hover:bg-red-600 hover:text-white">&#10005;</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Classic Windows File Menu Bar -->
+        <div class="flex items-center gap-4 px-3 py-1 text-slate-300 text-xs border-b border-foca-border bg-[#2b2d31]">
+            <button class="hover:text-white hover:underline">File</button>
+            <button class="hover:text-white hover:underline">Network Scan</button>
+            <button class="hover:text-white hover:underline">Attacks</button>
+            <button class="hover:text-white hover:underline">Metadata</button>
+            <button class="hover:text-white hover:underline">Options</button>
+            <button class="hover:text-white hover:underline">Help</button>
+        </div>
+
+        <!-- Quick Action Toolbar -->
+        <div class="flex items-center gap-2 p-2 bg-foca-panel border-b border-foca-border flex-wrap">
+            <button onclick="startNetworkScan()" class="win-btn px-3 py-1.5 rounded text-xs font-semibold text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-radar text-cyan-400"></i> Start Scan
+            </button>
+            <button id="btn-toggle-slaac" onclick="toggleSlaacAttack()" class="win-btn px-3 py-1.5 rounded text-xs font-semibold text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-cloud-bolt text-purple-400"></i> Launch IPv6 Rogue RA (SLAAC)
+            </button>
+            <button id="btn-toggle-arp" onclick="toggleArpAttack()" class="win-btn px-3 py-1.5 rounded text-xs font-semibold text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-network-wired text-red-400"></i> ARP Poisoning (IPv4)
+            </button>
+            <button onclick="runFocaMetadataExtraction()" class="win-btn px-3 py-1.5 rounded text-xs font-semibold text-white flex items-center gap-1.5">
+                <i class="fa-solid fa-file-magnifying-glass text-amber-400"></i> Extract Metadata (FOCA Core)
+            </button>
+            <div class="h-5 w-px bg-foca-border mx-1"></div>
+            <button onclick="clearLogs()" class="win-btn px-2.5 py-1.5 rounded text-xs text-slate-300 flex items-center gap-1">
+                <i class="fa-solid fa-eraser"></i> Clear Logs
+            </button>
+        </div>
+    </div>
+
+    <!-- 2. MAIN SPLIT WORKSPACE -->
+    <div class="flex-grow flex overflow-hidden">
+
+        <!-- LEFT PANEL: Network Tree / Discovered Hosts -->
+        <aside class="w-72 bg-foca-panel border-r border-foca-border flex flex-col font-mono text-xs">
+            <div class="bg-foca-header p-2 font-bold text-slate-200 border-b border-foca-border flex justify-between items-center">
+                <span><i class="fa-solid fa-sitemap text-red-500 mr-1.5"></i> Network Topology Tree</span>
+                <span id="host-count-badge" class="bg-foca-bg px-2 py-0.5 rounded text-[10px] text-cyan-400">0 Hosts</span>
+            </div>
+
+            <!-- Tree View Container -->
+            <div id="networkTree" class="p-2 overflow-y-auto flex-grow space-y-1 text-slate-300">
+                <div class="text-slate-500 italic text-[11px] p-2">Click "Start Scan" to discover local subnet devices...</div>
+            </div>
+
+            <!-- Interface status box -->
+            <div class="p-2.5 bg-foca-bg border-t border-foca-border space-y-1 text-[11px]">
+                <div class="flex justify-between text-slate-400">
+                    <span>Interface:</span>
+                    <span class="text-slate-200 font-bold">Ethernet 0 (Intel PCIe)</span>
+                </div>
+                <div class="flex justify-between text-slate-400">
+                    <span>IPv4 Local:</span>
+                    <span class="text-cyan-400 font-bold">192.168.1.100</span>
+                </div>
+                <div class="flex justify-between text-slate-400">
+                    <span>IPv6 Link-Local:</span>
+                    <span class="text-purple-400 font-bold">fe80::e01a:foca</span>
+                </div>
+            </div>
+        </aside>
+
+        <!-- RIGHT WORKSPACE: Tabs & Active Panels -->
+        <main class="flex-grow flex flex-col bg-foca-bg overflow-hidden">
+
+            <!-- Tab Navigation Header -->
+            <div class="flex bg-foca-panel border-b border-foca-border text-xs font-semibold">
+                <button onclick="switchTab('tab-attacks')" id="nav-tab-attacks" class="px-4 py-2 bg-foca-bg text-red-400 border-t-2 border-red-500 border-r border-foca-border flex items-center gap-2">
+                    <i class="fa-solid fa-crosshairs"></i> Attacks & MitM Control
+                </button>
+                <button onclick="switchTab('tab-metadata')" id="nav-tab-metadata" class="px-4 py-2 text-slate-400 hover:text-white border-r border-foca-border flex items-center gap-2">
+                    <i class="fa-solid fa-folder-open text-amber-400"></i> Metadata Analysis (FOCA Engine)
+                </button>
+                <button onclick="switchTab('tab-credentials')" id="nav-tab-credentials" class="px-4 py-2 text-slate-400 hover:text-white border-r border-foca-border flex items-center gap-2">
+                    <i class="fa-solid fa-key text-green-400"></i> Sniffed Passwords (<span id="cred-count">0</span>)
+                </button>
+                <button onclick="switchTab('tab-options')" id="nav-tab-options" class="px-4 py-2 text-slate-400 hover:text-white border-r border-foca-border flex items-center gap-2">
+                    <i class="fa-solid fa-sliders text-cyan-400"></i> Options & Scopes
+                </button>
+            </div>
+
+            <!-- TAB 1: ATTACKS & MITM CONTROL -->
+            <div id="tab-attacks" class="tab-content p-4 space-y-4 overflow-y-auto flex-grow">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                    
+                    <!-- Attack 1: IPv6 SLAAC / Rogue RA (Evil FOCA Flagship) -->
+                    <div class="bg-foca-panel border border-foca-border rounded p-3 space-y-3">
+                        <div class="flex justify-between items-center border-b border-foca-border pb-2">
+                            <h3 class="font-bold text-sm text-purple-400 flex items-center gap-2 font-mono">
+                                <i class="fa-solid fa-cloud-bolt"></i> IPv6 SLAAC Poisoning (Rogue RA)
+                            </h3>
+                            <span class="text-[10px] font-mono px-2 py-0.5 bg-purple-950 text-purple-300 border border-purple-800 rounded">Signature Attack</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            Evil FOCA anuncia un Router Advertisements (ICMPv6 RA) malicioso con un prefijo de red falso. Los equipos Windows/Linux se autoconfiguran y enrutan preferentemente **todo el tráfico IPv6 e IPv4 cifrado** a través del equipo atacante.
+                        </p>
+                        <div class="bg-foca-bg p-2.5 rounded border border-foca-border space-y-1.5 font-mono text-xs">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Advertised IPv6 Prefix:</span>
+                                <span class="text-purple-300">2001:db8:evil:foca::/64</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400">
+                                <span>Preference Flag:</span>
+                                <span class="text-red-400 font-bold">HIGH (Override IPv4 Gateway)</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400">
+                                <span>DNS Server (Option 25):</span>
+                                <span class="text-amber-400">fe80::e01a:foca (Attacker)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Attack 2: ARP Poisoning (IPv4) -->
+                    <div class="bg-foca-panel border border-foca-border rounded p-3 space-y-3">
+                        <div class="flex justify-between items-center border-b border-foca-border pb-2">
+                            <h3 class="font-bold text-sm text-red-400 flex items-center gap-2 font-mono">
+                                <i class="fa-solid fa-network-wired"></i> Dual-Way ARP Poisoning (IPv4)
+                            </h3>
+                            <span class="text-[10px] font-mono px-2 py-0.5 bg-red-950 text-red-300 border border-red-800 rounded">Capa 2 MitM</span>
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            Inyección continua de respuestas ARP no solicitadas (Gratuitous ARP) a la víctima y al Router para interceptar tráfico IPv4 en redes conmutadas.
+                        </p>
+                        <div class="bg-foca-bg p-2.5 rounded border border-foca-border space-y-1.5 font-mono text-xs">
+                            <div class="flex justify-between text-slate-400">
+                                <span>Target IPv4:</span>
+                                <span id="arp-target-ip" class="text-cyan-400">All Discovered Hosts</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400">
+                                <span>Spoofed MAC:</span>
+                                <span class="text-red-400">00:1A:2B:3C:4D:EF (Attacker)</span>
+                            </div>
+                            <div class="flex justify-between text-slate-400">
+                                <span>Forwarding Engine:</span>
+                                <span class="text-green-400 font-bold">IP Forwarding Enabled (Kernel)</span>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
+
+                <!-- Active Interception Table -->
+                <div class="bg-foca-panel border border-foca-border rounded p-3 space-y-2">
+                    <h3 class="font-bold text-xs text-slate-200 uppercase tracking-wide flex justify-between items-center font-mono">
+                        <span><i class="fa-solid fa-list-check text-cyan-400"></i> Active MitM Interception Table</span>
+                        <span class="text-[10px] text-slate-400">Live Traffic Monitoring</span>
+                    </h3>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left font-mono text-xs win-table">
+                            <thead>
+                                <tr class="text-slate-400">
+                                    <th class="p-2">Target IP</th>
+                                    <th class="p-2">Target MAC</th>
+                                    <th class="p-2">MitM Vector</th>
+                                    <th class="p-2">Packets Intercepted</th>
+                                    <th class="p-2">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="mitmTableBody">
+                                <tr>
+                                    <td colspan="5" class="p-4 text-center text-slate-500 italic">No active interception. Click "Launch IPv6 Rogue RA" or "ARP Poisoning" to begin.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 2: METADATA ANALYSIS (FOCA ENGINE CORE) -->
+            <div id="tab-metadata" class="tab-content p-4 space-y-4 overflow-y-auto flex-grow hidden">
+                <div class="bg-foca-panel border border-foca-border rounded p-3 space-y-2">
+                    <div class="flex justify-between items-center border-b border-foca-border pb-2">
+                        <div>
+                            <h3 class="font-bold text-sm text-amber-400 font-mono flex items-center gap-2">
+                                <i class="fa-solid fa-file-pdf"></i> FOCA Metadata Extraction Engine
+                            </h3>
+                            <p class="text-xs text-slate-400">Análisis automático de documentos interceptados (.pdf, .docx, .xlsx) para extraer fuga de información interna.</p>
+                        </div>
+                        <button onclick="runFocaMetadataExtraction()" class="win-btn px-3 py-1.5 rounded text-xs text-amber-300 font-bold flex items-center gap-1.5">
+                            <i class="fa-solid fa-magnifying-glass"></i> Scan Intercepted Documents
+                        </button>
+                    </div>
+
+                    <!-- Metadata Results Split -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 pt-2">
+                        <!-- Documents List -->
+                        <div class="bg-foca-bg border border-foca-border rounded p-2.5 font-mono text-xs space-y-2">
+                            <span class="text-slate-400 font-bold block border-b border-foca-border pb-1">Intercepted Files</span>
+                            <div id="docList" class="space-y-1 max-h-56 overflow-y-auto">
+                                <div class="p-1.5 bg-foca-panel rounded text-slate-400 italic text-[11px]">No documents analyzed yet. Run extraction.</div>
+                            </div>
+                        </div>
+
+                        <!-- Extracted Data Categories (Users, Folders, Software, IPs) -->
+                        <div class="lg:col-span-2 bg-foca-bg border border-foca-border rounded p-2.5 font-mono text-xs space-y-3">
+                            <span class="text-amber-400 font-bold block border-b border-foca-border pb-1">FOCA Extracted Intelligence</span>
+                            
+                            <div class="grid grid-cols-2 gap-3 text-[11px]">
+                                <!-- System Users Leak -->
+                                <div class="bg-foca-panel p-2 rounded border border-foca-border">
+                                    <span class="text-cyan-400 font-bold block mb-1"><i class="fa-solid fa-user"></i> Exposed Windows Users:</span>
+                                    <ul id="meta-users" class="space-y-0.5 text-slate-300 list-disc list-inside">
+                                        <li class="text-slate-500 italic">None</li>
+                                    </ul>
+                                </div>
+                                <!-- Internal Folder Paths -->
+                                <div class="bg-foca-panel p-2 rounded border border-foca-border">
+                                    <span class="text-red-400 font-bold block mb-1"><i class="fa-solid fa-folder-open"></i> Local Folder Paths:</span>
+                                    <ul id="meta-paths" class="space-y-0.5 text-slate-300 truncate">
+                                        <li class="text-slate-500 italic">None</li>
+                                    </ul>
+                                </div>
+                                <!-- Software / OS Versions -->
+                                <div class="bg-foca-panel p-2 rounded border border-foca-border">
+                                    <span class="text-purple-400 font-bold block mb-1"><i class="fa-solid fa-laptop-code"></i> Software & Printers:</span>
+                                    <ul id="meta-software" class="space-y-0.5 text-slate-300">
+                                        <li class="text-slate-500 italic">None</li>
+                                    </ul>
+                                </div>
+                                <!-- Internal IPs leaked in Metadata -->
+                                <div class="bg-foca-panel p-2 rounded border border-foca-border">
+                                    <span class="text-green-400 font-bold block mb-1"><i class="fa-solid fa-network-wired"></i> Leaked Internal IPs:</span>
+                                    <ul id="meta-ips" class="space-y-0.5 text-slate-300 font-mono">
+                                        <li class="text-slate-500 italic">None</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 3: SNIFFED PASSWORDS / CREDENTIALS -->
+            <div id="tab-credentials" class="tab-content p-4 space-y-4 overflow-y-auto flex-grow hidden">
+                <div class="bg-foca-panel border border-foca-border rounded p-3 space-y-2">
+                    <div class="flex justify-between items-center border-b border-foca-border pb-2">
+                        <h3 class="font-bold text-sm text-green-400 font-mono flex items-center gap-2">
+                            <i class="fa-solid fa-key"></i> Intercepted Credentials & Passwords
+                        </h3>
+                        <span class="text-xs text-slate-400 font-mono">Protocols: HTTP, FTP, POP3, SIP, IMAP</span>
+                    </div>
+
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left font-mono text-xs win-table">
+                            <thead>
+                                <tr class="text-slate-400">
+                                    <th class="p-2">Timestamp</th>
+                                    <th class="p-2">Source IP</th>
+                                    <th class="p-2">Protocol</th>
+                                    <th class="p-2">Target Server</th>
+                                    <th class="p-2">Username</th>
+                                    <th class="p-2">Password (Plain Text)</th>
+                                </tr>
+                            </thead>
+                            <tbody id="credentialsTableBody">
+                                <tr>
+                                    <td colspan="6" class="p-4 text-center text-slate-500 italic">No credentials sniffed yet. Launch an attack and simulate network traffic.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- TAB 4: OPTIONS & NETWORK CONFIG -->
+            <div id="tab-options" class="tab-content p-4 space-y-4 overflow-y-auto flex-grow hidden">
+                <div class="bg-foca-panel border border-foca-border rounded p-3 space-y-3 font-mono text-xs max-w-2xl">
+                    <h3 class="font-bold text-sm text-cyan-400 border-b border-foca-border pb-2">Network Adapter Configuration</h3>
+                    
+                    <div class="space-y-2">
+                        <label class="text-slate-400 block">Select Sniffing Interface:</label>
+                        <select class="w-full bg-foca-bg border border-foca-border p-2 rounded text-slate-200">
+                            <option>eth0 - Intel(R) Ethernet Connection (192.168.1.100)</option>
+                            <option>wlan0 - Realtek Wi-Fi Adapter (192.168.1.105)</option>
+                        </select>
+                    </div>
+
+                    <div class="space-y-2 pt-2">
+                        <label class="text-slate-400 block">IPv6 SLAAC Custom Prefix:</label>
+                        <input type="text" value="2001:db8:evil:foca::/64" class="w-full bg-foca-bg border border-foca-border p-2 rounded text-purple-300">
+                    </div>
+
+                    <div class="space-y-2 pt-2">
+                        <label class="text-slate-400 block">DNS Spoofing Redirect Target IP:</label>
+                        <input type="text" value="192.168.1.100" class="w-full bg-foca-bg border border-foca-border p-2 rounded text-cyan-400">
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+    </div>
+
+    <!-- 3. BOTTOM EVIL FOCA LOG CONSOLE -->
+    <footer class="bg-foca-panel border-t border-foca-border h-44 flex flex-col font-mono text-xs">
+        <!-- Log bar header -->
+        <div class="bg-foca-header px-3 py-1 flex justify-between items-center text-slate-300 border-b border-foca-border text-[11px]">
+            <span class="font-bold text-slate-200 flex items-center gap-1.5">
+                <i class="fa-solid fa-terminal text-red-500"></i> EVIL FOCA Event Engine Log
+            </span>
+            <span class="text-slate-500">Eleven Paths Security Core Engine</span>
+        </div>
+
+        <!-- Terminal Output Stream -->
+        <div id="eventLogConsole" class="p-2.5 bg-black text-slate-300 overflow-y-auto flex-grow space-y-1 font-mono text-[11px] leading-relaxed">
+            <p class="text-slate-500">[00:00:00] Evil FOCA Framework loaded successfully.</p>
+            <p class="text-slate-500">[00:00:00] Ready. Click "Start Scan" to discover local subnet hosts.</p>
+        </div>
+    </footer>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // --- State Management ---
+        let isScanning = false;
+        let isSlaacActive = false;
+        let isArpActive = false;
+        let discoveredHosts = [];
+        let sniffedCredentials = [];
+        let packetCounter = 0;
+
+        // Mock Discovered Host Pool
+        const MOCK_NODES = [
+            { ip: "192.168.1.1", mac: "00:AA:11:22:33:44", vendor: "Cisco Systems", os: "IOS Router / Gateway", icon: "fa-server", type: "gateway" },
+            { ip: "192.168.1.50", mac: "AA:BB:CC:D1:E2:F3", vendor: "Dell Inc.", os: "Windows 11 Enterprise", icon: "fa-desktop", type: "workstation" },
+            { ip: "192.168.1.85", mac: "34:17:EB:A0:11:99", vendor: "Apple Inc.", os: "macOS Sequoia", icon: "fa-laptop", type: "workstation" },
+            { ip: "192.168.1.120", mac: "52:54:00:12:34:56", vendor: "Canonical Ltd.", os: "Ubuntu Linux Server 22.04", icon: "fa-hard-drive", type: "server" },
+            { ip: "192.168.1.155", mac: "00:04:F2:88:99:AA", vendor: "Polycom", os: "VoIP SIP Phone", icon: "fa-phone", type: "phone" }
+        ];
+
+        // Mock Metadata Files Pool (FOCA Engine)
+        const MOCK_METADATA_FILES = [
+            {
+                name: "Auditoria_Financiera_2025.pdf",
+                users: ["jgarcia", "admin_finanzas", "perez_c"],
+                paths: ["C:\\Users\\jgarcia\\Documents\\Finanzas\\2025\\", "\\\\192.168.1.120\\shares\\audit\\"],
+                software: ["Adobe Acrobat Pro DC 24.0", "HP LaserJet Pro M404n"],
+                ips: ["192.168.1.120", "10.0.4.15"]
+            },
+            {
+                name: "Plan_Estrategico_Redes.docx",
+                users: ["mrodriguez", "sysadmin_dav"],
+                paths: ["D:\\Projects\\Network_Topology\\Configs\\"],
+                software: ["Microsoft Word 2021 (16.0.14326)", "Canon IR-ADV C5235"],
+                ips: ["192.168.1.1", "172.16.0.5"]
+            }
+        ];
+
+        // --- Tab Switcher ---
+        function switchTab(tabId) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(tabId).classList.remove('hidden');
+
+            document.querySelectorAll('[id^="nav-tab-"]').forEach(btn => {
+                btn.className = "px-4 py-2 text-slate-400 hover:text-white border-r border-foca-border flex items-center gap-2";
+            });
+
+            const activeBtn = document.getElementById(`nav-${tabId}`);
+            if (activeBtn) {
+                activeBtn.className = "px-4 py-2 bg-foca-bg text-red-400 border-t-2 border-red-500 border-r border-foca-border flex items-center gap-2";
+            }
+        }
+
+        // --- Network Discovery Scan ---
+        function startNetworkScan() {
+            logEvent("[SCAN] Initializing ARP & ICMPv6 Discovery Scan on 192.168.1.0/24...", "text-cyan-400");
+            discoveredHosts = [];
+            renderNetworkTree();
+
+            let index = 0;
+            const interval = setInterval(() => {
+                if (index < MOCK_NODES.length) {
+                    const host = MOCK_NODES[index];
+                    discoveredHosts.push(host);
+                    logEvent(`[HOST DISCOVERED] IP: ${host.ip} | MAC: ${host.mac} | Vendor: ${host.vendor} (${host.os})`, "text-green-400");
+                    renderNetworkTree();
+                    index++;
+                } else {
+                    clearInterval(interval);
+                    logEvent(`[SCAN COMPLETE] Total ${discoveredHosts.length} active hosts identified.`, "text-cyan-400 font-bold");
+                }
+            }, 600);
+        }
+
+        function renderNetworkTree() {
+            const treeEl = document.getElementById('networkTree');
+            const badgeEl = document.getElementById('host-count-badge');
+            badgeEl.innerText = `${discoveredHosts.length} Hosts`;
+
+            if (discoveredHosts.length === 0) {
+                treeEl.innerHTML = `<div class="text-slate-500 italic text-[11px] p-2">Click "Start Scan" to discover local subnet devices...</div>`;
+                return;
+            }
+
+            treeEl.innerHTML = discoveredHosts.map(h => `
+                <div class="p-2 bg-foca-bg border border-foca-border rounded hover:border-red-500 cursor-pointer space-y-1">
+                    <div class="flex items-center justify-between font-bold text-slate-200">
+                        <span class="flex items-center gap-1.5 text-cyan-400">
+                            <i class="fa-solid ${h.icon}"></i> ${h.ip}
+                        </span>
+                        <span class="text-[9px] px-1.5 py-0.2 bg-slate-800 text-slate-400 rounded">${h.type}</span>
+                    </div>
+                    <div class="text-[10px] text-slate-400 font-mono">MAC: ${h.mac}</div>
+                    <div class="text-[10px] text-slate-500 truncate">${h.vendor} • ${h.os}</div>
+                </div>
+            `).join('');
+        }
+
+        // --- Launch Attack 1: IPv6 SLAAC Rogue RA ---
+        function toggleSlaacAttack() {
+            isSlaacActive = !isSlaacActive;
+            const btn = document.getElementById('btn-toggle-slaac');
+
+            if (isSlaacActive) {
+                btn.className = "win-btn px-3 py-1.5 rounded text-xs font-semibold bg-purple-900 text-purple-200 border-purple-500 flex items-center gap-1.5";
+                btn.innerHTML = `<i class="fa-solid fa-stop text-red-400"></i> Stop IPv6 Rogue RA`;
+                logEvent("[EVIL FOCA] Starting IPv6 SLAAC Rogue Router Advertisement Injection...", "text-purple-400 font-bold");
+                logEvent("[ICMPv6] Injecting RA Packet: Prefix 2001:db8:evil:foca::/64 | Preference: HIGH", "text-purple-300");
+                logEvent("[SLAAC] Targets autoconfigured IPv6 Default Gateway -> fe80::e01a:foca (Attacker)", "text-green-400");
+                updateMitMTable();
+                startCredentialSniffer();
+            } else {
+                btn.className = "win-btn px-3 py-1.5 rounded text-xs font-semibold text-white flex items-center gap-1.5";
+                btn.innerHTML = `<i class="fa-solid fa-cloud-bolt text-purple-400"></i> Launch IPv6 Rogue RA (SLAAC)`;
+                logEvent("[EVIL FOCA] Stopped IPv6 Rogue RA Attack. Restoring original IPv6 routing.", "text-slate-400");
+                updateMitMTable();
+            }
+        }
+
+        // --- Launch Attack 2: ARP Poisoning (IPv4) ---
+        function toggleArpAttack() {
+            isArpActive = !isArpActive;
+            const btn = document.getElementById('btn-toggle-arp');
+
+            if (isArpActive) {
+                btn.className = "win-btn px-3 py-1.5 rounded text-xs font-semibold bg-red-950 text-red-200 border-red-500 flex items-center gap-1.5";
+                btn.innerHTML = `<i class="fa-solid fa-stop text-red-400"></i> Stop ARP Poisoning`;
+                logEvent("[ARP] Transmitting Gratuitous ARP Replies to 192.168.1.0/24...", "text-red-400 font-bold");
+                logEvent("[ARP SPOOF] 192.168.1.1 is at 00:1A:2B:3C:4D:EF (Poisoned)", "text-red-300");
+                updateMitMTable();
+                startCredentialSniffer();
+            } else {
+                btn.className = "win-btn px-3 py-1.5 rounded text-xs font-semibold text-white flex items-center gap-1.5";
+                btn.innerHTML = `<i class="fa-solid fa-network-wired text-red-400"></i> ARP Poisoning (IPv4)`;
+                logEvent("[ARP] Re-arcing ARP Tables. Stopped ARP Poisoning.", "text-slate-400");
+                updateMitMTable();
+            }
+        }
+
+        function updateMitMTable() {
+            const tbody = document.getElementById('mitmTableBody');
+            if (!isSlaacActive && !isArpActive) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-4 text-center text-slate-500 italic">No active interception. Click "Launch IPv6 Rogue RA" or "ARP Poisoning" to begin.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = `
+                ${isArpActive ? `
+                <tr class="bg-red-950/30">
+                    <td class="p-2 text-cyan-400 font-bold">192.168.1.50 (Windows 11)</td>
+                    <td class="p-2">AA:BB:CC:D1:E2:F3</td>
+                    <td class="p-2 text-red-400 font-bold">IPv4 ARP Poisoning</td>
+                    <td class="p-2 font-bold text-slate-200" id="pkt-count-arp">142 pkts</td>
+                    <td class="p-2"><span class="text-xs text-green-400 bg-green-950 px-2 py-0.5 rounded border border-green-800">INTERCEPTING</span></td>
+                </tr>` : ''}
+                ${isSlaacActive ? `
+                <tr class="bg-purple-950/30">
+                    <td class="p-2 text-purple-300 font-bold">fe80::215:5dff:fe00 (All IPv6 Hosts)</td>
+                    <td class="p-2">Broadcast ICMPv6</td>
+                    <td class="p-2 text-purple-400 font-bold">IPv6 SLAAC Rogue RA</td>
+                    <td class="p-2 font-bold text-slate-200" id="pkt-count-slaac">89 pkts</td>
+                    <td class="p-2"><span class="text-xs text-green-400 bg-green-950 px-2 py-0.5 rounded border border-green-800">ACTIVE MITM</span></td>
+                </tr>` : ''}
+            `;
+        }
+
+        // --- FOCA Metadata Extraction Engine Simulation ---
+        function runFocaMetadataExtraction() {
+            switchTab('tab-metadata');
+            logEvent("[FOCA CORE] Running Metadata Extraction on intercepted documents stream...", "text-amber-400 font-bold");
+
+            const docList = document.getElementById('docList');
+            const usersEl = document.getElementById('meta-users');
+            const pathsEl = document.getElementById('meta-paths');
+            const softwareEl = document.getElementById('meta-software');
+            const ipsEl = document.getElementById('meta-ips');
+
+            docList.innerHTML = MOCK_METADATA_FILES.map(d => `
+                <div class="p-2 bg-foca-panel border border-foca-border rounded flex items-center justify-between text-slate-200">
+                    <span class="truncate"><i class="fa-solid fa-file-pdf text-red-400 mr-1"></i> ${d.name}</span>
+                    <span class="text-[9px] px-1.5 py-0.5 bg-amber-950 text-amber-300 rounded">Parsed</span>
+                </div>
+            `).join('');
+
+            // Gather metadata arrays
+            let users = [], paths = [], software = [], ips = [];
+            MOCK_METADATA_FILES.forEach(f => {
+                users.push(...f.users);
+                paths.push(...f.paths);
+                software.push(...f.software);
+                ips.push(...f.ips);
+            });
+
+            usersEl.innerHTML = users.map(u => `<li class="text-cyan-300 font-bold">${u}</li>`).join('');
+            pathsEl.innerHTML = paths.map(p => `<li class="text-red-300 truncate font-mono text-[10px]">${p}</li>`).join('');
+            softwareEl.innerHTML = software.map(s => `<li class="text-purple-300">${s}</li>`).join('');
+            ipsEl.innerHTML = ips.map(i => `<li class="text-green-300 font-mono">${i}</li>`).join('');
+
+            logEvent(`[FOCA CORE] Extraction Complete! Found ${users.length} Users, ${paths.length} Folder Paths, and ${ips.length} Internal IPs in Exif/PDF Metadata.`, "text-amber-300 font-bold");
+        }
+
+        // --- Credential Sniffer Engine ---
+        function startCredentialSniffer() {
+            if (sniffedCredentials.length > 0) return; // already populated
+
+            setTimeout(() => {
+                captureCredential("192.168.1.50", "HTTP POST", "http://intranet.empresa.local", "jgarcia", "Secret2026!#");
+            }, 1500);
+
+            setTimeout(() => {
+                captureCredential("192.168.1.85", "FTP (Port 21)", "ftp.backup.empresa.local", "admin_ftp", "P@ssw0rd1234");
+            }, 3500);
+
+            setTimeout(() => {
+                captureCredential("192.168.1.155", "SIP VoIP", "192.168.1.1 (PBX)", "ext_204", "12344321");
+            }, 5500);
+        }
+
+        function captureCredential(srcIp, proto, server, user, pass) {
+            const time = new Date().toLocaleTimeString();
+            const cred = { time, srcIp, proto, server, user, pass };
+            sniffedCredentials.push(cred);
+
+            document.getElementById('cred-count').innerText = sniffedCredentials.length;
+
+            const tbody = document.getElementById('credentialsTableBody');
+            if (sniffedCredentials.length === 1) tbody.innerHTML = '';
+
+            const tr = document.createElement('tr');
+            tr.className = "bg-green-950/30 text-slate-200";
+            tr.innerHTML = `
+                <td class="p-2 text-slate-400">${time}</td>
+                <td class="p-2 text-cyan-400">${srcIp}</td>
+                <td class="p-2 font-bold text-amber-400">${proto}</td>
+                <td class="p-2 text-slate-300">${server}</td>
+                <td class="p-2 font-bold text-white">${user}</td>
+                <td class="p-2 font-bold text-red-400 bg-red-950/60 font-mono border border-red-800 rounded px-1.5">${pass}</td>
+            `;
+            tbody.appendChild(tr);
+
+            logEvent(`[CREDENTIAL SNIFFED] Protocol: ${proto} | User: ${user} | Pass: ${pass} (Captured from ${srcIp})`, "text-green-400 font-bold");
+        }
+
+        // --- Log Output Console Helper ---
+        function logEvent(msg, colorClass = "text-slate-300") {
+            const consoleEl = document.getElementById('eventLogConsole');
+            const p = document.createElement('p');
+            const time = new Date().toLocaleTimeString();
+            p.className = `${colorClass} font-mono`;
+            p.innerText = `[${time}] ${msg}`;
+            consoleEl.appendChild(p);
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function clearLogs() {
+            document.getElementById('eventLogConsole').innerHTML = `<p class="text-slate-500">[SYSTEM] Logs cleared.</p>`;
+        }
+
+        // --- Init Window ---
+        window.onload = function() {
+            logEvent("[SYSTEM] EVIL FOCA Windows Framework Initialized.", "text-cyan-400");
+            logEvent("[READY] Ready for auditing. Click 'Start Scan' to begin discovery.", "text-slate-400");
+        };
+    </script>
+</body>
+</html>
