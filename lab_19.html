@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-950 text-slate-100">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberLab Suite - Entorno de Laboratorios de Ciberseguridad Avanzada</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+    <!-- Vis.js for Network Node Visualizations -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/vis/4.21.0/vis.min.css">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #090d16; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #06b6d4; }
+        
+        .glass-panel {
+            background: rgba(15, 23, 42, 0.9);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(51, 65, 85, 0.5);
+        }
+
+        .terminal-code {
+            font-family: 'JetBrains Mono', monospace;
+            background-color: #030712;
+            color: #38bdf8;
+        }
+
+        .cmd-prompt { color: #10b981; font-weight: bold; }
+        .cmd-text { color: #f1f5f9; font-weight: 600; }
+        
+        .blinking-cursor::after {
+            content: '█';
+            animation: blink 1s step-end infinite;
+        }
+        @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+    </style>
+</head>
+<body class="h-full flex flex-col font-sans bg-slate-950 text-slate-100 overflow-hidden">
+
+    <!-- TOP HEADER -->
+    <header class="bg-slate-900 border-b border-slate-800 px-4 py-3 flex flex-wrap items-center justify-between shrink-0 z-20">
+        <div class="flex items-center space-x-3">
+            <div class="w-10 h-10 rounded-lg bg-gradient-to-tr from-cyan-600 to-blue-600 flex items-center justify-center shadow-lg shadow-cyan-500/20">
+                <i class="fa-solid font-mono font-bold text-xl text-white">𝚵</i>
+            </div>
+            <div>
+                <h1 class="font-bold text-lg tracking-wide text-white flex items-center gap-2">
+                    CYBERLAB <span class="text-xs bg-cyan-950 text-cyan-400 border border-cyan-800 px-2 py-0.5 rounded-full font-mono">MODULAR SUITE v4.5</span>
+                </h1>
+                <p class="text-xs text-slate-400">Entorno Simulado de Auditorías de Seguridad & Hacking Ético</p>
+            </div>
+        </div>
+
+        <div class="flex items-center space-x-3 text-xs font-mono mt-2 sm:mt-0">
+            <div class="bg-slate-950 border border-slate-800 px-3 py-1.5 rounded-md flex items-center space-x-2">
+                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span class="text-slate-400">ESTADO RED:</span>
+                <span class="text-emerald-400 font-bold">ETH0_PROMISCUOUS</span>
+            </div>
+            <button onclick="resetCurrentLab()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 px-3 py-1.5 rounded-md border border-slate-700 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-rotate-left text-xs"></i> Reiniciar Lab
+            </button>
+            <button onclick="exportLabReport()" class="bg-cyan-600 hover:bg-cyan-500 text-white font-semibold px-3 py-1.5 rounded-md shadow-lg shadow-cyan-600/30 transition flex items-center gap-1.5">
+                <i class="fa-solid fa-file-pdf"></i> Exportar Informe
+            </button>
+        </div>
+    </header>
+
+    <!-- TAB NAVIGATION BAR -->
+    <nav class="bg-slate-900 border-b border-slate-800 px-4 flex space-x-1 overflow-x-auto shrink-0 font-mono text-sm">
+        <button id="tab-openvas" data-tab="openvas" class="lab-tab-btn border-b-2 border-cyan-400 text-cyan-400 px-4 py-3 flex items-center gap-2 font-medium transition whitespace-nowrap bg-slate-800/40">
+            <i class="fa-solid fa-shield-halved text-emerald-400"></i> OpenVAS Scanner
+        </button>
+        <button id="tab-spiderfoot" data-tab="spiderfoot" class="lab-tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 px-4 py-3 flex items-center gap-2 font-medium transition whitespace-nowrap hover:bg-slate-800/50">
+            <i class="fa-solid fa-spider text-amber-400"></i> SpiderFoot OSINT
+        </button>
+        <button id="tab-cuckoo" data-tab="cuckoo" class="lab-tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 px-4 py-3 flex items-center gap-2 font-medium transition whitespace-nowrap hover:bg-slate-800/50">
+            <i class="fa-solid fa-bug text-red-400"></i> Cuckoo Sandbox
+        </button>
+        <button id="tab-john" data-tab="john" class="lab-tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 px-4 py-3 flex items-center gap-2 font-medium transition whitespace-nowrap hover:bg-slate-800/50">
+            <i class="fa-solid fa-key text-purple-400"></i> John the Ripper
+        </button>
+        <button id="tab-wifite" data-tab="wifite" class="lab-tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 px-4 py-3 flex items-center gap-2 font-medium transition whitespace-nowrap hover:bg-slate-800/50">
+            <i class="fa-solid fa-wifi text-blue-400"></i> Wifite Wireless Audit
+        </button>
+    </nav>
+
+    <!-- MAIN LAB MODULE WORKSPACE CONTAINER -->
+    <main class="flex-1 relative overflow-hidden bg-slate-950 p-4">
+
+        <!-- MODULE 1: OPENVAS -->
+        <div id="module-openvas" class="lab-module-content h-full flex flex-col gap-4">
+            <div class="glass-panel p-4 rounded-xl flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-shield-halved text-emerald-400"></i> OpenVAS / Greenbone Vulnerability Manager (GVM)
+                    </h2>
+                    <p class="text-xs text-slate-400">Auditoría automatizada de vulnerabilidades mediante comandos gvmd y gvm-cli GMP.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <select id="openvas-target-select" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-2 font-mono">
+                        <option value="192.168.1.0/24">Objetivo: Red Servidores Internos (192.168.1.0/24)</option>
+                        <option value="192.168.1.15">Objetivo: DMZ Servidor Web (192.168.1.15)</option>
+                        <option value="10.0.5.50">Objetivo: Controlador de Dominio (10.0.5.50)</option>
+                    </select>
+                    <button id="btn-openvas-start" class="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold text-xs px-4 py-2 rounded-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-play"></i> Iniciar Escaneo CLI
+                    </button>
+                </div>
+            </div>
+
+            <!-- Stats -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-red-500">
+                    <span class="text-slate-400 text-xs block font-mono">CRÍTICAS</span>
+                    <span class="text-2xl font-bold text-red-500 font-mono">14</span>
+                </div>
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-amber-500">
+                    <span class="text-slate-400 text-xs block font-mono">ALTAS</span>
+                    <span class="text-2xl font-bold text-amber-500 font-mono">28</span>
+                </div>
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-yellow-500">
+                    <span class="text-slate-400 text-xs block font-mono">MEDIAS</span>
+                    <span class="text-2xl font-bold text-yellow-500 font-mono">42</span>
+                </div>
+                <div class="glass-panel p-4 rounded-xl border-l-4 border-blue-500">
+                    <span class="text-slate-400 text-xs block font-mono">HOSTS ESCANEADOS</span>
+                    <span class="text-2xl font-bold text-cyan-400 font-mono">8 / 8</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
+                <div class="glass-panel p-4 rounded-xl flex flex-col gap-3">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xs font-mono font-bold text-slate-300 uppercase flex items-center gap-2">
+                            <i class="fa-solid fa-terminal text-emerald-400"></i> Terminal gvm-cli
+                        </h3>
+                        <button onclick="copyTerminal('openvas-log-terminal')" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 font-mono">
+                            <i class="fa-solid fa-copy"></i> Copiar CLI
+                        </button>
+                    </div>
+                    <div class="w-full bg-slate-900 rounded-full h-2 overflow-hidden border border-slate-800">
+                        <div id="openvas-progress" class="bg-emerald-500 h-2 rounded-full w-0 transition-all duration-300"></div>
+                    </div>
+                    <div id="openvas-log-terminal" class="flex-1 terminal-code border border-slate-800 rounded-lg p-3 font-mono text-xs overflow-y-auto space-y-2">
+                        <div class="text-slate-500"># Verificando estado del demonio gvmd</div>
+                        <div><span class="cmd-prompt">root@cyberlab:~#</span> <span class="cmd-text">gvmd --get-tasks --gmp-username=admin</span></div>
+                        <div class="text-slate-400">Task Name: "Internal Net Scan" | Status: Ready</div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 glass-panel p-4 rounded-xl flex flex-col overflow-hidden">
+                    <h3 class="text-xs font-mono font-bold text-slate-300 uppercase mb-3">Vulnerabilidades Detectadas (NVTs)</h3>
+                    <div class="flex-1 overflow-y-auto">
+                        <table class="w-full text-left text-xs font-mono">
+                            <thead class="bg-slate-900 text-slate-400 sticky top-0 border-b border-slate-800">
+                                <tr>
+                                    <th class="p-2">SEVERIDAD</th>
+                                    <th class="p-2">CVE</th>
+                                    <th class="p-2">VULNERABILIDAD</th>
+                                    <th class="p-2">IP AFECTADA</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800 text-slate-300">
+                                <tr>
+                                    <td class="p-2"><span class="bg-red-950 text-red-400 border border-red-800 text-[10px] px-2 py-0.5 rounded font-bold">10.0 CRITICAL</span></td>
+                                    <td class="p-2 text-cyan-400">CVE-2021-44228</td>
+                                    <td class="p-2 font-sans font-medium text-white">Apache Log4j2 Remote Code Execution</td>
+                                    <td class="p-2">192.168.1.15</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2"><span class="bg-red-950 text-red-400 border border-red-800 text-[10px] px-2 py-0.5 rounded font-bold">10.0 CRITICAL</span></td>
+                                    <td class="p-2 text-cyan-400">CVE-2020-0796</td>
+                                    <td class="p-2 font-sans font-medium text-white">Windows SMBv3 Compression Overflow (SMBGhost)</td>
+                                    <td class="p-2">192.168.1.20</td>
+                                </tr>
+                                <tr>
+                                    <td class="p-2"><span class="bg-red-950 text-red-400 border border-red-800 text-[10px] px-2 py-0.5 rounded font-bold">8.1 HIGH</span></td>
+                                    <td class="p-2 text-cyan-400">CVE-2017-0144</td>
+                                    <td class="p-2 font-sans font-medium text-white">SMBv1 Server Remote Code Execution (EternalBlue)</td>
+                                    <td class="p-2">192.168.1.22</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODULE 2: SPIDERFOOT -->
+        <div id="module-spiderfoot" class="lab-module-content hidden h-full flex flex-col gap-4">
+            <div class="glass-panel p-4 rounded-xl flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-spider text-amber-400"></i> SpiderFoot OSINT Automation Engine CLI
+                    </h2>
+                    <p class="text-xs text-slate-400">Recolecte inteligencia sobre dominios, IPs y correos con sf.py CLI.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <input type="text" id="spiderfoot-target" value="target-corp.com" class="bg-slate-900 border border-slate-700 text-xs text-cyan-400 rounded-lg px-3 py-2 font-mono w-48">
+                    <button id="btn-spiderfoot-start" class="bg-amber-600 hover:bg-amber-500 text-white font-semibold text-xs px-4 py-2 rounded-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-radar"></i> Ejecutar sf.py CLI
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
+                <div class="lg:col-span-2 glass-panel p-4 rounded-xl flex flex-col">
+                    <h3 class="text-xs font-mono font-bold text-slate-300 uppercase mb-2">Grafo de Inteligencia y Relaciones OSINT</h3>
+                    <div id="spiderfoot-graph" class="flex-1 bg-slate-950 border border-slate-800 rounded-lg"></div>
+                </div>
+
+                <div class="glass-panel p-4 rounded-xl flex flex-col gap-3">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-xs font-mono font-bold text-slate-300 uppercase flex items-center gap-2">
+                            <i class="fa-solid fa-terminal text-amber-400"></i> Consola sf.py CLI
+                        </h3>
+                        <button onclick="copyTerminal('spiderfoot-feed')" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 font-mono">
+                            <i class="fa-solid fa-copy"></i> Copiar CLI
+                        </button>
+                    </div>
+                    <div id="spiderfoot-feed" class="flex-1 terminal-code border border-slate-800 rounded-lg p-3 font-mono text-xs overflow-y-auto space-y-2">
+                        <div class="text-slate-500"># Motor Spiderfoot preparado</div>
+                        <div><span class="cmd-prompt">root@cyberlab:~#</span> <span class="cmd-text">python3 sf.py -s target-corp.com -m sfp_dnsresolve,sfp_shodan,sfp_haveibeenpwned</span></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODULE 3: CUCKOO SANDBOX -->
+        <div id="module-cuckoo" class="lab-module-content hidden h-full flex flex-col gap-4">
+            <div class="glass-panel p-4 rounded-xl flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-bug text-red-400"></i> Cuckoo Sandbox Dynamic Analysis CLI
+                    </h2>
+                    <p class="text-xs text-slate-400">Análisis dinámico de malware en máquinas virtuales seguras.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <select id="cuckoo-sample-select" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-2 font-mono">
+                        <option value="invoice_2026.exe">invoice_2026_urgent.pdf.exe (Ransomware)</option>
+                        <option value="Update.vbs">FlashPlayer_Update.vbs (AsyncRAT)</option>
+                    </select>
+                    <button id="btn-cuckoo-start" class="bg-red-600 hover:bg-red-500 text-white font-semibold text-xs px-4 py-2 rounded-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-radiation"></i> Ejecutar cuckoo submit
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-4 flex-1 min-h-0">
+                <div class="glass-panel p-4 rounded-xl flex flex-col">
+                    <div class="flex justify-between items-center mb-2">
+                        <h3 class="text-xs font-mono font-bold text-slate-300 uppercase flex items-center gap-2">
+                            <i class="fa-solid fa-terminal text-red-400"></i> Terminal Cuckoo Sandbox Daemon
+                        </h3>
+                        <button onclick="copyTerminal('cuckoo-terminal')" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 font-mono">
+                            <i class="fa-solid fa-copy"></i> Copiar CLI
+                        </button>
+                    </div>
+                    <div id="cuckoo-terminal" class="flex-1 terminal-code border border-slate-800 rounded-lg p-3 font-mono text-xs overflow-y-auto space-y-2">
+                        <div><span class="cmd-prompt">cuckoo@cyberlab:~$</span> <span class="cmd-text">cuckoo submit --package exe /tmp/samples/invoice_2026_urgent.pdf.exe</span></div>
+                        <div class="text-slate-400">Success: File added as Task #1048</div>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-4 rounded-xl flex flex-col gap-3">
+                    <h3 class="text-xs font-mono font-bold text-slate-300 uppercase">Matriz MITRE ATT&CK Identificada</h3>
+                    <div class="space-y-2 text-xs font-mono">
+                        <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-lg">
+                            <div class="flex justify-between font-bold text-red-400 mb-1">
+                                <span>T1055 - Process Injection</span>
+                                <span>Defensa Evasion</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400">Inyección de código ejecutable en el espacio de memoria de svchost.exe.</p>
+                        </div>
+                        <div class="bg-slate-900 border border-slate-800 p-2.5 rounded-lg">
+                            <div class="flex justify-between font-bold text-amber-400 mb-1">
+                                <span>T1547.001 - Registry Run Keys</span>
+                                <span>Persistencia</span>
+                            </div>
+                            <p class="text-[11px] text-slate-400">Creación de clave HKCU\Software\Microsoft\Windows\CurrentVersion\Run.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODULE 4: JOHN THE RIPPER -->
+        <div id="module-john" class="lab-module-content hidden h-full flex flex-col gap-4">
+            <div class="glass-panel p-4 rounded-xl flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-key text-purple-400"></i> John the Ripper Password Cracker CLI
+                    </h2>
+                    <p class="text-xs text-slate-400">Auditoría de hashes mediante unshadow y diccionarios con john CLI.</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <select id="john-format-select" class="bg-slate-900 border border-slate-700 text-xs text-slate-200 rounded-lg px-3 py-2 font-mono">
+                        <option value="NT">Format: NT (NTLM Hashes)</option>
+                        <option value="raw-md5">Format: Raw-MD5</option>
+                    </select>
+                    <button id="btn-john-start" class="bg-purple-600 hover:bg-purple-500 text-white font-semibold text-xs px-4 py-2 rounded-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-bolt"></i> Ejecutar john CLI
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
+                <div class="lg:col-span-2 glass-panel p-4 rounded-xl flex flex-col">
+                    <div class="flex justify-between items-center pb-2 border-b border-slate-800 mb-2 font-mono text-xs">
+                        <span class="text-slate-400"><i class="fa-solid fa-terminal text-purple-400"></i> Terminal Linux Shell (John Jumbo)</span>
+                        <button onclick="copyTerminal('john-terminal')" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 font-mono">
+                            <i class="fa-solid fa-copy"></i> Copiar CLI
+                        </button>
+                    </div>
+                    <div id="john-terminal" class="flex-1 terminal-code border border-slate-800 rounded-lg p-3 font-mono text-xs overflow-y-auto space-y-2">
+                        <div><span class="cmd-prompt">root@cyberlab:~#</span> <span class="cmd-text">unshadow /etc/passwd /etc/shadow > /tmp/hashes.txt</span></div>
+                        <div><span class="cmd-prompt">root@cyberlab:~#</span> <span class="cmd-text">john --wordlist=/usr/share/wordlists/rockyou.txt --format=NT /tmp/hashes.txt</span></div>
+                        <div class="text-slate-400">Loaded 4 password hashes...</div>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-4 rounded-xl flex flex-col gap-4">
+                    <h3 class="text-xs font-mono font-bold text-slate-300 uppercase">Métricas de Crackeo</h3>
+                    <div class="p-3 bg-slate-900 rounded-lg border border-slate-800">
+                        <span class="text-slate-400 text-xs block mb-1">HASHEADOS CRACKEADOS:</span>
+                        <div id="john-cracked-ratio" class="text-2xl font-bold text-emerald-400 font-mono">2 / 4 (50%)</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- MODULE 5: WIFITE -->
+        <div id="module-wifite" class="lab-module-content hidden h-full flex flex-col gap-4">
+            <div class="glass-panel p-4 rounded-xl flex flex-wrap justify-between items-center gap-4">
+                <div>
+                    <h2 class="text-lg font-bold text-white flex items-center gap-2">
+                        <i class="fa-solid fa-wifi text-blue-400"></i> Wifite2 Wireless Audit CLI
+                    </h2>
+                    <p class="text-xs text-slate-400">Auditoría automatizada de redes Wi-Fi (Handshake, Pixie-Dust, Deauth).</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <button id="btn-wifite-scan" class="bg-blue-600 hover:bg-blue-500 text-white font-semibold text-xs px-4 py-2 rounded-lg transition flex items-center gap-2">
+                        <i class="fa-solid fa-magnifying-glass"></i> Escanear Redes CLI
+                    </button>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 flex-1 min-h-0">
+                <div class="lg:col-span-2 glass-panel p-4 rounded-xl flex flex-col overflow-hidden">
+                    <h3 class="text-xs font-mono font-bold text-slate-300 uppercase mb-2">Puntos de Acceso al Alcance</h3>
+                    <div class="flex-1 overflow-y-auto">
+                        <table class="w-full text-left text-xs font-mono">
+                            <thead class="bg-slate-900 text-slate-400 sticky top-0 border-b border-slate-800">
+                                <tr>
+                                    <th class="p-2">NUM</th>
+                                    <th class="p-2">ESSID</th>
+                                    <th class="p-2">BSSID</th>
+                                    <th class="p-2">SEÑAL</th>
+                                    <th class="p-2">CIFRADO</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-slate-800 text-slate-300">
+                                <tr class="hover:bg-slate-900/50 cursor-pointer" onclick="selectWifiTarget('Corp_Corporate_WiFi', '00:14:6C:7E:40:D1')">
+                                    <td class="p-2 text-cyan-400 font-bold">1</td>
+                                    <td class="p-2 font-bold text-white">Corp_Corporate_WiFi</td>
+                                    <td class="p-2 text-slate-400">00:14:6C:7E:40:D1</td>
+                                    <td class="p-2 text-emerald-400">-42 dBm</td>
+                                    <td class="p-2 text-amber-400">WPA2 (CCMP)</td>
+                                </tr>
+                                <tr class="hover:bg-slate-900/50 cursor-pointer" onclick="selectWifiTarget('Guest_VIP_Lounge', 'A4:2B:8C:11:F9:02')">
+                                    <td class="p-2 text-cyan-400 font-bold">2</td>
+                                    <td class="p-2 font-bold text-white">Guest_VIP_Lounge</td>
+                                    <td class="p-2 text-slate-400">A4:2B:8C:11:F9:02</td>
+                                    <td class="p-2 text-yellow-400">-68 dBm</td>
+                                    <td class="p-2 text-red-400">WPA2/WPS</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="glass-panel p-4 rounded-xl flex flex-col justify-between">
+                    <div>
+                        <div class="flex justify-between items-center mb-2">
+                            <h3 class="text-xs font-mono font-bold text-slate-300 uppercase flex items-center gap-2">
+                                <i class="fa-solid fa-terminal text-blue-400"></i> Terminal Wifite CLI
+                            </h3>
+                            <button onclick="copyTerminal('wifite-terminal')" class="text-[10px] bg-slate-800 hover:bg-slate-700 text-slate-300 px-2 py-1 rounded border border-slate-700 font-mono">
+                                <i class="fa-solid fa-copy"></i> Copiar CLI
+                            </button>
+                        </div>
+                        <div id="wifite-terminal" class="terminal-code border border-slate-800 rounded-lg p-3 font-mono text-xs h-48 overflow-y-auto space-y-2">
+                            <div><span class="cmd-prompt">root@cyberlab:~#</span> <span class="cmd-text">wifite -i wlan0mon --wpa --kill</span></div>
+                        </div>
+                    </div>
+
+                    <div class="mt-4 p-3 bg-slate-900 border border-slate-800 rounded-lg space-y-2">
+                        <div class="text-xs font-mono text-slate-300 flex justify-between">
+                            <span>Objetivo:</span>
+                            <span class="text-cyan-400 font-bold" id="wifite-selected-ssid">Corp_Corporate_WiFi</span>
+                        </div>
+                        <div class="grid grid-cols-2 gap-2">
+                            <button id="btn-wifite-deauth" class="bg-amber-600 hover:bg-amber-500 text-white font-mono text-xs p-2 rounded">
+                                <i class="fa-solid fa-ban"></i> Enviar Deauth CLI
+                            </button>
+                            <button id="btn-wifite-pixie" class="bg-blue-600 hover:bg-blue-500 text-white font-mono text-xs p-2 rounded">
+                                <i class="fa-solid fa-key"></i> Ataque Pixie CLI
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="bg-slate-900 border-t border-slate-800 px-4 py-2 flex justify-between items-center text-xs font-mono text-slate-400 shrink-0">
+        <div><i class="fa-solid fa-terminal text-cyan-400"></i> CyberLab Core API: ACTIVE</div>
+        <div>Curso de Ciberseguridad Avanzada</div>
+    </footer>
+
+    <!-- INTERACTIVE JAVASCRIPT LOGIC -->
+    <script>
+        let currentTab = 'openvas';
+        let spiderfootNetwork = null;
+
+        // Clipboard Helper
+        function copyTerminal(terminalId) {
+            const terminal = document.getElementById(terminalId);
+            const textToCopy = terminal.innerText;
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(textToCopy).then(() => {
+                    alert('¡Comandos CLI copiados al portapapeles!');
+                });
+            } else {
+                const tempTextArea = document.createElement('textarea');
+                tempTextArea.value = textToCopy;
+                document.body.appendChild(tempTextArea);
+                tempTextArea.select();
+                document.execCommand('copy');
+                document.body.removeChild(tempTextArea);
+                alert('¡Comandos CLI copiados al portapapeles!');
+            }
+        }
+
+        function getTimestamp() {
+            return new Date().toTimeString().split(' ')[0];
+        }
+
+        // Switch Tabs Engine (Fixes Navigation Bug)
+        function switchTab(targetTabId) {
+            currentTab = targetTabId;
+
+            // Update Tab Button Styles
+            document.querySelectorAll('.lab-tab-btn').forEach(btn => {
+                if (btn.getAttribute('data-tab') === targetTabId) {
+                    btn.className = "lab-tab-btn border-b-2 border-cyan-400 text-cyan-400 px-4 py-3 flex items-center gap-2 font-medium transition whitespace-nowrap bg-slate-800/40";
+                } else {
+                    btn.className = "lab-tab-btn border-b-2 border-transparent text-slate-400 hover:text-slate-200 px-4 py-3 flex items-center gap-2 font-medium transition whitespace-nowrap hover:bg-slate-800/50";
+                }
+            });
+
+            // Toggle Module Content Panels
+            document.querySelectorAll('.lab-module-content').forEach(panel => {
+                if (panel.id === `module-${targetTabId}`) {
+                    panel.classList.remove('hidden');
+                } else {
+                    panel.classList.add('hidden');
+                }
+            });
+
+            // Render Vis.js Graph lazily if SpiderFoot is active
+            if (targetTabId === 'spiderfoot' && !spiderfootNetwork) {
+                initSpiderfootGraph();
+            }
+        }
+
+        // Initialize SpiderFoot Network Graph
+        function initSpiderfootGraph() {
+            const container = document.getElementById('spiderfoot-graph');
+            if (!container) return;
+
+            const nodes = new vis.DataSet([
+                { id: 1, label: 'target-corp.com', shape: 'diamond', color: '#06b6d4', font: { color: '#fff' } },
+                { id: 2, label: '198.51.100.45', shape: 'box', color: '#10b981', font: { color: '#fff' } },
+                { id: 3, label: 'admin@target-corp.com', shape: 'ellipse', color: '#8b5cf6', font: { color: '#fff' } },
+                { id: 4, label: 'mail.target-corp.com', shape: 'box', color: '#06b6d4', font: { color: '#fff' } },
+                { id: 5, label: 'Leak: HaveIBeenPwned', shape: 'triangle', color: '#ef4444', font: { color: '#fff' } }
+            ]);
+
+            const edges = new vis.DataSet([
+                { from: 1, to: 2, label: 'DNS A' },
+                { from: 1, to: 3, label: 'Email' },
+                { from: 1, to: 4, label: 'MX Record' },
+                { from: 3, to: 5, label: 'Breach' }
+            ]);
+
+            const data = { nodes: nodes, edges: edges };
+            const options = {
+                nodes: { borderWidth: 2 },
+                physics: { enabled: true }
+            };
+
+            spiderfootNetwork = new vis.Network(container, data, options);
+        }
+
+        // OpenVAS Scanning Trigger
+        function runOpenVASScan() {
+            const target = document.getElementById('openvas-target-select').value;
+            const terminal = document.getElementById('openvas-log-terminal');
+            const progress = document.getElementById('openvas-progress');
+
+            progress.style.width = '20%';
+            terminal.innerHTML += `
+                <div><span class="cmd-prompt">root@cyberlab:~#</span> <span class="cmd-text">gvm-cli --gmp-username admin socket --xml "&lt;create_task name='Scan ${target}'/&gt;"</span></div>
+                <div class="text-slate-400">[${getTimestamp()}] Escaneando NVT vulnerabilidades en ${target}...</div>
+            `;
+            
+            setTimeout(() => {
+                progress.style.width = '100%';
+                terminal.innerHTML += `<div class="text-emerald-400 font-bold">[${getTimestamp()}] [✓] Escaneo finalizado correctamente. 14 Vulnerabilidades registradas.</div>`;
+                terminal.scrollTop = terminal.scrollHeight;
+            }, 1200);
+        }
+
+        // SpiderFoot Scan Trigger
+        function runSpiderfootScan() {
+            const target = document.getElementById('spiderfoot-target').value;
+            const terminal = document.getElementById('spiderfoot-feed');
+            terminal.innerHTML += `
+                <div><span class="cmd-prompt">root@cyberlab:~#</span> <span class="cmd-text">python3 sf.py -s ${target} -m sfp_dnsresolve,sfp_shodan,sfp_haveibeenpwned</span></div>
+                <div class="text-amber-400">[${getTimestamp()}] Executing OSINT modules for ${target}...</div>
+                <div class="text-emerald-400">[${getTimestamp()}] Node elements updated in visualization graph.</div>
+            `;
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // Cuckoo Analysis Trigger
+        function runCuckooAnalysis() {
+            const sample = document.getElementById('cuckoo-sample-select').value;
+            const terminal = document.getElementById('cuckoo-terminal');
+            terminal.innerHTML += `
+                <div><span class="cmd-prompt">cuckoo@cyberlab:~$</span> <span class="cmd-text">cuckoo submit --package exe /tmp/samples/${sample}</span></div>
+                <div class="text-cyan-400">[${getTimestamp()}] Detonando muestra en entorno aislado...</div>
+                <div class="text-red-400 font-bold">[${getTimestamp()}] [ALERT] Score 9.8/10 (Acciones maliciosas detectadas).</div>
+            `;
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // John the Ripper Cracking Trigger
+        function runJohnCracking() {
+            const format = document.getElementById('john-format-select').value;
+            const terminal = document.getElementById('john-terminal');
+            terminal.innerHTML += `
+                <div><span class="cmd-prompt">root@cyberlab:~#</span> <span class="cmd-text">john --wordlist=/usr/share/wordlists/rockyou.txt --format=${format} /tmp/hashes.txt</span></div>
+                <div class="text-emerald-400 font-bold">[${getTimestamp()}] [CRACKED] admin:123456 (Hash NTLM)</div>
+            `;
+            document.getElementById('john-cracked-ratio').textContent = "3 / 4 (75%)";
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        // Wifite Operations
+        function selectWifiTarget(ssid, bssid) {
+            document.getElementById('wifite-selected-ssid').textContent = ssid;
+        }
+
+        function runWifiteDeauth() {
+            const ssid = document.getElementById('wifite-selected-ssid').textContent;
+            const terminal = document.getElementById('wifite-terminal');
+            terminal.innerHTML += `
+                <div><span class="cmd-prompt">root@cyberlab:~#</span> <span class="cmd-text">wifite -i wlan0mon --bssid ${ssid} --deauth</span></div>
+                <div class="text-emerald-400">[${getTimestamp()}] WPA Handshake capturado con éxito!</div>
+            `;
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function runWifitePixie() {
+            const ssid = document.getElementById('wifite-selected-ssid').textContent;
+            const terminal = document.getElementById('wifite-terminal');
+            terminal.innerHTML += `
+                <div><span class="cmd-prompt">root@cyberlab:~#</span> <span class="cmd-text">wifite -i wlan0mon --bssid ${ssid} --pixie</span></div>
+                <div class="text-emerald-400 font-bold">[${getTimestamp()}] [✓] PIN WPS Encontrado: 84920183</div>
+            `;
+            terminal.scrollTop = terminal.scrollHeight;
+        }
+
+        function resetCurrentLab() {
+            alert(`El entorno del módulo [${currentTab.toUpperCase()}] se ha reiniciado.`);
+        }
+
+        function exportLabReport() {
+            window.print();
+        }
+
+        // Initialization Logic
+        document.addEventListener('DOMContentLoaded', () => {
+            // Attach Tab Switching Events
+            document.querySelectorAll('.lab-tab-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const tabId = e.currentTarget.getAttribute('data-tab');
+                    switchTab(tabId);
+                });
+            });
+
+            // Action Buttons Event Listeners
+            document.getElementById('btn-openvas-start').addEventListener('click', runOpenVASScan);
+            document.getElementById('btn-spiderfoot-start').addEventListener('click', runSpiderfootScan);
+            document.getElementById('btn-cuckoo-start').addEventListener('click', runCuckooAnalysis);
+            document.getElementById('btn-john-start').addEventListener('click', runJohnCracking);
+            document.getElementById('btn-wifite-scan').addEventListener('click', () => {
+                const terminal = document.getElementById('wifite-terminal');
+                terminal.innerHTML += `<div><span class="cmd-prompt">root@cyberlab:~#</span> <span class="cmd-text">wifite -i wlan0mon</span></div>`;
+            });
+            document.getElementById('btn-wifite-deauth').addEventListener('click', runWifiteDeauth);
+            document.getElementById('btn-wifite-pixie').addEventListener('click', runWifitePixie);
+        });
+    </script>
+</body>
+</html>
