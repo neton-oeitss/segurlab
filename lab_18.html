@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="es" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CyberOSINT Lab - Laboratorio Interactivo</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        cyber: {
+                            900: '#0b0f19',
+                            800: '#111827',
+                            700: '#1f2937',
+                            600: '#374151',
+                            accent: '#00ff66',
+                            purple: '#9333ea',
+                            cyan: '#00f0ff'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Leaflet CSS & JS para Mapas -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <!-- Phosphor Icons -->
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <style>
+        .glow-cyan { box-shadow: 0 0 15px rgba(0, 240, 255, 0.3); }
+        .scanline {
+            background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0, 240, 255, 0.05) 50%, rgba(0, 240, 255, 0.05));
+            background-size: 100% 4px;
+        }
+        #map {
+            width: 100%;
+            height: 250px;
+            min-height: 250px;
+            background-color: #111827;
+        }
+    </style>
+</head>
+<body class="bg-cyber-900 text-gray-100 font-mono min-h-screen scanline flex flex-col">
+
+    <!-- HEADER / NAVIGATION -->
+    <header class="border-b border-cyber-600 bg-cyber-800/80 backdrop-blur sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center">
+            <div class="flex items-center space-x-3">
+                <i class="ph-bold ph-shield-chevron text-3xl text-cyber-cyan animate-pulse"></i>
+                <div>
+                    <h1 class="text-xl font-bold tracking-wider text-cyber-cyan">CYBER_OSINT // LAB</h1>
+                    <p class="text-xs text-gray-400">Plataforma de Prácticas de Inteligencia de Fuentes Abiertas</p>
+                </div>
+            </div>
+            <div class="flex items-center space-x-4 mt-2 sm:mt-0">
+                <div class="bg-cyber-700 px-3 py-1 rounded border border-cyber-600 text-xs flex items-center space-x-2">
+                    <span class="w-2 h-2 rounded-full bg-cyber-accent animate-ping"></span>
+                    <span>ESTADO: <strong class="text-cyber-accent">ACTIVO</strong></span>
+                </div>
+                <div class="bg-cyber-700 px-3 py-1 rounded border border-cyber-600 text-xs">
+                    Puntos CTF: <span id="global-score" class="text-cyber-cyan font-bold">0</span>/400
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <!-- MAIN DASHBOARD CONTAINER -->
+    <main class="flex-grow max-w-7xl w-full mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-4 gap-6">
+        
+        <!-- SIDEBAR MENU -->
+        <aside class="lg:col-span-1 space-y-2">
+            <div class="text-xs text-gray-500 font-bold px-2 uppercase tracking-wider mb-2">Módulos de Práctica</div>
+            
+            <button onclick="switchTab('exif')" id="btn-exif" class="w-full text-left px-4 py-3 rounded-lg bg-cyber-800 border border-cyber-cyan text-cyber-cyan flex items-center space-x-3 transition-all shadow-lg shadow-cyber-cyan/10">
+                <i class="ph-bold ph-file-magnifying-glass text-lg"></i>
+                <div class="flex-grow">
+                    <div class="font-bold text-sm">1. Análisis EXIF</div>
+                    <div class="text-xs text-gray-400">Extracción de Metadatos y GPS</div>
+                </div>
+            </button>
+
+            <button onclick="switchTab('dorks')" id="btn-dorks" class="w-full text-left px-4 py-3 rounded-lg bg-cyber-800 border border-cyber-600 text-gray-300 hover:border-gray-400 flex items-center space-x-3 transition-all">
+                <i class="ph-bold ph-globe-hemisphere-east text-lg"></i>
+                <div class="flex-grow">
+                    <div class="font-bold text-sm">2. Dorks & Web Recon</div>
+                    <div class="text-xs text-gray-400">Auditoría web y directivos</div>
+                </div>
+            </button>
+
+            <button onclick="switchTab('geo')" id="btn-geo" class="w-full text-left px-4 py-3 rounded-lg bg-cyber-800 border border-cyber-600 text-gray-300 hover:border-gray-400 flex items-center space-x-3 transition-all">
+                <i class="ph-bold ph-map-pin-line text-lg"></i>
+                <div class="flex-grow">
+                    <div class="font-bold text-sm">3. OSINT Visual / CTF</div>
+                    <div class="text-xs text-gray-400">Geolocalización de Escenas</div>
+                </div>
+            </button>
+
+            <button onclick="switchTab('sherlock')" id="btn-sherlock" class="w-full text-left px-4 py-3 rounded-lg bg-cyber-800 border border-cyber-600 text-gray-300 hover:border-gray-400 flex items-center space-x-3 transition-all">
+                <i class="ph-bold ph-user-focus text-lg"></i>
+                <div class="flex-grow">
+                    <div class="font-bold text-sm">4. Huella de Usuario</div>
+                    <div class="text-xs text-gray-400">Escáner de Alias (Sherlock)</div>
+                </div>
+            </button>
+        </aside>
+
+        <!-- CONTENT PANELS -->
+        <section class="lg:col-span-3">
+
+            <!-- MÓDULO 1: EXIF -->
+            <div id="tab-exif" class="space-y-6">
+                <div class="bg-cyber-800 border border-cyber-600 rounded-xl p-6 glow-cyan">
+                    <div class="flex items-center justify-between pb-4 border-b border-cyber-600 mb-6">
+                        <div>
+                            <h2 class="text-lg font-bold text-cyber-cyan flex items-center space-x-2">
+                                <i class="ph-bold ph-file-magnifying-glass"></i>
+                                <span>Estación 1: Extractor Local de Metadatos EXIF</span>
+                            </h2>
+                            <p class="text-xs text-gray-400 mt-1">Sube cualquier fotografía (JPG/JPEG) para analizar sus metadatos de cámara, fechas y coordenadas GPS de forma local y segura en tu navegador.</p>
+                        </div>
+                    </div>
+
+                    <div id="drop-zone" class="border-2 border-dashed border-cyber-600 hover:border-cyber-cyan rounded-xl p-8 text-center cursor-pointer bg-cyber-900/50 transition-all group">
+                        <input type="file" id="file-input" accept="image/jpeg, image/jpg" class="hidden">
+                        <i class="ph-bold ph-cloud-arrow-up text-4xl text-gray-400 group-hover:text-cyber-cyan mb-3 transition-colors"></i>
+                        <p class="text-sm font-bold text-gray-300">Arrastra una imagen aquí o <span class="text-cyber-cyan underline">haz clic para explorar</span></p>
+                        <p class="text-xs text-gray-500 mt-1">Soporta ficheros JPEG/JPG con metadatos incrustados</p>
+                    </div>
+
+                    <div id="exif-results" class="mt-6 hidden grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div class="bg-cyber-900 p-4 rounded-lg border border-cyber-600">
+                            <h3 class="text-xs font-bold text-cyber-accent uppercase tracking-wider mb-3">Parámetros EXIF Encontrados</h3>
+                            <div id="exif-data-list" class="text-xs space-y-2 max-h-64 overflow-y-auto pr-2"></div>
+                        </div>
+                        <div class="bg-cyber-900 p-4 rounded-lg border border-cyber-600 flex flex-col">
+                            <h3 class="text-xs font-bold text-cyber-accent uppercase tracking-wider mb-3">Ubicación GPS Extraída</h3>
+                            <div id="map"></div>
+                            <div id="gps-coords" class="text-xs text-gray-400 mt-2">Lat/Lon: Pendiente de análisis...</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MÓDULO 2: DORKS -->
+            <div id="tab-dorks" class="space-y-6 hidden">
+                <div class="bg-cyber-800 border border-cyber-600 rounded-xl p-6">
+                    <h2 class="text-lg font-bold text-cyber-cyan flex items-center space-x-2 mb-2">
+                        <i class="ph-bold ph-globe-hemisphere-east"></i>
+                        <span>Estación 2: Google Dorking & Reconocimiento Web</span>
+                    </h2>
+                    <p class="text-xs text-gray-400 mb-6">Genera consultas avanzadas y audita los ficheros resultantes para encontrar credenciales o banderas ocultas.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 mb-1">Dominio Objetivo</label>
+                            <input type="text" id="dork-target" value="empresa-ficticia.com" class="w-full bg-cyber-900 border border-cyber-600 rounded px-3 py-2 text-xs text-cyber-cyan focus:outline-none focus:border-cyber-cyan">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-gray-400 mb-1">Operador Dork</label>
+                            <select id="dork-op" class="w-full bg-cyber-900 border border-cyber-600 rounded px-3 py-2 text-xs text-gray-300 focus:outline-none focus:border-cyber-cyan">
+                                <option value="filetype:pdf">filetype:pdf (Documentos)</option>
+                                <option value="site:admin">site:admin (Paneles Ocultos)</option>
+                                <option value="intitle:index.of">intitle:index.of (Directorios Abiertos)</option>
+                                <option value="intext:password">intext:password (Credenciales en texto)</option>
+                            </select>
+                        </div>
+                        <div class="flex items-end">
+                            <button onclick="launchDork()" class="w-full bg-cyber-cyan text-cyber-900 font-bold text-xs py-2 rounded hover:bg-cyber-accent transition-colors flex items-center justify-center space-x-1">
+                                <i class="ph-bold ph-magnifying-glass"></i>
+                                <span>Lanzar Búsqueda</span>
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="mb-4 bg-cyber-900 px-4 py-2 rounded border border-cyber-700 flex justify-between items-center text-xs">
+                        <span class="text-gray-400">Consulta ejecutada:</span>
+                        <code id="dork-query-display" class="text-cyber-accent font-bold">site:empresa-ficticia.com filetype:pdf</code>
+                    </div>
+
+                    <div class="bg-cyber-900 p-4 rounded-lg border border-cyber-600 space-y-4">
+                        <div class="text-xs text-gray-400 flex justify-between items-center">
+                            <span id="dork-count">Resultados simulados (0 aciertos)</span>
+                            <span class="text-cyber-accent font-bold">Reto CTF #2</span>
+                        </div>
+                        
+                        <div id="dork-results-container" class="space-y-3 text-xs"></div>
+
+                        <div id="file-viewer" class="hidden mt-4 p-4 bg-cyber-950 rounded border border-cyber-cyan/50 space-y-2">
+                            <div class="flex justify-between items-center border-b border-cyber-700 pb-2">
+                                <span class="text-xs font-bold text-cyber-cyan" id="viewer-filename">Inspección de Fichero</span>
+                                <button onclick="document.getElementById('file-viewer').classList.add('hidden')" class="text-xs text-gray-400 hover:text-white">Cerrar Visor [X]</button>
+                            </div>
+                            <pre id="viewer-content" class="text-xs text-gray-300 font-mono whitespace-pre-wrap leading-relaxed overflow-x-auto p-2 bg-cyber-900 rounded border border-cyber-800"></pre>
+                        </div>
+
+                        <div class="pt-4 flex items-center space-x-2 border-t border-cyber-700">
+                            <input type="text" id="flag-dork" placeholder="Introduce la FLAG encontrada (ej. FLAG{...})" class="bg-cyber-800 border border-cyber-600 rounded px-3 py-2 text-xs flex-grow text-gray-200">
+                            <button onclick="verifyFlag(2, 'FLAG{dork_master_2026}')" class="bg-cyber-purple text-white font-bold px-4 py-2 rounded text-xs hover:opacity-90">Validar Flag</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MÓDULO 3: GEO (CON ESCENA SVG INTEGRADA Y HERRAMIENTAS DE ANÁLISIS) -->
+            <div id="tab-geo" class="space-y-6 hidden">
+                <div class="bg-cyber-800 border border-cyber-600 rounded-xl p-6">
+                    <h2 class="text-lg font-bold text-cyber-cyan flex items-center space-x-2 mb-2">
+                        <i class="ph-bold ph-map-pin-line"></i>
+                        <span>Estación 3: OSINT Visual / Geolocalización CTF</span>
+                    </h2>
+                    <p class="text-xs text-gray-400 mb-6">Analiza visualmente los elementos urbanos de la imagen (arquitectura, cartelería, señales de tráfico y coordenadas impresas) para resolver el caso.</p>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <!-- Imagen Vectorial Urbana Interactiva -->
+                        <div class="bg-cyber-900 p-3 rounded-lg border border-cyber-600 flex flex-col justify-between">
+                            <div class="relative w-full h-64 bg-cyber-950 rounded border border-cyber-700 overflow-hidden flex items-center justify-center group">
+                                <svg id="visual-scene-svg" viewBox="0 0 800 500" class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105">
+                                    <!-- Fondo Cielo Urbano -->
+                                    <rect width="800" height="500" fill="#0f172a"/>
+                                    <!-- Edificios del Horizonte -->
+                                    <path d="M 50 350 L 50 150 L 150 150 L 150 350 Z" fill="#1e293b"/>
+                                    <path d="M 170 350 L 170 100 L 290 100 L 290 350 Z" fill="#334155"/>
+                                    <!-- Torre de Telecomunicaciones / Landmark -->
+                                    <path d="M 220 100 L 230 20 L 240 100 Z" fill="#00f0ff" opacity="0.8"/>
+                                    <circle cx="230" cy="20" r="5" fill="#00ff66"/>
+                                    <!-- Edificios Frontales -->
+                                    <path d="M 310 350 L 310 180 L 450 180 L 450 350 Z" fill="#1e293b"/>
+                                    <path d="M 470 350 L 470 220 L 600 220 L 600 350 Z" fill="#334155"/>
+                                    <!-- Carretera y Semáforo -->
+                                    <rect x="0" y="350" width="800" height="150" fill="#090d16"/>
+                                    <line x1="0" y1="425" x2="800" y2="425" stroke="#f59e0b" stroke-width="4" stroke-dasharray="20 10"/>
+                                    <!-- Cartel Urbano con Pistas -->
+                                    <rect x="520" y="240" width="160" height="60" fill="#0284c7" rx="4" stroke="#ffffff" stroke-width="2"/>
+                                    <text x="530" y="265" font-family="monospace" font-size="14" fill="#ffffff" font-weight="bold">PASEO CASTELLANA</text>
+                                    <text x="530" y="285" font-family="monospace" font-size="12" fill="#00ff66" font-weight="bold">FLAG{geoloc_expert_madrid}</text>
+                                    <!-- Marca de Agua de la Cámara -->
+                                    <text x="20" y="480" font-family="monospace" font-size="12" fill="#94a3b8">CAM_ID: ES-MAD-09 // LAT: 40.4168 N LON: 3.7038 W</text>
+                                </svg>
+
+                                <div class="absolute top-2 left-2 bg-cyber-900/90 text-cyber-cyan border border-cyber-600 px-2 py-1 rounded text-[10px] font-bold">
+                                    Caso #304: Madrid Centro
+                                </div>
+                            </div>
+                            <div class="mt-3 flex justify-between items-center text-[11px] text-gray-400">
+                                <span>Pasa el ratón sobre la imagen para aplicar el zoom visual.</span>
+                            </div>
+                        </div>
+
+                        <!-- Panel de Análisis y Validación -->
+                        <div class="bg-cyber-900 p-4 rounded-lg border border-cyber-600 flex flex-col justify-between space-y-4">
+                            <div>
+                                <h3 class="text-xs font-bold text-cyber-accent uppercase tracking-wider mb-2">Informe de Inspección Visual</h3>
+                                <p class="text-xs text-gray-400 leading-relaxed mb-3">
+                                    Examina el cartel de dirección y los datos de la marca de agua del sensor expuestos en la escena urbana para recuperar la clave de confirmación.
+                                </p>
+                                <div class="p-3 bg-cyber-800 rounded border border-cyber-700 text-xs space-y-1">
+                                    <div class="text-cyber-cyan font-bold">Pistas de la Escena:</div>
+                                    <div class="text-gray-300">• Señal de avenida principal: <span class="text-white">Paseo Castellana</span></div>
+                                    <div class="text-gray-300">• Coordenadas GPS en marca de agua: <span class="text-white">40.4168 N, 3.7038 W</span></div>
+                                </div>
+                            </div>
+                            <div class="space-y-3">
+                                <label class="block text-xs font-bold text-gray-400">Introduce la FLAG descubierta:</label>
+                                <input type="text" id="flag-geo" placeholder="FLAG{geoloc_expert_madrid}" class="w-full bg-cyber-800 border border-cyber-600 rounded px-3 py-2 text-xs text-gray-200">
+                                <button onclick="verifyFlag(3, 'FLAG{geoloc_expert_madrid}')" class="w-full bg-cyber-purple text-white font-bold py-2 rounded text-xs hover:opacity-90">Verificar Ubicación</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- MÓDULO 4: SHERLOCK -->
+            <div id="tab-sherlock" class="space-y-6 hidden">
+                <div class="bg-cyber-800 border border-cyber-600 rounded-xl p-6">
+                    <h2 class="text-lg font-bold text-cyber-cyan flex items-center space-x-2 mb-2">
+                        <i class="ph-bold ph-user-focus"></i>
+                        <span>Estación 4: Escáner de Huella Digital (Alias)</span>
+                    </h2>
+                    <p class="text-xs text-gray-400 mb-6">Escanea perfiles públicos del alias para revelar el rastro y la Flag oculta.</p>
+
+                    <div class="flex space-x-3 mb-6">
+                        <input type="text" id="sherlock-username" value="target_sec_99" class="bg-cyber-900 border border-cyber-600 rounded px-3 py-2 text-xs flex-grow text-cyber-cyan focus:outline-none focus:border-cyber-cyan">
+                        <button onclick="runSherlock()" class="bg-cyber-cyan text-cyber-900 font-bold px-5 py-2 rounded text-xs hover:bg-cyber-accent transition-colors flex items-center space-x-1">
+                            <i class="ph-bold ph-radar"></i>
+                            <span>Escanear</span>
+                        </button>
+                    </div>
+
+                    <div class="bg-cyber-900 p-4 rounded-lg border border-cyber-600">
+                        <div class="text-xs font-bold text-cyber-accent uppercase tracking-wider mb-3 flex justify-between items-center">
+                            <span>Consola de Resultados</span>
+                            <span id="sherlock-status" class="text-gray-400">Inactivo</span>
+                        </div>
+                        <div id="sherlock-results" class="space-y-2 text-xs max-h-56 overflow-y-auto pr-2"></div>
+                    </div>
+                    <div class="mt-4 flex items-center space-x-2">
+                        <input type="text" id="flag-sherlock" placeholder="Introduce la FLAG (FLAG{social_footprint_101})" class="bg-cyber-900 border border-cyber-600 rounded px-3 py-2 text-xs flex-grow text-gray-200">
+                        <button onclick="verifyFlag(4, 'FLAG{social_footprint_101}')" class="bg-cyber-purple text-white font-bold px-4 py-2 rounded text-xs hover:opacity-90">Validar Flag</button>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="border-t border-cyber-600 bg-cyber-800/80 mt-auto py-4 text-center text-xs text-gray-500">
+        CyberOSINT Lab Framework • Diseñado para Prácticas de Ciberseguridad
+    </footer>
+
+    <!-- LOGIC SCRIPT -->
+    <script>
+        let globalScore = 0;
+        const solvedModules = { 1: false, 2: false, 3: false, 4: false };
+        let mapInstance = null;
+
+        function switchTab(tabId) {
+            ['exif', 'dorks', 'geo', 'sherlock'].forEach(t => {
+                document.getElementById(`tab-${t}`).classList.add('hidden');
+                document.getElementById(`btn-${t}`).className = "w-full text-left px-4 py-3 rounded-lg bg-cyber-800 border border-cyber-600 text-gray-300 hover:border-gray-400 flex items-center space-x-3 transition-all";
+            });
+            document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+            document.getElementById(`btn-${tabId}`).className = "w-full text-left px-4 py-3 rounded-lg bg-cyber-800 border border-cyber-cyan text-cyber-cyan flex items-center space-x-3 transition-all shadow-lg shadow-cyber-cyan/10";
+            
+            if (tabId === 'exif' && mapInstance) {
+                setTimeout(() => mapInstance.invalidateSize(), 150);
+            }
+        }
+
+        // MÓDULO 1: EXIF
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        dropZone.addEventListener('click', () => fileInput.click());
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('border-cyber-cyan'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('border-cyber-cyan'));
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('border-cyber-cyan');
+            if (e.dataTransfer.files.length) handleImageFile(e.dataTransfer.files[0]);
+        });
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length) handleImageFile(e.target.files[0]);
+        });
+
+        function handleImageFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                displayExifResults({
+                    "Nombre Fichero": file.name,
+                    "Tamaño": (file.size / 1024).toFixed(2) + " KB",
+                    "Fabricante Cámara": "Generic OSINT Sensor",
+                    "Modelo": "CyberCam X-100",
+                    "Coordenadas GPS": "40.4168° N, 3.7038° W"
+                });
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        function displayExifResults(tags) {
+            const listContainer = document.getElementById('exif-data-list');
+            listContainer.innerHTML = '';
+            for (const [key, val] of Object.entries(tags)) {
+                listContainer.innerHTML += `<div class="flex justify-between border-b border-cyber-700 py-1"><span class="text-gray-400">${key}:</span> <span class="text-cyber-cyan font-bold">${val}</span></div>`;
+            }
+            document.getElementById('exif-results').classList.remove('hidden');
+            
+            const lat = 40.4168, lon = -3.7038;
+            document.getElementById('gps-coords').innerText = `Lat: ${lat}, Lon: ${lon} (Verificado en mapa)`;
+            
+            setTimeout(() => {
+                if (!mapInstance) {
+                    mapInstance = L.map('map').setView([lat, lon], 13);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(mapInstance);
+                } else {
+                    mapInstance.invalidateSize();
+                    mapInstance.setView([lat, lon], 13);
+                }
+                L.marker([lat, lon]).addTo(mapInstance).bindPopup("<b>Ubicación EXIF</b>").openPopup();
+            }, 100);
+
+            if(!solvedModules[1]) {
+                solvedModules[1] = true;
+                globalScore += 100;
+                document.getElementById('global-score').innerText = globalScore;
+            }
+        }
+
+        // MÓDULO 2: DORKS
+        const dorkDatabase = {
+            "filetype:pdf": [
+                { 
+                    url: "https://empresa-ficticia.com/docs/presupuesto_2026.pdf", 
+                    title: "Informe Financiero Confidencial 2026", 
+                    desc: "Auditoría interna de infraestructura. Incluye listado de credenciales y la clave de acceso CTF.",
+                    rawContent: "--- CONFIDENCIAL / USO INTERNO ---\n\nProyecto: Auditoría de Seguridad OSINT 2026\nServidor Base: 192.168.1.100\n\nFLAG DE VERIFICACIÓN: FLAG{dork_master_2026}\n\nNota: Eliminar este fichero del directorio público web."
+                }
+            ],
+            "site:admin": [
+                { 
+                    url: "https://admin.empresa-ficticia.com/config.bak", 
+                    title: "Fichero de Configuración Oculto", 
+                    desc: "Copia de respaldo en panel administrativo expuesto.",
+                    rawContent: "DB_HOST=localhost\nDB_USER=root\nDB_PASS=Admin2026!\nFLAG=FLAG{dork_master_2026}"
+                }
+            ],
+            "intitle:index.of": [
+                { 
+                    url: "https://empresa-ficticia.com/uploads/2026/", 
+                    title: "Index of /uploads/2026", 
+                    desc: "Listado de directorio accesible públicamente.",
+                    rawContent: "Index of /uploads/2026\n\n[FILE] dump_db.sql (2.4 MB)\n[FILE] flag.txt -> Content: FLAG{dork_master_2026}"
+                }
+            ],
+            "intext:password": [
+                { 
+                    url: "https://empresa-ficticia.com/dev/notes.txt", 
+                    title: "Notas de Desarrollo Ocultas", 
+                    desc: "Fichero plano con credenciales internas.",
+                    rawContent: "Notas dev:\nRecordar cambiar la contraseña en producción.\nFLAG acumulada: FLAG{dork_master_2026}"
+                }
+            ]
+        };
+
+        function launchDork() {
+            const target = document.getElementById('dork-target').value.trim() || "empresa-ficticia.com";
+            const operator = document.getElementById('dork-op').value;
+            
+            document.getElementById('dork-query-display').innerText = `site:${target} ${operator}`;
+            
+            const results = dorkDatabase[operator] || [];
+            const container = document.getElementById('dork-results-container');
+            document.getElementById('dork-count').innerText = `Resultados simulados (${results.length} aciertos)`;
+            
+            container.innerHTML = '';
+            document.getElementById('file-viewer').classList.add('hidden');
+
+            results.forEach((item, index) => {
+                container.innerHTML += `
+                    <div class="p-3 bg-cyber-800 rounded border border-cyber-600 hover:border-cyber-cyan transition-colors flex justify-between items-center">
+                        <div>
+                            <div class="text-cyber-cyan font-bold">${item.url}</div>
+                            <div class="text-gray-200 font-bold text-xs mt-1">${item.title}</div>
+                            <div class="text-gray-400 text-xs mt-1">${item.desc}</div>
+                        </div>
+                        <button onclick="inspectFile('${operator}', ${index})" class="ml-4 bg-cyber-cyan/10 border border-cyber-cyan text-cyber-cyan px-3 py-1.5 rounded text-xs hover:bg-cyber-cyan hover:text-cyber-900 transition-colors font-bold whitespace-nowrap">
+                            Inspeccionar Fichero
+                        </button>
+                    </div>
+                `;
+            });
+        }
+
+        function inspectFile(operator, index) {
+            const item = dorkDatabase[operator][index];
+            document.getElementById('viewer-filename').innerText = `Contenido de: ${item.url}`;
+            document.getElementById('viewer-content').innerText = item.rawContent;
+            document.getElementById('file-viewer').classList.remove('hidden');
+        }
+
+        // MÓDULO 4: SHERLOCK
+        function runSherlock() {
+            const user = document.getElementById('sherlock-username').value;
+            const container = document.getElementById('sherlock-results');
+            const status = document.getElementById('sherlock-status');
+            container.innerHTML = '';
+            status.innerText = "Escaneando...";
+            status.className = "text-cyber-cyan animate-pulse";
+
+            const platforms = [
+                { name: "GitHub", found: true, url: `https://github.com/${user}` },
+                { name: "Twitter / X", found: true, url: `https://twitter.com/${user}` },
+                { name: "Reddit (Perfil Oculto)", found: true, url: `https://reddit.com/user/${user} (Contiene FLAG{social_footprint_101})` }
+            ];
+
+            let i = 0;
+            const interval = setInterval(() => {
+                if (i < platforms.length) {
+                    let p = platforms[i];
+                    let badge = p.found ? '<span class="text-cyber-accent font-bold">[+] HALLADO</span>' : '<span class="text-gray-500">[-] No hallado</span>';
+                    container.innerHTML += `<div class="flex justify-between border-b border-cyber-700 py-1"><span>${p.name}:</span> <div>${badge} <span class="text-cyber-cyan ml-2">${p.url}</span></div></div>`;
+                    i++;
+                } else {
+                    clearInterval(interval);
+                    status.innerText = "Finalizado";
+                    status.className = "text-cyber-accent";
+                }
+            }, 200);
+        }
+
+        // VALIDACIÓN GLOBAL DE FLAGS
+        function verifyFlag(moduleId, correctFlag) {
+            let inputId = moduleId === 2 ? 'flag-dork' : moduleId === 3 ? 'flag-geo' : 'flag-sherlock';
+            const val = document.getElementById(inputId).value.trim();
+            if(val === correctFlag) {
+                if(!solvedModules[moduleId]) {
+                    solvedModules[moduleId] = true;
+                    globalScore += 100;
+                    document.getElementById('global-score').innerText = globalScore;
+                    alert(`¡Correcto! Flag validada para el módulo ${moduleId}. +100 puntos CTF.`);
+                } else {
+                    alert('Este módulo ya ha sido superado.');
+                }
+            } else {
+                alert('Flag incorrecta. Revisa la imagen o la información expuesta.');
+            }
+        }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            launchDork();
+        });
+    </script>
+</body>
+</html>
