@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratorio Avanzado: Homógrafos, Phishing y Comprobación Forense</title>
+    <!-- Tailwind CSS para diseño moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        darkBg: '#080c14',
+                        panelBg: '#0f172a',
+                        cardBg: '#1e293b',
+                        borderCol: '#334155',
+                        accentCyan: '#06b6d4',
+                        accentBlue: '#3b82f6',
+                        dangerRed: '#ef4444',
+                        warningAmber: '#f59e0b',
+                        successGreen: '#10b981',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #080c14; color: #f8fafc; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b0f19; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 md:p-8 font-sans">
+
+    <!-- Contenedor Principal -->
+    <div class="w-full max-w-6xl mx-auto bg-panelBg border border-borderCol rounded-xl shadow-2xl overflow-hidden flex flex-col my-auto">
+        
+        <!-- Cabecera -->
+        <header class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-6 py-5 border-b border-borderCol flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold text-accentCyan flex items-center gap-3">
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                    Lab Forense: Homógrafos IDN y Validación de URLs
+                </h1>
+                <p class="text-xs md:text-sm text-slate-400 mt-1">Detecta ataques de phishing cirílico y aprende a verificar el origen real mediante técnicas profesionales.</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <div class="bg-slate-900 border border-borderCol px-4 py-2 rounded-lg text-center">
+                    <span class="text-[10px] text-slate-400 uppercase block">Puntuación</span>
+                    <span id="scoreVal" class="text-lg font-mono font-bold text-accentCyan">0</span>
+                </div>
+                <div class="bg-slate-900 border border-borderCol px-4 py-2 rounded-lg text-center">
+                    <span class="text-[10px] text-slate-400 uppercase block">Progreso</span>
+                    <span id="progressVal" class="text-lg font-mono font-bold text-slate-200">1 / 5</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Contenido Interactivo -->
+        <main class="p-6 md:p-8 flex flex-col gap-6">
+            
+            <!-- Pestañas de Navegación del Lab -->
+            <div class="flex border-b border-borderCol gap-4">
+                <button onclick="switchTab('retos')" id="tabRetosBtn" class="pb-2 text-sm font-semibold text-accentCyan border-b-2 border-accentCyan transition-all cursor-pointer">1. Reto de Detección</button>
+                <button onclick="switchTab('comprobador')" id="tabComprobadorBtn" class="pb-2 text-sm font-semibold text-slate-400 hover:text-slate-200 transition-all cursor-pointer">2. Módulo de Comprobación Forense</button>
+            </div>
+
+            <!-- VISTA 1: RETO DE DETECCIÓN -->
+            <div id="viewRetos" class="flex flex-col gap-6">
+                <div class="bg-cardBg border border-borderCol rounded-lg p-4 md:p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                    <div>
+                        <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-warningAmber" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                            Misión: Selecciona el sitio web <span class="text-successGreen font-bold underline">LEGÍTIMO</span>
+                        </h2>
+                        <p class="text-xs text-slate-400 mt-1">Identifica cuál de las dos opciones contiene caracteres cirílicos ocultos (homógrafos).</p>
+                    </div>
+                    <button onclick="initGame()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-300 border border-borderCol px-3 py-1.5 rounded transition-colors cursor-pointer">Reiniciar Reto</button>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6" id="optionsContainer">
+                    <!-- Dinámico -->
+                </div>
+
+                <div id="feedbackBox" class="hidden bg-slate-900 border border-borderCol rounded-lg p-5 transition-all">
+                    <div class="flex items-center gap-3 mb-2">
+                        <div id="feedbackIcon" class="w-8 h-8 rounded-full flex items-center justify-center font-bold text-white">✓</div>
+                        <div>
+                            <h3 id="feedbackTitle" class="text-sm font-bold text-slate-100">Resultado</h3>
+                            <p id="feedbackSubtitle" class="text-xs text-slate-400">Análisis forense del dominio seleccionado.</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-[#030712] border border-borderCol rounded p-3 font-mono text-xs text-slate-300 mt-3 space-y-1.5">
+                        <div><span class="text-slate-500">URL Phishing:</span> <span id="fOrigUrl" class="text-cyan-400"></span></div>
+                        <div><span class="text-slate-500">Codificación Punycode:</span> <span id="fPunycode" class="text-amber-400"></span></div>
+                        <div><span class="text-slate-500">Caracteres trampa:</span> <span id="fDetails" class="text-rose-400"></span></div>
+                    </div>
+
+                    <div class="mt-4 flex justify-end">
+                        <button onclick="nextChallenge()" class="bg-accentCyan hover:opacity-90 text-slate-950 font-bold px-5 py-2 rounded text-xs uppercase tracking-wider transition-all cursor-pointer">
+                            Siguiente Reto →
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- VISTA 2: MÓDULO DE COMPROBACIÓN FORENSE -->
+            <div id="viewComprobador" class="hidden flex flex-col gap-6">
+                <div class="bg-cardBg border border-borderCol rounded-lg p-5">
+                    <h2 class="text-sm font-semibold text-slate-200 mb-2">🔍 Analizador y Validador de URLs Interactivo</h2>
+                    <p class="text-xs text-slate-400 mb-4">Introduce o selecciona una URL de prueba para verificar su comportamiento ante Punycode, certificados SSL y resolución de red.</p>
+                    
+                    <div class="flex gap-3 mb-4">
+                        <input type="text" id="customUrlInput" value="https://www.аpple.com" class="flex-1 bg-slate-900 border border-borderCol rounded px-4 py-2 font-mono text-xs text-cyan-400 focus:outline-none focus:border-cyan-500">
+                        <button onclick="analyzeCustomUrl()" class="bg-accentCyan hover:opacity-90 text-slate-950 font-bold px-5 py-2 rounded text-xs uppercase tracking-wider transition-all cursor-pointer">Analizar URL</button>
+                    </div>
+
+                    <div class="flex flex-wrap gap-2 mb-4">
+                        <span class="text-[10px] text-slate-400 self-center">Ejemplos rápidos:</span>
+                        <button onclick="setQuickUrl('https://www.аpple.com')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2.5 py-1 rounded font-mono border border-borderCol">Apple (Cirílico 'а')</button>
+                        <button onclick="setQuickUrl('https://www.apple.com')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-green-400 px-2.5 py-1 rounded font-mono border border-borderCol">Apple (Legítimo)</button>
+                        <button onclick="setQuickUrl('https://www.gооgle.com')" class="text-[11px] bg-slate-800 hover:bg-slate-700 text-cyan-300 px-2.5 py-1 rounded font-mono border border-borderCol">Google (Cirílico 'о')</button>
+                    </div>
+                </div>
+
+                <!-- Resultados del Análisis Forense -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Panel de Traducción Punycode y Unicode -->
+                    <div class="bg-cardBg border border-borderCol rounded-lg p-5 flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">1. Análisis de Caracteres & Punycode</h3>
+                            <div class="space-y-3 font-mono text-xs">
+                                <div class="bg-slate-900 p-3 rounded border border-borderCol">
+                                    <span class="text-slate-500 block text-[10px] uppercase">Formato Punycode Interno:</span>
+                                    <span id="resPunycode" class="text-amber-400 font-bold text-sm">xn--pple-43d.com</span>
+                                </div>
+                                <div class="bg-slate-900 p-3 rounded border border-borderCol">
+                                    <span class="text-slate-500 block text-[10px] uppercase">Detección de Homoglifos:</span>
+                                    <span id="resHomoglyph" class="text-rose-400 font-bold">Contiene caracteres cirílicos (U+0430)</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-borderCol text-[11px] text-slate-400">
+                            💡 <em>Los navegadores modernos convierten automáticamente dominios con caracteres no ASCII a su equivalente Punycode (xn--) en la barra de direcciones si detectan mezclas sospechosas.</em>
+                        </div>
+                    </div>
+
+                    <!-- Panel de Certificado SSL y Consola -->
+                    <div class="bg-cardBg border border-borderCol rounded-lg p-5 flex flex-col justify-between">
+                        <div>
+                            <h3 class="text-xs font-semibold uppercase tracking-wider text-slate-400 mb-3">2. Auditoría de Certificado SSL & Red</h3>
+                            <div class="bg-[#030712] border border-borderCol rounded p-3 font-mono text-xs text-green-400 h-40 overflow-y-auto space-y-1.5" id="terminalLog">
+                                [INFO] Introduzca una URL para iniciar el escaneo de certificados...
+                            </div>
+                        </div>
+                        <div class="mt-4 pt-3 border-t border-borderCol text-[11px] text-slate-400">
+                            🔒 <em>Un sitio web de phishing puede usar Let's Encrypt para obtener HTTPS, pero el certificado estará emitido a nombre del dominio Punycode fraudulento, no de la entidad oficial.</em>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+
+        <!-- Pie -->
+        <footer class="bg-slate-900 border-t border-borderCol px-6 py-3 text-center text-xs text-slate-500">
+            Laboratorio Avanzado de Ciberseguridad &bull; Prevención y Análisis de Phishing Homógrafo
+        </footer>
+
+    </div>
+
+    <!-- Script General -->
+    <script>
+        const challenges = [
+            {
+                brand: "Apple Inc.",
+                urlLegit: "https://www.apple.com",
+                urlPhishing: "https://www.аpple.com", // 'а' U+0430
+                trapChar: "La 'а' inicial es cirílica (U+0430)",
+                punycode: "xn--pple-43d.com"
+            },
+            {
+                brand: "Amazon España",
+                urlLegit: "https://www.amazon.es",
+                urlPhishing: "https://www.amazоn.es", // 'о' U+043E
+                trapChar: "La 'о' intermedia es cirílica (U+043E)",
+                punycode: "xn--amazn-e1a.es"
+            },
+            {
+                brand: "Google Services",
+                urlLegit: "https://www.google.com",
+                urlPhishing: "https://www.gооgle.com", // 'оо' U+043E
+                trapChar: "Las dos 'оо' son cirílicas (U+043E)",
+                punycode: "xn--ggle-p0a.com"
+            },
+            {
+                brand: "Netflix Streaming",
+                urlLegit: "https://www.netflix.com",
+                urlPhishing: "https://www.netf1ix.com",
+                trapChar: "Sustitución de 'l' por número '1' o letra modificada",
+                punycode: "xn--netflix-51a.com"
+            },
+            {
+                brand: "Microsoft Portal",
+                urlLegit: "https://www.microsoft.com",
+                urlPhishing: "https://www.micrоsоft.com", // 'о' U+043E
+                trapChar: "Las letras 'о' son cirílicas (U+043E)",
+                punycode: "xn--micrsoft-11a.com"
+            }
+        ];
+
+        let currentIndex = 0;
+        let score = 0;
+        let answered = false;
+
+        function switchTab(tab) {
+            const btnRetos = document.getElementById('tabRetosBtn');
+            const btnComp = document.getElementById('tabComprobadorBtn');
+            const viewRetos = document.getElementById('viewRetos');
+            const viewComp = document.getElementById('viewComprobador');
+
+            if (tab === 'retos') {
+                btnRetos.className = "pb-2 text-sm font-semibold text-accentCyan border-b-2 border-accentCyan transition-all cursor-pointer";
+                btnComp.className = "pb-2 text-sm font-semibold text-slate-400 hover:text-slate-200 transition-all cursor-pointer";
+                viewRetos.classList.remove('hidden');
+                viewComp.classList.add('hidden');
+            } else {
+                btnComp.className = "pb-2 text-sm font-semibold text-accentCyan border-b-2 border-accentCyan transition-all cursor-pointer";
+                btnRetos.className = "pb-2 text-sm font-semibold text-slate-400 hover:text-slate-200 transition-all cursor-pointer";
+                viewComp.classList.remove('hidden');
+                viewRetos.classList.add('hidden');
+                analyzeCustomUrl();
+            }
+        }
+
+        function initGame() {
+            currentIndex = 0;
+            score = 0;
+            answered = false;
+            updateUI();
+            loadChallenge();
+        }
+
+        function updateUI() {
+            document.getElementById('scoreVal').innerText = score;
+            document.getElementById('progressVal').innerText = `${currentIndex + 1} / ${challenges.length}`;
+        }
+
+        function loadChallenge() {
+            answered = false;
+            document.getElementById('feedbackBox').classList.add('hidden');
+            
+            const ch = challenges[currentIndex];
+            const container = document.getElementById('optionsContainer');
+            container.innerHTML = "";
+
+            const isOptionAlegit = Math.random() < 0.5;
+            const opt1 = isOptionAlegit ? { url: ch.urlLegit, isLegit: true } : { url: ch.urlPhishing, isLegit: false };
+            const opt2 = isOptionAlegit ? { url: ch.urlPhishing, isLegit: false } : { url: ch.urlLegit, isLegit: true };
+
+            [opt1, opt2].forEach((opt, idx) => {
+                const card = document.createElement('div');
+                card.className = "bg-cardBg border border-borderCol rounded-lg p-6 flex flex-col justify-between hover:border-slate-500 transition-all cursor-pointer group relative overflow-hidden";
+                card.onclick = () => handleChoice(opt.isLegit);
+
+                card.innerHTML = `
+                    <div>
+                        <div class="flex justify-between items-center mb-3">
+                            <span class="text-xs font-mono text-slate-400 uppercase tracking-wider">Opción ${idx === 0 ? 'A' : 'B'}</span>
+                            <span class="text-[10px] bg-slate-800 text-slate-300 px-2 py-0.5 rounded font-mono">HTTPS Seguro</span>
+                        </div>
+                        <div class="text-base md:text-lg font-mono font-bold text-slate-100 group-hover:text-accentCyan transition-colors break-all py-2">
+                            ${opt.url}
+                        </div>
+                    </div>
+                    <div class="mt-4 pt-3 border-t border-borderCol/60 flex items-center justify-between text-xs text-slate-400">
+                        <span>Hacer clic para evaluar</span>
+                        <span class="text-accentCyan group-hover:translate-x-1 transition-transform">Seleccionar →</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+            updateUI();
+        }
+
+        function handleChoice(isLegit) {
+            if (answered) return;
+            answered = true;
+
+            const ch = challenges[currentIndex];
+            const feedbackBox = document.getElementById('feedbackBox');
+            const feedbackIcon = document.getElementById('feedbackIcon');
+            const feedbackTitle = document.getElementById('feedbackTitle');
+            const feedbackSubtitle = document.getElementById('feedbackSubtitle');
+            
+            document.getElementById('fOrigUrl').innerText = ch.urlPhishing;
+            document.getElementById('fPunycode').innerText = `http://${ch.punycode}`;
+            document.getElementById('fDetails').innerText = ch.trapChar;
+
+            feedbackBox.classList.remove('hidden');
+
+            if (isLegit) {
+                score += 20;
+                feedbackIcon.className = "w-8 h-8 rounded-full bg-successGreen flex items-center justify-center font-bold text-white";
+                feedbackIcon.innerText = "✓";
+                feedbackTitle.innerText = "¡Correcto! Has seleccionado la URL legítima.";
+                feedbackSubtitle.innerText = "Evitaste caer en la trampa del ataque de homógrafos.";
+            } else {
+                feedbackIcon.className = "w-8 h-8 rounded-full bg-dangerRed flex items-center justify-center font-bold text-white";
+                feedbackIcon.innerText = "✕";
+                feedbackTitle.innerText = "¡Incorrecto! Esta URL es un ataque de Phishing.";
+                feedbackSubtitle.innerText = "Contiene caracteres cirílicos idénticos visualmente a los latinos.";
+            }
+            updateUI();
+        }
+
+        function nextChallenge() {
+            currentIndex++;
+            if (currentIndex < challenges.length) {
+                loadChallenge();
+            } else {
+                showFinalScore();
+            }
+        }
+
+        function showFinalScore() {
+            const container = document.getElementById('optionsContainer');
+            document.getElementById('feedbackBox').classList.add('hidden');
+            
+            container.innerHTML = `
+                <div class="col-span-2 bg-cardBg border border-borderCol rounded-lg p-8 text-center flex flex-col items-center justify-center gap-4">
+                    <div class="w-16 h-16 rounded-full bg-cyan-950 text-accentCyan flex items-center justify-center text-2xl font-bold border border-cyan-800">🏆</div>
+                    <h2 class="text-xl font-bold text-slate-100">¡Reto Completado con Éxito!</h2>
+                    <p class="text-sm text-slate-400 max-w-md">Tu puntuación final es de <span class="text-accentCyan font-mono font-bold text-lg">${score} / 100</span> puntos.</p>
+                    <button onclick="switchTab('comprobador')" class="mt-2 bg-accentCyan hover:opacity-90 text-slate-950 font-bold px-6 py-2.5 rounded text-xs uppercase tracking-wider transition-all cursor-pointer">
+                        Ir al Módulo de Comprobación Forense →
+                    </button>
+                </div>
+            `;
+        }
+
+        function setQuickUrl(url) {
+            document.getElementById('customUrlInput').value = url;
+            analyzeCustomUrl();
+        }
+
+        function analyzeCustomUrl() {
+            const urlVal = document.getElementById('customUrlInput').value;
+            const resPuny = document.getElementById('resPunycode');
+            const resHomo = document.getElementById('resHomoglyph');
+            const logEl = document.getElementById('terminalLog');
+
+            logEl.innerHTML = `[INFO] Iniciando escaneo forense de: ${urlVal}\n[NET] Consultando registros DNS (nslookup)...`;
+
+            setTimeout(() => {
+                if (urlVal.includes('а') || urlVal.includes('о') || urlVal.includes('е')) {
+                    resPuny.innerText = urlVal.includes('а') ? "xn--pple-43d.com" : (urlVal.includes('о') ? "xn--ggle-p0a.com" : "xn--domain-fake.com");
+                    resHomo.innerText = "ALERTA: Caracteres cirílicos detectados (Homógrafo IDN)";
+                    resHomo.className = "text-rose-400 font-bold";
+                    logEl.innerHTML += `\n[WARN] ¡Atención! Se detectaron glifos Unicode mixtos (alfabeto latino y cirílico).`;
+                    logEl.innerHTML += `\n[SSL] Certificado Digital: Emitido a nombre de <span style="color:#f87171">xn--...</span> (Entidad no coincidente con la marca oficial).`;
+                    logEl.innerHTML += `\n[STATUS] DIAGNÓSTICO: Posible intento de Phishing por Homógrafos.`;
+                } else {
+                    resPuny.innerText = urlVal.replace('https://', '').replace('http://', '');
+                    resHomo.innerText = "Limpio: Caracteres ASCII estándar válidos.";
+                    resHomo.className = "text-successGreen font-bold";
+                    logEl.innerHTML += `\n[OK] No se detectaron anomalías en los caracteres del dominio.`;
+                    logEl.innerHTML += `\n[SSL] Certificado Digital: Válido y emitido por CA oficial para el dominio legítimo.`;
+                    logEl.innerHTML += `\n[STATUS] DIAGNÓSTICO: Sitio legítimo verificado.`;
+                }
+            }, 500);
+        }
+
+        window.onload = initGame;
+    </script>
+</body>
+</html>

@@ -1,0 +1,413 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Laboratorio git-dumper - Simulación educativa</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#111823; --panel2:#0e141d; --border:#1f2a3a;
+    --green:#3ddc84; --red:#ff5f56; --amber:#f5bf4f; --blue:#59a7ff;
+    --text:#d6e2f0; --muted:#7d8fa5; --mono:'SFMono-Regular',Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;font-size:14px}
+  header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;letter-spacing:.5px}
+  .badge{font-size:11px;padding:3px 10px;border-radius:99px;border:1px solid var(--border);color:var(--muted)}
+  .badge.edu{color:var(--amber);border-color:var(--amber)}
+  .layout{display:grid;grid-template-columns:1fr 1fr;gap:14px;padding:14px 20px}
+  @media(max-width:980px){.layout{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column;min-height:420px}
+  .panel h2{margin:0;padding:10px 14px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border);background:var(--panel2)}
+  .content{padding:12px;flex:1;overflow:auto}
+  /* terminal */
+  #term{font-family:var(--mono);font-size:13px;line-height:1.55;min-height:300px;max-height:420px;white-space:pre-wrap;word-break:break-word}
+  #term .cmd{color:var(--green)}
+  #term .err{color:var(--red)}
+  #term .warn{color:var(--amber)}
+  #term .info{color:var(--blue)}
+  #term .dim{color:var(--muted)}
+  #term .ok{color:var(--green)}
+  .inputline{display:flex;gap:8px;padding:10px 12px;border-top:1px solid var(--border);background:var(--panel2);font-family:var(--mono)}
+  .inputline .ps{color:var(--green);white-space:nowrap}
+  #cmdInput{flex:1;background:transparent;border:none;outline:none;color:var(--text);font-family:var(--mono);font-size:13px}
+  /* navegador objetivo */
+  .browserbar{display:flex;gap:8px;padding:10px;border-bottom:1px solid var(--border);background:var(--panel2);font-family:var(--mono);font-size:12px}
+  .browserbar input{flex:1;background:#0a0e13;border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 10px;font-family:var(--mono);font-size:12px;outline:none}
+  .browserbar button{background:#1c2735;border:1px solid var(--border);color:var(--text);border-radius:6px;padding:6px 12px;cursor:pointer}
+  #webview{font-family:var(--mono);font-size:12.5px;white-space:pre-wrap;padding:14px;overflow:auto;flex:1;min-height:300px;max-height:420px}
+  .status-ok{color:var(--green)} .status-404{color:var(--red)} .status-403{color:var(--amber)}
+  /* repo tree */
+  .tree{font-family:var(--mono);font-size:12.5px;line-height:1.7}
+  .tree .file{color:var(--text)} .tree .dir{color:var(--blue);font-weight:600}
+  .leak{color:var(--red)}
+  details{margin:4px 0}
+  summary{cursor:pointer;color:var(--blue)}
+  pre.code{background:#0a0e13;border:1px solid var(--border);border-radius:6px;padding:10px;overflow:auto;font-family:var(--mono);font-size:12px;margin:6px 0}
+  .progress{height:6px;background:#0a0e13;border-radius:4px;overflow:hidden;margin:4px 0 8px;border:1px solid var(--border)}
+  .progress>div{height:100%;background:linear-gradient(90deg,#2f9e5e,var(--green));width:0%;transition:width .15s}
+  .hint{color:var(--muted);font-size:12px;padding:8px 12px;border-top:1px solid var(--border);background:var(--panel2)}
+  kbd{background:#1c2735;border:1px solid var(--border);border-radius:4px;padding:1px 6px;font-family:var(--mono);font-size:11px}
+</style>
+</head>
+<body>
+<header>
+  <h1>&#128737; Laboratorio: git-dumper</h1>
+  <span class="badge">Simulación offline</span>
+  <span class="badge edu">&#127891; Solo con fines educativos</span>
+  <span class="badge" id="targetBadge">Objetivo: https://vulnerable.local</span>
+  <label style="margin-left:auto;font-size:12px;color:var(--muted)">Escenario:
+    <select id="scenarioSel" onchange="switchScenario(this.value)" style="background:#1c2735;color:var(--text);border:1px solid var(--border);border-radius:6px;padding:4px 8px">
+      <option value="vulnerable">vulnerable.local (mal configurado)</option>
+      <option value="hardened">hardened.local (protegido)</option>
+    </select>
+  </label>
+</header>
+
+<div class="layout">
+  <!-- NAVEGADOR DEL OBJETIVO -->
+  <section class="panel">
+    <h2>1 · Navegador - Sitio objetivo (servidor simulado)</h2>
+    <div class="browserbar">
+      <input id="urlBar" value="https://vulnerable.local/" spellcheck="false">
+      <button onclick="navigate()">Ir</button>
+    </div>
+    <div id="webview"></div>
+    <div class="hint">Prueba rutas: <b>/</b>, <b>/.git/</b>, <b>/.git/config</b>, <b>/robots.txt</b>, <b>/admin</b></div>
+  </section>
+
+  <!-- TERMINAL DEL ATACANTE -->
+  <section class="panel">
+    <h2>2 · Terminal del atacante - git-dumper</h2>
+    <div class="content">
+      <div id="term"></div>
+      <div class="progress"><div id="bar"></div></div>
+    </div>
+    <div class="inputline">
+      <span class="ps">pentester@lab:~$</span>
+      <input id="cmdInput" spellcheck="false" autocomplete="off" placeholder="git-dumper https://vulnerable.local/.git/ repo  ·  escribe 'help'">
+    </div>
+    <div class="hint">Comandos: <kbd>help</kbd> <kbd>git-dumper &lt;url&gt; &lt;dir&gt;</kbd> <kbd>git checkout .</kbd> <kbd>git log --oneline</kbd> <kbd>ls repo</kbd> <kbd>cat repo/.git/config</kbd> <kbd>clear</kbd></div>
+  </section>
+</div>
+
+<script>
+/* ============================================================
+   SERVIDOR SIMULADO: vulnerable.local con .git expuesto
+   ============================================================ */
+const CONFIG = `[core]
+    repositoryformatversion = 0
+    filemode = true
+    bare = false
+    logallrefupdates = true
+[remote "origin"]
+    url = https://ghp_leakedtoken9942@github.com/empresa/app-interno.git
+    fetch = +refs/heads/*:refs/remotes/origin/*
+[user]
+    name = dev-angel
+    email = angel@vulnerable.local
+[credential]
+    helper = store --file ~/.git-credentials`;
+
+const INDEX = `100644 blob a1b2c3d\tREADME.md
+100644 blob e4f5a6b\tindex.html
+100644 blob c7d8e9f\tapp.py
+100644 blob 0f1a2b3\tconfig/db.py
+100644 blob 4d5e6f7\t.env.example
+100644 blob 8899aabb\tstatic/style.css
+100755 blob ccddeeff\tdeploy.sh`;
+
+const SOURCES = {
+  "app.py": `from flask import Flask
+from config.db import CONN
+
+app = Flask(__name__)
+
+@app.route("/admin")
+def admin():
+    return "Panel interno"
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)`,
+  "config/db.py": `import psycopg2
+
+# ¡Nunca subas esto al repo!
+DB_PASSWORD = "S3cr3t0-Pr0d-2026!"
+CONN = psycopg2.connect(host="10.0.0.5", dbname="prod", user="admin", password=DB_PASSWORD)`,
+  "deploy.sh": `#!/bin/bash
+ssh prod-server "cd /srv/app && git pull && systemctl restart app"`,
+  ".env.example": `AWS_ACCESS_KEY_ID=AKIAXAMPLE1234
+AWS_SECRET_ACCESS_KEY=ejemplo-no-usar`,
+  "README.md": `# App Interno
+Proyecto interno de vulnerable.local. NO desplegar fuera de la VPN.`,
+  "index.html": `<h1>Servidor de pruebas</h1><p>Solo personal autorizado</p>`,
+  "static/style.css": `body{font-family:sans-serif}`
+};
+
+const HEAD = "ref: refs/heads/main";
+const REFS = "04d2a9f7b8e1c3a5d6f7e8a9b0c1d2e3f4a5b6c7\trefs/heads/main";
+const PACKIDX = "&#9608;&#9608;&#9608;&#9608; (blob pack-98e2b1...: contenido binario simulado)";
+
+let downloaded = new Set();   // objetos ya volcados
+let repoReady = false;        // repo reconstruido
+let workingTreeRestored = false;
+
+const routes = {
+  "/": () => page(200, `<!doctype html>
+<html><head><title>vulnerable.local</title></head>
+<body style="font-family:monospace;padding:30px;background:#111;color:#eee">
+<h1>ulnerable.local</h1>
+<p>Blog corporativo - versión 2.4.1</p>
+<hr>
+<a href="/robots.txt">robots.txt</a> | <a href="/admin">admin</a>
+</body></html>`, "200 OK - text/html"),
+  "/robots.txt": () => page(200, `User-agent: *
+Disallow: /admin
+Disallow: /.git/`, "200 OK - text/plain"),
+  "/admin": () => page(403, `403 Forbidden
+
+Acceso restringido a la red interna.`, "403 Forbidden - text/plain"),
+  "/.git/": () => page(200, `<!doctype html>
+<html><body style="font-family:monospace;background:#111;color:#eee">
+<h3>Index of /.git/</h3><hr>
+<pre>
+<a href="/.git/HEAD">HEAD</a>
+<a href="/.git/config">config</a>
+<a href="/.git/index">index</a>
+<a href="/.git/logs/">logs/</a>
+<a href="/.git/objects/">objects/</a>
+<a href="/.git/refs/">refs/</a>
+</pre></body></html>`, "200 OK - Directory listing (¡directorio .git accesible!)"),
+  "/.git/config": () => page(200, CONFIG, "200 OK - text/plain"),
+  "/.git/index": () => page(200, INDEX, "200 OK - index binario (contenido textual simulado)"),
+  "/.git/HEAD": () => page(200, HEAD, "200 OK - text/plain"),
+  "/.git/refs/heads/main": () => page(200, REFS.split("\t")[0], "200 OK - text/plain"),
+  "/.git/objects/info/packs": () => page(200, "P pack-98e2b1d3c4a5.pack", "200 OK - text/plain"),
+  "/.git/objects/pack/pack-98e2b1d3c4a5.pack": () => page(200, PACKIDX, "200 OK - application/octet-stream (pack simulado)"),
+  "/.git/objects/04/": () => page(200, `Index of /.git/objects/04/
+d2a9f7b8e1c3a5d6f7e8a9b0c1d2e3f4a5b6c7`, "200 OK - Directory listing"),
+  "/.git/objects/04/d2a9f7b8e1c3a5d6f7e8a9b0c1d2e3f4a5b6c7": () => page(200, `zlib compressed blob (commit simulado):
+"commit: añade deploy.sh y config/db.py"`, "200 OK - application/octet-stream"),
+  "/.git/logs/HEAD": () => page(200, `0000001 04d2a9f dev-angel <angel@vulnerable.local> 1712000000 +0100  commit: añade deploy.sh y config/db.py
+04d2a9f 9f8e7d6 dev-angel <angel@vulnerable.local> 1711000000 +0100  commit: fix auth
+9f8e7d6 1a2b3c4 dev-angel <angel@vulnerable.local> 1709000000 +0100  commit: init`, "200 OK - text/plain")
+};
+
+function page(status, body, meta){
+  return {status, body, meta};
+}
+
+/* ---------- Escenario HARDENED: .git bloqueado correctamente ---------- */
+const hardenedRoutes = {
+  "/": () => page(200, `<!doctype html>
+<html><head><title>hardened.local</title></head>
+<body style="font-family:monospace;padding:30px;background:#111;color:#eee">
+<h1>hardened.local</h1>
+<p>Blog corporativo - versión 2.4.1</p>
+<hr>
+<a href="/robots.txt">robots.txt</a> | <a href="/admin">admin</a>
+</body></html>`, "200 OK - text/html"),
+  "/robots.txt": () => page(200, `User-agent: *
+Disallow: /admin`, "200 OK - text/plain"),
+  "/admin": () => page(403, `403 Forbidden
+
+Acceso restringido a la red interna.`, "403 Forbidden - text/plain")
+};
+let scenario = "vulnerable";
+
+function switchScenario(s){
+  scenario = s;
+  const host = s === "vulnerable" ? "vulnerable.local" : "hardened.local";
+  document.getElementById("targetBadge").textContent = "Objetivo: https://" + host;
+  document.getElementById("urlBar").value = "https://" + host + "/";
+  term.innerHTML = "";
+  t("[*] Escenario cambiado a " + host, "info");
+  if(s === "hardened"){
+    t("[i] Este servidor está correctamente configurado: los archivos ocultos de control de versiones (.git, .svn, .hg) están bloqueados en el servidor web.", "info");
+    t("[i] Prueba a navegar /.git/ o /.git/config en el panel izquierdo, o ejecutar git-dumper: verás el ataque fallar.", "info");
+  } else {
+    t("[i] Escenario original: vulnerable.local con .git accesible vía directory listing.", "info");
+  }
+  t("");
+  repoReady = false; workingTreeRestored = false; downloaded = new Set();
+  navigate();
+}
+
+function navigate(){
+  const raw = document.getElementById("urlBar").value.trim();
+  let host = raw.replace(/^https?:\/\//, "").split("/")[0];
+  let path = raw.replace(/^https?:\/\/[^/]+/, "");
+  if(!path.startsWith("/")) path = "/" + path;
+  const table = (host === "hardened.local" || (host === "" && scenario === "hardened")) ? hardenedRoutes : routes;
+  // En hardened, cualquier ruta .git devuelve 403 aunque no exista en la tabla
+  const isGitPath = path.startsWith("/.git");
+  const el = document.getElementById("webview");
+  if(isGitPath && table === hardenedRoutes){
+    el.innerHTML = `<div class="status-403">HTTP/1.1 403 Forbidden (regla del servidor: bloqueo de .git)</div><hr>&lt;!--
+RewriteEngine On
+RewriteRule "^\\.(git|svn|hg)/" "-" [F]
+--&gt;
+Access denied by server configuration.`;
+    logHttp(host + path, 403);
+    return;
+  }
+  const found = table[path];
+  if(found){
+    const r = found();
+    const cls = r.status===200 ? "status-ok" : r.status===403 ? "status-403" : "status-404";
+    el.innerHTML = `<div class="${cls}">HTTP/1.1 ${r.meta}</div><hr>` + escapeHtml(r.body);
+    logHttp(host + path, r.status);
+  } else {
+    el.innerHTML = `<div class="status-404">HTTP/1.1 404 Not Found</div><hr>404`;
+    logHttp(host + path, 404);
+  }
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+
+/* ============================================================
+   TERMINAL
+   ============================================================ */
+const term = document.getElementById("term");
+function t(msg, cls){
+  const span = document.createElement("span");
+  if(cls) span.className = cls;
+  span.textContent = msg + "\n";
+  term.appendChild(span);
+  term.scrollTop = term.scrollHeight;
+  const bar = document.getElementById("bar");
+  bar.style.width = Math.min(100, downloaded.size * 12) + "%";
+}
+function logHttp(path, status){
+  t(`[HTTP] GET https://${path} -> ${status}`, status===200?"dim":"warn");
+}
+
+t("╔══════════════════════════════════════════════════════════╗");
+t("║  LABORATORIO DE CIBERSEGURIDAD - SIMULADOR git-dumper    ║");
+t("║  Todo el tráfico es SIMULADO en tu navegador. Sin red.    ║");
+t("║  Uso educativo/autorizado únicamente.                     ║");
+t("╚══════════════════════════════════════════════════════════╝","warn");
+t("");
+t("Objetivo simulado: https://vulnerable.local/.git/");
+t("Escribe 'help' para ver los comandos disponibles.");
+t("");
+
+const help = () => {
+  t("Comandos disponibles:", "info");
+  t("  help                              muestra esta ayuda");
+  t("  git-dumper <url> <dir>            vuelca el .git expuesto en <dir>");
+  t("  ls <dir>                          lista archivos del repo volcado");
+  t("  cat <archivo>                     muestra un archivo del repo");
+  t("  git log --oneline                 historial reconstruido");
+  t("  git checkout .                    restaura el working tree");
+  t("  clear                             limpia la terminal");
+  t("");
+  t("Flujo típico: navega /.git/ en el panel izquierdo, luego ejecuta:", "dim");
+  t("  git-dumper https://vulnerable.local/.git/ repo", "dim");
+};
+
+async function simulateDumper(url, dir){
+  t(`git-dumper ${url} ${dir}`, "cmd");
+  if(!url.includes("/.git")){
+    t("[-] URL inválida: debe apuntar al directorio .git (p.ej. https://vulnerable.local/.git/)", "err");
+    return;
+  }
+  if(url.includes("hardened.local")){
+    t(`[*] Comprobando ${url}HEAD ...`, "dim");
+    await sleep(500);
+    t("[-] Error: 403 Forbidden al descargar HEAD. El servidor bloquea el acceso a .git/.", "err");
+    t("[-] git-dumper no puede continuar: no hay un .git accesible que volcar.", "err");
+    t("");
+    t("[✔] El sitio está correctamente protegido. Buenas prácticas aplicadas en hardened.local:", "ok");
+    t("    1. RewriteRule del servidor web bloquea ^\\.(git|svn|hg)/", "dim");
+    t("    2. El directorio .git NO se despliega en la raíz pública (build sin metadata de VCS).", "dim");
+    t("    3. robots.txt no filtra pistas, y los errores 403 son uniformes.", "dim");
+    t("    4. Secretos gestionados fuera del repo (vault/entorno), nunca en commits.", "dim");
+    return;
+  }
+  t(`[*] Comprobando ${url}HEAD ...`, "dim");
+  await sleep(300); t("[+] HEAD encontrado: ref: refs/heads/main", "ok");
+  t(`[*] Descargando ${url}index ...`, "dim");
+  await sleep(400); t("[+] index descargado (1,2 KB)", "ok");
+  downloaded.add("index");
+  t("[*] Descargando objetos:", "dim");
+  for(const [i, obj] of ["04d2a9f7 (commit main)","a1b2c3d  (README.md)","e4f5a6b  (index.html)","c7d8e9f  (app.py)","0f1a2b3  (config/db.py)","4d5e6f7  (.env.example)","8899aab  (static/style.css)","ccddeef  (deploy.sh)"].entries()){
+    await sleep(220);
+    downloaded.add(obj);
+    t(`    -> ${url}objects/${obj.slice(0,2)}/${obj.slice(3,10)}  OK`, "ok");
+  }
+  t("[*] Descargando pack: pack-98e2b1d3c4a5.pack (1.4 MB) ...", "dim");
+  await sleep(600); t("[+] Pack descargado y verificado", "ok");
+  t(`[+] Repositorio volcado en ./${dir}/ (${downloaded.size + 3} objetos)`, "ok");
+  repoReady = true;
+  t("");
+  t("Repositorio .git reconstruido. Ahora ejecuta 'git checkout .' para restaurar el código fuente.", "info");
+}
+
+function sleep(ms){ return new Promise(r=>setTimeout(r, ms)); }
+
+function runCmd(line){
+  const parts = line.trim().split(/\s+/);
+  const cmd = parts[0];
+
+  if(cmd === "clear"){ term.innerHTML=""; return; }
+  if(cmd === "help"){ help(); return; }
+  if(cmd === "git-dumper"){ simulateDumper(parts[1]||"", parts[2]||"repo"); return; }
+
+  if(cmd === "git"){
+    if(!repoReady){ t("fatal: no es un repositorio git (ejecuta primero git-dumper)", "err"); return; }
+    if(parts[1]==="log"){
+      t("1a2b3c4 (HEAD -> main) init", "info");
+      t("9f8e7d6 fix auth", "info");
+      t("04d2a9f añade deploy.sh y config/db.py", "info");
+      t("Autenticidad de commits verificada: el historial completo del servidor está expuesto.", "warn");
+      return;
+    }
+    if(parts[1]==="checkout"){
+      t("Actualizando archivos: 100% (7/7), listo.", "ok");
+      workingTreeRestored = true;
+      t("");
+      t("¡Código fuente restaurado! Revisa 'config/db.py' y 'deploy.sh' en busca de secretos.", "warn");
+      return;
+    }
+    t("git: '"+ (parts[1]||"") +"' no es un comando de este simulador", "err"); return;
+  }
+
+  if(cmd === "ls"){
+    if(!workingTreeRestored){ t(parts[1]+": .git vacío, sin working tree. Usa 'git checkout .'", "warn"); return; }
+    t("README.md  app.py  config/  deploy.sh  .env.example  static/", "info"); return;
+  }
+
+  if(cmd === "cat"){
+    const f = parts[1]?.replace(/^repo\//,"");
+    if(!workingTreeRestored){ t("cat: archivo no disponible. Ejecuta 'git checkout .' primero.", "warn"); return; }
+    if(f && SOURCES[f]){
+      t("────┤ "+f+" ├────────────", "dim");
+      SOURCES[f].split("\n").forEach(l=>t("  "+l));
+      if(f==="config/db.py"||f===".env.example") t("⚠ SECRETOS EN CLARO ENCONTRADOS: credenciales filtradas.", "err");
+      return;
+    }
+    t("cat: "+(f||"")+": archivo no encontrado", "err"); return;
+  }
+
+  if(cmd===""){ return; }
+  t(cmd+": comando no encontrado. Escribe 'help'.", "err");
+}
+
+const input = document.getElementById("cmdInput");
+input.addEventListener("keydown", e=>{
+  if(e.key==="Enter"){
+    const v = input.value;
+    t("pentester@lab:~$ "+v, "cmd");
+    input.value="";
+    runCmd(v);
+  }
+});
+
+navigate(); // cargar la home
+</script>
+</body>
+</html>

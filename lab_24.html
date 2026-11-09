@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PhishBox - Laboratorio de análisis de phishing</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#111823; --panel2:#0e141d; --border:#1f2a3a;
+    --green:#3ddc84; --red:#ff5f56; --amber:#f5bf4f; --blue:#59a7ff;
+    --text:#d6e2f0; --muted:#7d8fa5; --mono:Consolas,'Liberation Mono',Menlo,monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,sans-serif;font-size:14px}
+  header{padding:14px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;letter-spacing:.5px}
+  .badge{font-size:11px;padding:3px 10px;border-radius:99px;border:1px solid var(--border);color:var(--muted)}
+  .badge.edu{color:var(--amber);border-color:var(--amber)}
+  .layout{display:grid;grid-template-columns:1.15fr .85fr;gap:14px;padding:14px 20px}
+  @media(max-width:980px){.layout{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--border);border-radius:10px;overflow:hidden;display:flex;flex-direction:column}
+  .panel h2{margin:0;padding:10px 14px;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);border-bottom:1px solid var(--border);background:var(--panel2)}
+  .content{padding:12px;overflow:auto}
+  .hint{color:var(--muted);font-size:12px;padding:8px 12px;border-top:1px solid var(--border);background:var(--panel2)}
+  /* cliente de correo */
+  .mailrow{display:flex;gap:10px;padding:12px;border:1px solid var(--border);border-radius:8px;margin-bottom:8px;cursor:pointer;background:var(--panel2)}
+  .mailrow:hover{border-color:var(--blue)}
+  .mailrow.active{border-color:var(--blue);background:#12202f}
+  .mailrow .from{font-weight:600}
+  .mailrow .subject{color:var(--text);font-size:13px}
+  .mailrow .sub{color:var(--muted);font-size:12px}
+  .avatar{width:38px;height:38px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-weight:700;flex:none}
+  .emailview{font-size:13.5px;line-height:1.6}
+  .emailview .hdr{font-family:var(--mono);font-size:12px;background:var(--panel2);border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:12px}
+  .emailview .hdr b{color:var(--muted)}
+  .btnlink{display:inline-block;background:#1c4f8a;color:#fff;border-radius:5px;padding:8px 18px;text-decoration:none;font-weight:600;cursor:pointer}
+  .attach{display:inline-flex;align-items:center;gap:8px;border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-top:10px;background:var(--panel2);cursor:pointer;font-family:var(--mono);font-size:12px}
+  .tooltip{position:relative;border-bottom:1px dotted var(--blue);cursor:help}
+  .tooltip .tip{visibility:hidden;width:280px;background:#0a0e13;color:var(--amber);border:1px solid var(--amber);border-radius:6px;padding:8px;font-family:var(--mono);font-size:11px;position:absolute;z-index:9;bottom:130%;left:50%;transform:translateX(-50%)}
+  .tooltip:hover .tip{visibility:visible}
+  /* verificaciones */
+  .check{border:1px solid var(--border);border-radius:8px;margin-bottom:10px;overflow:hidden;background:var(--panel2)}
+  .check summary{padding:10px 12px;cursor:pointer;font-weight:600;display:flex;gap:8px;align-items:center;list-style:none}
+  .check summary::-webkit-details-marker{display:none}
+  .check .body{padding:0 12px 12px;font-size:13px}
+  .tag{font-size:10px;padding:2px 8px;border-radius:99px;font-weight:700;letter-spacing:.5px}
+  .tag.pending{background:#26303d;color:var(--muted)}
+  .tag.fail{background:rgba(255,95,86,.15);color:var(--red)}
+  .tag.pass{background:rgba(61,220,132,.15);color:var(--green)}
+  .mono{font-family:var(--mono);font-size:12px}
+  .kv{font-family:var(--mono);font-size:12px;line-height:1.7}
+  .kv .k{color:var(--muted)}
+  .verdict{border-radius:10px;padding:14px;margin-top:12px;font-weight:700}
+  .verdict.phish{background:rgba(255,95,86,.12);border:1px solid var(--red);color:var(--red)}
+  .verdict.clean{background:rgba(61,220,132,.12);border:1px solid var(--green);color:var(--green)}
+  .layer{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px dashed var(--border);font-size:13px}
+  .layer:last-child{border:none}
+  .layer .n{flex:none;width:22px;height:22px;border-radius:50%;background:#1c2735;border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-size:11px;color:var(--blue)}
+  .flag{color:var(--red);font-weight:600}
+  .note{color:var(--muted);font-size:12px}
+</style>
+</head>
+<body>
+<header>
+  <h1>&#128233; PhishBox</h1>
+  <span class="badge">Cadena moderna: phishing &#8594; credenciales &#8594; sesión &#8594; MFA fatigued &#8594; acceso</span>
+  <span class="badge edu">&#127891; Simulación offline y educativa</span>
+  <span class="badge">+90% de intrusiones empiezan con un correo</span>
+</header>
+
+<div class="layout">
+  <!-- CLIENTE DE CORREO -->
+  <section class="panel">
+    <h2>1 · Bandeja de entrada (cliente simulado)</h2>
+    <div class="content" style="max-height:560px">
+      <div id="maillist"></div>
+      <div id="emailview" class="emailview"></div>
+    </div>
+    <div class="hint">Selecciona un correo. Pasa el ratón (<b>hover</b>) sobre los enlaces antes de hacer clic, abre el adjunto y revisa cada verificación a la derecha.</div>
+  </section>
+
+  <!-- PANEL DE ANALISTA -->
+  <section class="panel">
+    <h2>2 · Panel del analista - 4 verificaciones</h2>
+    <div class="content" style="max-height:560px">
+      <div id="checks"></div>
+      <div id="verdict"></div>
+      <h2 style="margin:16px 0 8px;padding:0;font-size:12px;text-transform:uppercase;letter-spacing:1px;color:var(--muted)">&#128737; Remediación en capas</h2>
+      <div id="layers"></div>
+    </div>
+  </section>
+</div>
+
+<script>
+/* ============================================================
+   DATOS: correo phishing vs correo legítimo
+   ============================================================ */
+const MAILS = [
+  {
+    id: "phish",
+    avatar: "M", avColor: "#8a2be2",
+    nameVisible: "Soporte Microsoft",
+    from: "soporte@micosoft-help.com",
+    subject: "⚠ Acceso limitado a tu cuenta - verificación urgente",
+    snippet: "Tu cuenta será suspendida en 24 horas...",
+    date: "Hoy 03:47",
+    body: `<p>Estimado usuario,</p>
+      <p>Hemos detectado un <b>inicio de sesión inusual</b> en tu cuenta. Si no verificas tu identidad en <b>24 horas</b>, tu acceso quedará <b>suspendido permanentemente</b>.</p>
+      <p>Verifica tu cuenta ahora:</p>
+      <p><span class="btnlink tooltip">Verificar mi cuenta ahora<span class="tip">URL real del enlace (visible solo con hover / inspección):<br>https://micosoft-help.com/login?redirect=credential-harvest<br>&#9888; Dominio distinto a microsoft.com. ¡No es el sitio oficial!</span></span></p>
+      <p>Gracias,<br>El equipo de soporte</p>`,
+    attachment: "Verificacion_Cuenta.html.docx",
+    headers: {
+      "Return-Path": "soporte@micosoft-help.com",
+      "From": "Soporte Microsoft &lt;soporte@micosoft-help.com&gt;",
+      "Reply-To": "recover.assist@secure-mail-top.ru",
+      "Received": "from vps-4591.unknown-host.ru (185.220.x.x) por mx.destino.local",
+      "SPF": "softfail (dominio micosoft-help.com: el servidor 185.220.x.x no está autorizado)",
+      "DKIM": "none (el mensaje no está firmado)",
+      "DMARC": "none (el dominio no publica política; alineación imposible de evaluar)"
+    },
+    urls: [{text:"Verificar mi cuenta ahora", real:"https://micosoft-help.com/login?redirect=credential-harvest", bad:true}],
+    attachmentAnalysis: "Documento ofimático con macros VBA (AutoOpen). Sandboxing simulado: la macro intenta descargar un loader desde hxxp://185.220.x.x/stage2.exe. Señales: doble extensión .html.docx, macros habilitadas, icono manipulado.",
+    verdict: "PHISHING"
+  },
+  {
+    id: "clean",
+    avatar: "L", avColor: "#2e7d32",
+    nameVisible: "Microsoft Teams",
+    from: "teams@microsoft.com",
+    subject: "Resumen de tu actividad semanal en Teams",
+    snippet: "Esto es lo que te perdiste la semana pasada...",
+    date: "Hoy 09:12",
+    body: `<p>Hola Angel,</p>
+      <p>Esto es un resumen de tu actividad en Teams de la semana pasada. No requiere ninguna acción inmediata.</p>
+      <p><span class="btnlink tooltip" style="background:#444">Ver resumen en Teams<span class="tip">URL real del enlace:<br>https://teams.microsoft.com/l/activity-feed<br>&#10004; Dominio legítimo microsoft.com sobre HTTPS.</span></span></p>
+      <p>Sin urgencia artificial, sin adjuntos ejecutables, remitente verificado.</p>`,
+    attachment: null,
+    headers: {
+      "Return-Path": "bounce@teams.microsoft.com",
+      "From": "Microsoft Teams &lt;teams@microsoft.com&gt;",
+      "Received": "from mail-oln.microsoft.com (outlook.com infraestructura)",
+      "SPF": "pass (servidor autorizado para microsoft.com)",
+      "DKIM": "pass (firma válida, d=microsoft.com)",
+      "DMARC": "pass (p=reject; alineación From correcta)"
+    },
+    urls: [{text:"Ver resumen en Teams", real:"https://teams.microsoft.com/l/activity-feed", bad:false}],
+    attachmentAnalysis: null,
+    verdict: "LIMPIO"
+  }
+];
+
+let current = MAILS[0];
+const checksDone = {dominio:false, headers:false, urls:false, adjunto:false};
+
+/* ---------- render bandeja ---------- */
+function renderList(){
+  document.getElementById("maillist").innerHTML = MAILS.map(m=>`
+    <div class="mailrow ${m.id===current.id?'active':''}" onclick="selectMail('${m.id}')">
+      <div class="avatar" style="background:${m.avColor}">${m.avatar}</div>
+      <div style="flex:1">
+        <div class="from">${escapeHtml(m.nameVisible)} <span class="sub">&lt;${escapeHtml(m.from)}&gt;</span></div>
+        <div class="subject">${escapeHtml(m.subject)}</div>
+        <div class="sub">${escapeHtml(m.snippet)} · ${m.date}</div>
+      </div>
+    </div>`).join("");
+}
+
+function escapeHtml(s){return s.replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;");}
+
+function selectMail(id){
+  current = MAILS.find(m=>m.id===id);
+  checksDone.dominio=checksDone.headers=checksDone.urls=checksDone.adjunto=false;
+  renderList(); renderEmail(); renderChecks();
+  document.getElementById("verdict").innerHTML = "";
+}
+
+/* ---------- render correo ---------- */
+function renderEmail(){
+  const m = current;
+  document.getElementById("emailview").innerHTML = `
+    <div class="hdr">
+      <b>De:</b> ${escapeHtml(m.nameVisible)} &lt;${escapeHtml(m.from)}&gt;<br>
+      <b>Responder a:</b> ${escapeHtml(m.headers["Reply-To"]||m.from)}<br>
+      <b>Asunto:</b> ${escapeHtml(m.subject)}
+    </div>
+    ${m.body}
+    ${m.attachment?`<span class="attach" onclick="analyzeAttachment()">&#128206; ${escapeHtml(m.attachment)} <span class="sub">(¿abrir?)</span></span>`:""}
+  `;
+}
+
+/* ---------- render verificaciones ---------- */
+function renderChecks(){
+  const m = current;
+  const isPhish = m.verdict==="PHISHING";
+  document.getElementById("checks").innerHTML = `
+    <details class="check" ontoggle="checksDone.dominio=true;checkVerdict()">
+      <summary>&#127760; 1 · Dominio real del remitente <span class="tag pending">revisar</span></summary>
+      <div class="body">
+        <div class="kv"><span class="k">Nombre visible:</span> ${escapeHtml(m.nameVisible)}</div>
+        <div class="kv"><span class="k">Dominio real:</span> ${escapeHtml(m.from.split("@")[1])}</div>
+        <div class="kv"><span class="k">Reply-To:</span> ${escapeHtml(m.headers["Reply-To"]||"—")}</div>
+        ${isPhish
+          ? `<p><span class="flag">&#9888; Suplantación:</span> "micosoft-help.com" <b>no es</b> microsoft.com. Un guion o letra cambiada es la técnica clásica del <i>typosquatting</i>. El nombre visible ("Soporte Microsoft") es texto libre: nunca confíes en él.</p>`
+          : `<p><span style="color:var(--green)">&#10004; Dominio legítimo</span> microsoft.com, alineado con el remitente y el Reply-To.</p>`}
+      </div>
+    </details>
+
+    <details class="check" ontoggle="checksDone.headers=true;checkVerdict()">
+      <summary>&#9993; 2 · Cabeceras SPF / DKIM / DMARC <span class="tag pending">revisar</span></summary>
+      <div class="body">
+        <div class="kv">${Object.entries(m.headers).map(([k,v])=>`<span class="k">${k}:</span> ${escapeHtml(v)}`).join("<br>")}</div>
+        <ul style="padding-left:18px;margin:8px 0">
+          <li><b>SPF</b> autoriza qué servidores pueden enviar en nombre del dominio.</li>
+          <li><b>DKIM</b> firma criptográficamente el mensaje (integridad).</li>
+          <li><b>DMARC</b> define qué hacer si SPF/DKIM fallan y exige alineación con el From.</li>
+        </ul>
+        ${isPhish
+          ? `<p><span class="flag">&#9888; softfail + sin DKIM + sin DMARC:</span> desalineación total. Suplantación no solo posible, sino evidente. Servidor de origen: VPS anónima.</p>`
+          : `<p><span style="color:var(--green)">&#10004; pass / pass / pass (p=reject):</span> cadena de confianza completa.</p>`}
+      </div>
+    </details>
+
+    <details class="check" ontoggle="checksDone.urls=true;checkVerdict()">
+      <summary>&#128279; 3 · URLs vs texto del enlace <span class="tag pending">revisar</span></summary>
+      <div class="body">
+        ${m.urls.map(u=>`
+          <div class="kv"><span class="k">Texto visible:</span> "${escapeHtml(u.text)}"<br>
+          <span class="k">URL real:</span> ${u.bad?`<span class="flag">${escapeHtml(u.real)}</span>`:escapeHtml(u.real)}</div>`).join("")}
+        <p class="note">Regla de oro: pasa el cursor (<b>hover</b>) sobre el enlace ANTES de hacer clic y compara el dominio. También: pulsación larga en móvil, o clic derecho &#8594; copiar enlace.</p>
+        ${isPhish?`<p><span class="flag">&#9888; El texto dice "Verificar mi cuenta", pero la URL apunta a un dominio de cosecha de credenciales.</span> Además el correo empuja urgencia artificial ("24 horas").</p>`:`<p><span style="color:var(--green)">&#10004; El dominio de la URL coincide con el remitente legítimo.</span></p>`}
+      </div>
+    </details>
+
+    <details class="check" ontoggle="checksDone.adjunto=true;checkVerdict()">
+      <summary>&#128206; 4 · Adjuntos <span class="tag pending">revisar</span></summary>
+      <div class="body">
+        ${m.attachment
+          ? `<p><span class="flag">&#128206; ${escapeHtml(m.attachment)}</span><br><span class="note">Doble extensión y macros: la puerta de entrada clásica. ${escapeHtml(m.attachmentAnalysis||"")}</span></p>
+             <p class="note">La ofimática con macros (.docm, .xls con VBA, doble extensión) casi siempre es el vector. También vigil: .iso/.img, .lnk, .js, .hta, y PDFs que piden "modo edición".</p>`
+          : `<p><span style="color:var(--green)">&#10004; Sin adjuntos ejecutables.</span> Solo enlaces internos al dominio corporativo.</p>`}
+      </div>
+    </details>`;
+}
+
+function analyzeAttachment(){
+  alert(current.attachment ? "⚠ Bloqueado por el laboratorio: no se abre nunca un adjunto sospechoso.\n\n" + current.attachmentAnalysis : "");
+}
+
+/* ---------- veredicto ---------- */
+function checkVerdict(){
+  if(!Object.values(checksDone).every(Boolean)) return;
+  const isPhish = current.verdict==="PHISHING";
+  document.getElementById("verdict").innerHTML = isPhish
+    ? `<div class="verdict phish">&#9888; VEREDICTO: PHISHING<br><span style="font-weight:400;font-size:12px">Las 4 verificaciones fallan. Reportar a seguridad, no hacer clic, eliminar. Cadena que intenta iniciar: phishing &#8594; credenciales robadas &#8594; sesión válida &#8594; fatiga MFA &#8594; acceso.</span></div>`
+    : `<div class="verdict clean">&#10004; VEREDICTO: LEGÍTIMO<br><span style="font-weight:400;font-size:12px">SPF/DKIM/DMARC alineados, dominio correcto, URLs coherentes, sin adjuntos peligrosos.</span></div>`;
+  renderChecks(); // refresca tags a pass/fail
+  document.querySelectorAll(".tag.pending").forEach((el,i)=>{});
+}
+
+/* ---------- remediación en capas ---------- */
+document.getElementById("layers").innerHTML = [
+  ["Dominio propio: SPF + DKIM + DMARC (p=reject)", "Impide que otros suplanten TU dominio y da a los filtros una política dura."],
+  ["Filtrado de correo", "Sandboxing de adjuntos, detonación de URLs, reputación de dominios y cuarentena."],
+  ["MFA resistente a phishing (FIDO2 / passkeys)", "La autenticación está vinculada al dominio real: un sitio de cosecha no puede reutilizarla. No hay código que teclear, por tanto no hay fatiga MFA ni interceptación del OTP."],
+  ["Formación continua del usuario", "El usuario es la última capa: hover antes del clic, desconfiar de la urgencia, canal de reporte de 1 clic."]
+].map((l,i)=>`<div class="layer"><div class="n">${i+1}</div><div><b>${l[0]}</b><br><span class="note">${l[1]}</span></div></div>`).join("");
+
+renderList(); renderEmail(); renderChecks();
+</script>
+</body>
+</html>

